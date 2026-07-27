@@ -45,3 +45,9 @@ export function formatDateTime(iso: string): string {
     minute: '2-digit',
   });
 }
+
+/** Format an ISO timestamp as a local clock time (e.g. "06:30"). */
+export function formatTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}

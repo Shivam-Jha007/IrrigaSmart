@@ -23,3 +23,11 @@ export {
 } from './knowledgeBase';
 export { ApiError, apiGet } from './apiClient';
 export { fetchWeather, getWeatherForFarm } from './weatherService';
+export {
+  detectCurrentPosition,
+  fetchLocationInfo,
+  GeolocationError,
+  type Coordinates,
+  type GeolocationErrorCode,
+  type LocationInfo,
+} from './locationService';

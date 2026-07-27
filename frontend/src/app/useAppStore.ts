@@ -4,8 +4,10 @@ import {
   cropRepository,
   farmRepository,
   farmerRepository,
+  getCachedWeather,
   getFarmsByFarmer,
   getHistoryByFarm,
+  getRecommendationsByFarm,
   getSettings,
   historyRepository,
   recommendationRepository,
@@ -13,8 +15,9 @@ import {
   soilRepository,
 } from '../storage';
 import { generateRecommendation, getWeatherForFarm } from '../services';
+import { translate, type TranslateFn } from '../i18n';
 import type { Settings } from '../types';
-import type { AppData, FarmDraft, FarmProfile, RecommendationView } from './appTypes';
+import type { AppData, FarmDraft, FarmProfile, FarmSummary, RecommendationView } from './appTypes';
 import { buildCrop, buildSoil } from './entityFactories';
 import { DEFAULT_FARMER, SETTINGS_FALLBACK } from './defaults';
 
@@ -40,6 +43,8 @@ function newId(prefix: string): string {
 
 export interface AppStore extends AppData {
   loading: boolean;
+  /** Translate a UI key using the language from Settings (roadmap Feature 2). */
+  t: TranslateFn;
   /** Create or update a farm (with its crop and soil) from a form draft. */
   saveFarm(draft: FarmDraft): Promise<void>;
   /** Delete a farm and its associated crop, soil, recommendations, history. */
@@ -48,6 +53,11 @@ export interface AppStore extends AppData {
   generateForFarm(farmId: string): Promise<RecommendationView | null>;
   /** History records for a farm, newest first, with their recommendations. */
   loadHistory(farmId: string): Promise<Array<{ record: HistoryRecord; recommendation: Recommendation | undefined }>>;
+  /**
+   * Per-farm overviews for the enhanced dashboard (roadmap Feature 3).
+   * Reads stored recommendations and the weather cache only — never fetches.
+   */
+  loadFarmSummaries(): Promise<FarmSummary[]>;
   /** Update user settings. */
   updateSettings(next: Settings): Promise<void>;
   /** Update the farmer profile. */
@@ -165,6 +175,7 @@ export function useAppStore(): AppStore {
         soil: profile.soil,
         weather,
         now,
+        language: settings.preferredLanguage,
       });
 
       if (!result.ok) {
@@ -188,8 +199,23 @@ export function useAppStore(): AppStore {
         weatherMissing: weather === null,
       };
     },
-    [profiles],
+    [profiles, settings.preferredLanguage],
   );
+
+  const loadFarmSummaries = useCallback(async (): Promise<FarmSummary[]> => {
+    return Promise.all(
+      profiles.map(async ({ farm }) => {
+        const recs = await getRecommendationsByFarm(farm.id);
+        const latest = recs.sort((a, b) => b.generatedTime.localeCompare(a.generatedTime))[0] ?? null;
+        const cached = await getCachedWeather(farm.id);
+        return {
+          farmId: farm.id,
+          latestRecommendation: latest,
+          weatherCachedAt: cached?.cachedAt ?? null,
+        };
+      }),
+    );
+  }, [profiles]);
 
   const loadHistory = useCallback(async (farmId: string) => {
     const records = await getHistoryByFarm(farmId);
@@ -212,14 +238,21 @@ export function useAppStore(): AppStore {
     setFarmer(next);
   }, []);
 
+  const t: TranslateFn = useCallback(
+    (key, vars) => translate(settings.preferredLanguage, key, vars),
+    [settings.preferredLanguage],
+  );
+
   return {
     farmer,
     profiles,
     settings,
     loading,
+    t,
     saveFarm,
     deleteFarm,
     generateForFarm,
+    loadFarmSummaries,
     loadHistory,
     updateSettings,
     updateFarmer,

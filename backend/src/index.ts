@@ -1,14 +1,17 @@
 import cors from 'cors';
 import express, { type Request, type Response } from 'express';
+import { fetchLocationInfo, LocationProviderError } from './location.js';
 import { fetchWeather, WeatherProviderError } from './weather.js';
 
 /**
  * Backend API (docs/01_System_Architecture.md, docs/04_System_Interfaces.md).
  *
- * Responsibilities: weather retrieval (Interface 5), plus future synchronization
- * and shared datasets. Persistent farmer/farm data lives client-side in
- * IndexedDB for the offline-first MVP (docs/03_Data_Models.md), so the backend
- * only exposes the weather resource and a health check in the MVP.
+ * Responsibilities: weather retrieval (Interface 5), reverse geocoding and soil
+ * lookup for Smart Farm Location (docs/12_Product_Roadmap_v2.md Feature 1),
+ * plus future synchronization and shared datasets. Persistent farmer/farm data
+ * lives client-side in IndexedDB for the offline-first MVP
+ * (docs/03_Data_Models.md), so the backend only exposes stateless provider
+ * proxies and a health check.
  */
 
 const app = express();
@@ -74,6 +77,34 @@ app.get('/api/weather', (req: Request, res: Response) => {
       res.status(status).json({
         status: 'error',
         errorCode: status === 400 ? 'INVALID_INPUT' : 'WEATHER_UNAVAILABLE',
+        message,
+        timestamp: nowIso(),
+      });
+    }
+  })();
+});
+
+/**
+ * GET /api/location?lat={lat}&lon={lon}
+ *
+ * Reverse geocoding + soil suggestion for Smart Farm Location
+ * (docs/12_Product_Roadmap_v2.md Feature 1). Returns village/district/state and
+ * a best-effort suggested soil type that the farmer must always confirm.
+ */
+app.get('/api/location', (req: Request, res: Response) => {
+  const lat = Number(req.query.lat);
+  const lon = Number(req.query.lon);
+
+  void (async () => {
+    try {
+      const location = await fetchLocationInfo(lat, lon);
+      res.json({ status: 'ok', data: location, timestamp: nowIso() });
+    } catch (error) {
+      const status = error instanceof LocationProviderError ? error.status : 500;
+      const message = error instanceof Error ? error.message : 'unexpected error';
+      res.status(status).json({
+        status: 'error',
+        errorCode: status === 400 ? 'INVALID_INPUT' : 'LOCATION_UNAVAILABLE',
         message,
         timestamp: nowIso(),
       });

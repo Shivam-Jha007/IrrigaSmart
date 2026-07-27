@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AppStore } from '../app/useAppStore';
 import type { HistoryRecord, Recommendation } from '../types';
+import { statusLabelKey } from '../i18n';
 import { formatDateTime, formatLiters, statusColor } from '../components/format';
 
 /**
@@ -18,7 +19,7 @@ interface Entry {
 }
 
 export function HistoryPage({ store }: Props) {
-  const { profiles } = store;
+  const { profiles, t } = store;
   const [selectedFarmId, setSelectedFarmId] = useState<string>('');
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -54,18 +55,18 @@ export function HistoryPage({ store }: Props) {
   if (profiles.length === 0) {
     return (
       <div className="page">
-        <h2 className="page__title">History</h2>
-        <p className="empty-state">No farms yet. Add a farm to start building history.</p>
+        <h2 className="page__title">{t('history.title')}</h2>
+        <p className="empty-state">{t('history.noFarms')}</p>
       </div>
     );
   }
 
   return (
     <div className="page">
-      <h2 className="page__title">History</h2>
+      <h2 className="page__title">{t('history.title')}</h2>
 
       <label className="field">
-        <span className="field__label">Farm</span>
+        <span className="field__label">{t('history.farmLabel')}</span>
         <select
           className="field__input"
           value={selectedFarmId}
@@ -79,13 +80,9 @@ export function HistoryPage({ store }: Props) {
         </select>
       </label>
 
-      {loading && <p className="dashboard__loading">Loading history…</p>}
+      {loading && <p className="dashboard__loading">{t('history.loading')}</p>}
 
-      {!loading && entries.length === 0 && (
-        <p className="empty-state">
-          No recommendations yet for this farm. Open the Today tab to generate one.
-        </p>
-      )}
+      {!loading && entries.length === 0 && <p className="empty-state">{t('history.empty')}</p>}
 
       {!loading && entries.length > 0 && (
         <ul className="history-list">
@@ -98,7 +95,7 @@ export function HistoryPage({ store }: Props) {
                     className="history-item__status"
                     style={{ color: statusColor(recommendation.status) }}
                   >
-                    {recommendation.status}
+                    {t(statusLabelKey(recommendation.status))}
                   </span>
                 )}
               </div>
@@ -108,13 +105,15 @@ export function HistoryPage({ store }: Props) {
                     <p className="history-item__water">
                       {formatLiters(recommendation.estimatedWaterAmount.volumeLiters)} ·{' '}
                       {recommendation.estimatedWaterAmount.depthMm.toFixed(1)} mm
-                      {recommendation.recommendedTime ? ` · at ${recommendation.recommendedTime}` : ''}
+                      {recommendation.recommendedTime
+                        ? ` · ${t('history.at')} ${recommendation.recommendedTime}`
+                        : ''}
                     </p>
                   )}
                   <p className="history-item__explanation">{recommendation.explanation}</p>
                 </>
               ) : (
-                <p className="history-item__explanation">Recommendation details unavailable.</p>
+                <p className="history-item__explanation">{t('history.unavailable')}</p>
               )}
             </li>
           ))}

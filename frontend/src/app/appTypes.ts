@@ -38,3 +38,16 @@ export interface RecommendationView {
   /** True when no weather (live or cached) was available. */
   weatherMissing: boolean;
 }
+
+/**
+ * Per-farm overview shown on the enhanced dashboard
+ * (docs/12_Product_Roadmap_v2.md Feature 3). Uses already-stored data only —
+ * loading summaries must never trigger network calls.
+ */
+export interface FarmSummary {
+  farmId: string;
+  /** Newest stored recommendation for the farm, if any. */
+  latestRecommendation: Recommendation | null;
+  /** ISO timestamp of the last cached weather write, if any. */
+  weatherCachedAt: string | null;
+}

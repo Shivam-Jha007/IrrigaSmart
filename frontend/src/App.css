@@ -173,6 +173,78 @@
   padding: var(--space-5) 0;
 }
 
+/* --- Farm cards (enhanced dashboard, roadmap Feature 3) --- */
+.farm-cards {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding-bottom: var(--space-1);
+  scroll-snap-type: x mandatory;
+}
+.farm-card {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+  min-width: 190px;
+  max-width: 230px;
+  text-align: left;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.farm-card--active {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow);
+}
+.farm-card__name {
+  font-weight: 700;
+  font-size: 1rem;
+}
+.farm-card__meta {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+.farm-card__status {
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-top: var(--space-1);
+}
+.farm-card__status--none {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+.farm-card__weather {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+/* --- Location tools (farm form, roadmap Feature 1) --- */
+.location-tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.soil-suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  background: #eef6ee;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  font-size: 0.88rem;
+}
+.soil-suggestion p {
+  margin: 0;
+}
+
 /* --- Recommendation card --- */
 .rec-card {
   background: var(--color-surface);
