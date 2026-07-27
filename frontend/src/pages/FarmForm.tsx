@@ -14,6 +14,11 @@ import type { FarmDraft, FarmProfile } from '../app/appTypes';
  * Captures only farmer-provided inputs; agronomic/soil attributes are derived
  * from the Knowledge Base by the store. Growth stage is a required farmer input
  * (docs/11_Decision_Logic.md §10).
+ *
+ * Numeric fields (latitude, longitude, area) are held as strings while editing
+ * so farmers can freely type decimals and signs (a controlled number input
+ * re-parses each keystroke and makes values like "23.6" or "-1.5" awkward to
+ * enter). They are parsed and validated on save.
  */
 
 interface Props {
@@ -22,14 +27,29 @@ interface Props {
   onCancel(): void;
 }
 
-function toDraft(profile?: FarmProfile): FarmDraft {
+/** Editing shape: numeric fields are strings so typing decimals/signs is easy. */
+interface FormValues {
+  id?: string;
+  name: string;
+  latitude: string;
+  longitude: string;
+  locationLabel: string;
+  area: string;
+  areaUnit: FarmDraft['areaUnit'];
+  cropName: FarmDraft['cropName'];
+  growthStage: FarmDraft['growthStage'];
+  soilType: FarmDraft['soilType'];
+  irrigationMethod: FarmDraft['irrigationMethod'];
+}
+
+function toFormValues(profile?: FarmProfile): FormValues {
   if (!profile) {
     return {
       name: '',
-      latitude: 0,
-      longitude: 0,
+      latitude: '',
+      longitude: '',
       locationLabel: '',
-      area: 1,
+      area: '1',
       areaUnit: 'Acre',
       cropName: 'Rice',
       growthStage: 'Mid Season',
@@ -41,10 +61,10 @@ function toDraft(profile?: FarmProfile): FarmDraft {
   return {
     id: farm.id,
     name: farm.name,
-    latitude: farm.location.latitude,
-    longitude: farm.location.longitude,
+    latitude: String(farm.location.latitude),
+    longitude: String(farm.location.longitude),
     locationLabel: farm.location.label ?? '',
-    area: farm.area,
+    area: String(farm.area),
     areaUnit: farm.areaUnit,
     cropName: crop.name,
     growthStage: crop.growthStage,
@@ -54,34 +74,61 @@ function toDraft(profile?: FarmProfile): FarmDraft {
 }
 
 export function FarmForm({ initial, onSave, onCancel }: Props) {
-  const [draft, setDraft] = useState<FarmDraft>(() => toDraft(initial));
+  const [values, setValues] = useState<FormValues>(() => toFormValues(initial));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function set<K extends keyof FarmDraft>(key: K, value: FarmDraft[K]) {
-    setDraft((d) => ({ ...d, [key]: value }));
+  function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
+    setValues((v) => ({ ...v, [key]: value }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!draft.name.trim()) {
+
+    if (!values.name.trim()) {
       setError('Please enter a farm name.');
       return;
     }
-    if (!(draft.area > 0)) {
-      setError('Field size must be greater than zero.');
+
+    if (values.latitude.trim() === '' || values.longitude.trim() === '') {
+      setError('Please enter the farm location (latitude and longitude).');
       return;
     }
+    const latitude = Number(values.latitude);
+    const longitude = Number(values.longitude);
+    const area = Number(values.area);
+
     if (
-      draft.latitude < -90 ||
-      draft.latitude > 90 ||
-      draft.longitude < -180 ||
-      draft.longitude > 180
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
     ) {
-      setError('Please enter a valid location (latitude/longitude).');
+      setError('Please enter a valid location (latitude -90 to 90, longitude -180 to 180).');
       return;
     }
+    if (!Number.isFinite(area) || area <= 0) {
+      setError('Field size must be a number greater than zero.');
+      return;
+    }
+
+    const draft: FarmDraft = {
+      ...(values.id ? { id: values.id } : {}),
+      name: values.name.trim(),
+      latitude,
+      longitude,
+      locationLabel: values.locationLabel,
+      area,
+      areaUnit: values.areaUnit,
+      cropName: values.cropName,
+      growthStage: values.growthStage,
+      soilType: values.soilType,
+      irrigationMethod: values.irrigationMethod,
+    };
+
     setSaving(true);
     try {
       await onSave(draft);
@@ -100,7 +147,7 @@ export function FarmForm({ initial, onSave, onCancel }: Props) {
         <input
           className="field__input"
           type="text"
-          value={draft.name}
+          value={values.name}
           onChange={(e) => set('name', e.target.value)}
           placeholder="e.g. North field"
         />
@@ -111,7 +158,7 @@ export function FarmForm({ initial, onSave, onCancel }: Props) {
         <input
           className="field__input"
           type="text"
-          value={draft.locationLabel}
+          value={values.locationLabel}
           onChange={(e) => set('locationLabel', e.target.value)}
           placeholder="e.g. Bolpur"
         />
@@ -122,20 +169,22 @@ export function FarmForm({ initial, onSave, onCancel }: Props) {
           <span className="field__label">Latitude</span>
           <input
             className="field__input"
-            type="number"
-            step="0.0001"
-            value={draft.latitude}
-            onChange={(e) => set('latitude', Number(e.target.value))}
+            type="text"
+            inputMode="decimal"
+            value={values.latitude}
+            onChange={(e) => set('latitude', e.target.value)}
+            placeholder="e.g. 23.6"
           />
         </label>
         <label className="field">
           <span className="field__label">Longitude</span>
           <input
             className="field__input"
-            type="number"
-            step="0.0001"
-            value={draft.longitude}
-            onChange={(e) => set('longitude', Number(e.target.value))}
+            type="text"
+            inputMode="decimal"
+            value={values.longitude}
+            onChange={(e) => set('longitude', e.target.value)}
+            placeholder="e.g. 87.7"
           />
         </label>
       </div>
@@ -145,19 +194,19 @@ export function FarmForm({ initial, onSave, onCancel }: Props) {
           <span className="field__label">Field size</span>
           <input
             className="field__input"
-            type="number"
-            step="0.1"
-            min="0"
-            value={draft.area}
-            onChange={(e) => set('area', Number(e.target.value))}
+            type="text"
+            inputMode="decimal"
+            value={values.area}
+            onChange={(e) => set('area', e.target.value)}
+            placeholder="e.g. 2"
           />
         </label>
         <label className="field">
           <span className="field__label">Unit</span>
           <select
             className="field__input"
-            value={draft.areaUnit}
-            onChange={(e) => set('areaUnit', e.target.value as FarmDraft['areaUnit'])}
+            value={values.areaUnit}
+            onChange={(e) => set('areaUnit', e.target.value as FormValues['areaUnit'])}
           >
             {AREA_UNITS.map((u) => (
               <option key={u} value={u}>
@@ -172,8 +221,8 @@ export function FarmForm({ initial, onSave, onCancel }: Props) {
         <span className="field__label">Crop</span>
         <select
           className="field__input"
-          value={draft.cropName}
-          onChange={(e) => set('cropName', e.target.value as FarmDraft['cropName'])}
+          value={values.cropName}
+          onChange={(e) => set('cropName', e.target.value as FormValues['cropName'])}
         >
           {CROP_NAMES.map((c) => (
             <option key={c} value={c}>
@@ -187,8 +236,8 @@ export function FarmForm({ initial, onSave, onCancel }: Props) {
         <span className="field__label">Growth stage</span>
         <select
           className="field__input"
-          value={draft.growthStage}
-          onChange={(e) => set('growthStage', e.target.value as FarmDraft['growthStage'])}
+          value={values.growthStage}
+          onChange={(e) => set('growthStage', e.target.value as FormValues['growthStage'])}
         >
           {GROWTH_STAGES.map((s) => (
             <option key={s} value={s}>
@@ -202,8 +251,8 @@ export function FarmForm({ initial, onSave, onCancel }: Props) {
         <span className="field__label">Soil type</span>
         <select
           className="field__input"
-          value={draft.soilType}
-          onChange={(e) => set('soilType', e.target.value as FarmDraft['soilType'])}
+          value={values.soilType}
+          onChange={(e) => set('soilType', e.target.value as FormValues['soilType'])}
         >
           {SOIL_TYPES.map((s) => (
             <option key={s} value={s}>
@@ -217,8 +266,8 @@ export function FarmForm({ initial, onSave, onCancel }: Props) {
         <span className="field__label">Irrigation method</span>
         <select
           className="field__input"
-          value={draft.irrigationMethod}
-          onChange={(e) => set('irrigationMethod', e.target.value as FarmDraft['irrigationMethod'])}
+          value={values.irrigationMethod}
+          onChange={(e) => set('irrigationMethod', e.target.value as FormValues['irrigationMethod'])}
         >
           {IRRIGATION_METHODS.map((m) => (
             <option key={m} value={m}>
