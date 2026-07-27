@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notificationsEnabled: false,
   offlineSyncEnabled: false,
   units: 'metric',
+  onboardingCompleted: false,
 };
 
 export async function getSettings(): Promise<Settings> {

@@ -11,6 +11,8 @@ export {
   type DecisionInput,
   type DecisionResult,
   type DecisionSuccess,
+  type IrrigationPlan,
+  type IrrigationPlanDay,
   type ValidationFailure,
 } from './decisionEngine';
 export {

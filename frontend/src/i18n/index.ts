@@ -2,6 +2,8 @@ import type {
   AreaUnit,
   ConfidenceLevel,
   CropName,
+  FactorInfluence,
+  FactorName,
   GrowthStage,
   IrrigationMethod,
   Language,
@@ -84,5 +86,31 @@ export function confidenceHelpKey(confidence: ConfidenceLevel): TranslationKey {
       return 'rec.help.medium';
     case 'Low':
       return 'rec.help.low';
+  }
+}
+
+// --- V1.2 mappers (factors, plan) ---
+
+export function factorNameKey(name: FactorName): TranslationKey {
+  return `factors.name.${name}`;
+}
+
+export function factorInfluenceKey(influence: FactorInfluence): TranslationKey {
+  return `factors.influence.${influence}`;
+}
+
+export function planActionKey(status: RecommendationStatus): TranslationKey {
+  return `plan.action.${status}`;
+}
+
+/** BCP-47 locale for date formatting in the farmer's language. */
+export function localeFor(language: Language): string {
+  switch (language) {
+    case 'hi':
+      return 'hi-IN';
+    case 'bn':
+      return 'bn-IN';
+    default:
+      return 'en-IN';
   }
 }

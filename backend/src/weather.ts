@@ -11,6 +11,19 @@
  * dataSource. Units match docs/11_Decision_Logic.md §10 (metric).
  */
 
+export interface DailyWeatherPayload {
+  /** Calendar date (YYYY-MM-DD) in the location's timezone. */
+  date: string;
+  /** Total precipitation for the day in millimetres. */
+  precipitationSum: number;
+  /** Maximum air temperature in degrees Celsius. */
+  temperatureMax: number;
+  /** Mean relative humidity as a percentage. */
+  humidityMean: number;
+  /** Maximum wind speed in metres per second. */
+  windSpeedMax: number;
+}
+
 export interface WeatherPayload {
   temperature: number;
   humidity: number;
@@ -19,6 +32,12 @@ export interface WeatherPayload {
   cloudCover: number;
   observationTime: string;
   dataSource: string;
+  /**
+   * Daily series covering the past 2 days, today, and the next 4 days
+   * (docs/12_Product_Roadmap_v2.md Feature 5 — Multi-Day Irrigation Planning;
+   * past days feed the soil-moisture carryover of Feature 6).
+   */
+  daily: DailyWeatherPayload[];
 }
 
 interface OpenMeteoResponse {
@@ -31,11 +50,20 @@ interface OpenMeteoResponse {
     precipitation?: number;
   };
   daily?: {
+    time?: string[];
     precipitation_sum?: Array<number | null>;
+    temperature_2m_max?: Array<number | null>;
+    relative_humidity_2m_mean?: Array<number | null>;
+    wind_speed_10m_max?: Array<number | null>;
   };
 }
 
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
+
+/** Past days included so the engine can model recent-rainfall carryover. */
+const PAST_DAYS = 2;
+/** Today + 4 ahead → a 5-day planning window (roadmap Feature 5). */
+const FORECAST_DAYS = 5;
 
 /** Provider-specific error carrying an HTTP status for the API layer. */
 export class WeatherProviderError extends Error {
@@ -53,10 +81,11 @@ function buildUrl(latitude: number, longitude: number): string {
     latitude: String(latitude),
     longitude: String(longitude),
     current: 'temperature_2m,relative_humidity_2m,wind_speed_10m,cloud_cover,precipitation',
-    daily: 'precipitation_sum',
+    daily: 'precipitation_sum,temperature_2m_max,relative_humidity_2m_mean,wind_speed_10m_max',
     wind_speed_unit: 'ms',
     timezone: 'auto',
-    forecast_days: '1',
+    past_days: String(PAST_DAYS),
+    forecast_days: String(FORECAST_DAYS),
   });
   return `${OPEN_METEO_URL}?${params.toString()}`;
 }
@@ -91,8 +120,17 @@ export async function fetchWeather(latitude: number, longitude: number): Promise
   }
 
   // Prefer today's forecast total for rainfall; fall back to instantaneous.
-  const dailyRain = body.daily?.precipitation_sum?.[0];
+  const dailyRain = body.daily?.precipitation_sum?.[PAST_DAYS];
   const rainfallForecast = dailyRain ?? current.precipitation ?? 0;
+
+  const dates = body.daily?.time ?? [];
+  const daily: DailyWeatherPayload[] = dates.map((date, i) => ({
+    date,
+    precipitationSum: body.daily?.precipitation_sum?.[i] ?? 0,
+    temperatureMax: body.daily?.temperature_2m_max?.[i] ?? 0,
+    humidityMean: body.daily?.relative_humidity_2m_mean?.[i] ?? 0,
+    windSpeedMax: body.daily?.wind_speed_10m_max?.[i] ?? 0,
+  }));
 
   return {
     temperature: current.temperature_2m ?? 0,
@@ -102,5 +140,6 @@ export async function fetchWeather(latitude: number, longitude: number): Promise
     cloudCover: current.cloud_cover ?? 0,
     observationTime: current.time ? new Date(current.time).toISOString() : new Date().toISOString(),
     dataSource: 'open-meteo',
+    daily,
   };
 }

@@ -51,3 +51,9 @@ export function formatTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
+
+/** Format a YYYY-MM-DD date as a short weekday (e.g. "Mon") in the given locale. */
+export function formatWeekday(dateStr: string, locale: string): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  return d.toLocaleDateString(locale, { weekday: 'short' });
+}

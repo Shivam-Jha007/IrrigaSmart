@@ -336,6 +336,210 @@
   padding: var(--space-3);
 }
 
+/* --- Decision factors (roadmap Feature 4) --- */
+.rec-card__factors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.rec-card__factors-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+.factor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.factor-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.85rem;
+}
+.factor-item__arrow {
+  width: 1.1em;
+  text-align: center;
+  flex-shrink: 0;
+}
+.factor-item__arrow--increases {
+  color: var(--color-danger);
+}
+.factor-item__arrow--decreases {
+  color: var(--color-primary);
+}
+.factor-item__arrow--neutral {
+  color: var(--color-text-muted);
+}
+.factor-item__arrow--weak {
+  opacity: 0.45;
+}
+.factor-item__arrow--moderate {
+  opacity: 0.75;
+}
+.factor-item__name {
+  font-weight: 600;
+}
+.factor-item__value {
+  color: var(--color-text-muted);
+}
+.factor-item__influence {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+/* --- Multi-day plan (roadmap Feature 5) --- */
+.plan {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.plan__title {
+  font-size: 1rem;
+  margin: 0;
+}
+.plan__note {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.plan__note--rain {
+  color: var(--color-primary-dark);
+  font-weight: 500;
+}
+.plan__days {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.plan-day {
+  display: grid;
+  grid-template-columns: 4.5em 1fr auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.85rem;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+}
+.plan-day__label {
+  font-weight: 600;
+}
+.plan-day__action {
+  font-weight: 700;
+}
+.plan-day__rain {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+.plan-day__confidence {
+  font-size: 0.68rem;
+}
+
+/* --- Onboarding (roadmap Feature 6.5) --- */
+.onboarding {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  padding: var(--space-4);
+}
+.onboarding__card {
+  width: 100%;
+  max-width: var(--content-max);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-3);
+}
+.onboarding__icon {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+.onboarding__brand {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+.onboarding__title {
+  font-size: 1.25rem;
+  margin: 0;
+}
+.onboarding__body {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--color-text);
+}
+.onboarding__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  text-align: left;
+}
+.onboarding__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  font-size: 0.92rem;
+}
+.onboarding__item-icon {
+  flex-shrink: 0;
+}
+.onboarding__dots {
+  display: flex;
+  gap: 6px;
+  margin-top: var(--space-2);
+}
+.onboarding__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border);
+}
+.onboarding__dot--active {
+  background: var(--color-primary);
+}
+.onboarding__actions {
+  display: flex;
+  gap: var(--space-3);
+  width: 100%;
+  margin-top: var(--space-2);
+}
+.onboarding__actions .btn {
+  flex: 1;
+}
+
 /* --- Weather summary --- */
 .weather {
   background: var(--color-surface);

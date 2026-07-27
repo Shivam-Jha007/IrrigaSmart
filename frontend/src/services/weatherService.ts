@@ -1,4 +1,4 @@
-import type { Farm, WeatherData } from '../types';
+import type { DailyWeather, Farm, WeatherData } from '../types';
 import { cacheWeather, getCachedWeather } from '../storage';
 import { apiGet, ApiError } from './apiClient';
 
@@ -11,21 +11,40 @@ import { apiGet, ApiError } from './apiClient';
  * unavailable, the most recently cached weather is returned so recommendations
  * can still be generated. The `dataSource` field marks whether data came live
  * from the provider or from the local cache.
+ *
+ * The response includes a daily series (past days + forecast) used by the
+ * multi-day plan and carryover logic (docs/11_Decision_Logic.md §11); it is
+ * cached alongside the current weather for offline planning.
  */
+
+/** Current weather plus its daily series, as returned by the backend. */
+export interface WeatherReport {
+  weather: WeatherData;
+  daily: DailyWeather[];
+}
 
 /** Result of a weather lookup, including whether the data is from cache. */
 export interface WeatherResult {
   weather: WeatherData;
+  /** Daily series, or null when the cache predates V1.2 (plan is skipped). */
+  daily: DailyWeather[] | null;
   /** True when served from the offline cache rather than a live fetch. */
   fromCache: boolean;
 }
+
+/** Backend payload shape: WeatherData fields plus the daily series. */
+type BackendWeatherPayload = WeatherData & { daily: DailyWeather[] };
 
 /**
  * Fetch live weather for a coordinate via the backend. Does not touch the
  * cache — callers that want caching + offline fallback use getWeatherForFarm.
  */
-export async function fetchWeather(latitude: number, longitude: number): Promise<WeatherData> {
-  return apiGet<WeatherData>('/api/weather', { lat: latitude, lon: longitude });
+export async function fetchWeather(latitude: number, longitude: number): Promise<WeatherReport> {
+  const { daily, ...weather } = await apiGet<BackendWeatherPayload>('/api/weather', {
+    lat: latitude,
+    lon: longitude,
+  });
+  return { weather, daily };
 }
 
 /**
@@ -40,9 +59,9 @@ export async function fetchWeather(latitude: number, longitude: number): Promise
  */
 export async function getWeatherForFarm(farm: Farm, now: string): Promise<WeatherResult | null> {
   try {
-    const weather = await fetchWeather(farm.location.latitude, farm.location.longitude);
-    await cacheWeather(farm.id, weather, now);
-    return { weather, fromCache: false };
+    const report = await fetchWeather(farm.location.latitude, farm.location.longitude);
+    await cacheWeather(farm.id, report.weather, now, report.daily);
+    return { weather: report.weather, daily: report.daily, fromCache: false };
   } catch (error) {
     // Only fall back to cache for network/provider failures; rethrow
     // programming errors so they surface during development.
@@ -55,6 +74,7 @@ export async function getWeatherForFarm(farm: Farm, now: string): Promise<Weathe
     }
     return {
       weather: { ...cached.weather, dataSource: 'cache' },
+      daily: cached.daily ?? null,
       fromCache: true,
     };
   }

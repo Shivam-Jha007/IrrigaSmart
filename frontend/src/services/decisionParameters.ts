@@ -63,6 +63,35 @@ export const FRESH_MAX_HOURS = 6;
 export const STALE_MAX_HOURS = 24;
 export const IRRIGATION_TIME_DEFAULT = '06:00';
 
+/**
+ * Multi-day planning parameters (docs/11_Decision_Logic.md §11;
+ * docs/12_Product_Roadmap_v2.md Features 5 & 6).
+ */
+/** Past days whose rainfall/demand feed the soil-moisture carryover deficit. */
+export const CARRYOVER_DAYS = 2;
+/** Forecast days beyond today included in the irrigation plan (today + 4). */
+export const PLAN_DAYS_AHEAD = 4;
+/** Plan days up to this offset get Medium confidence; further days get Low. */
+export const PLAN_MEDIUM_MAX_OFFSET = 2;
+
+/**
+ * Factor-influence thresholds (docs/11_Decision_Logic.md §10;
+ * roadmap Feature 4). Presentation-level: they classify how each factor
+ * influenced the recommendation, never the outcome itself.
+ */
+/** Kc at/above which the crop is a strong demand-raising factor. */
+export const KC_HIGH = 1.1;
+/** Kc at/below which the crop lowers demand. */
+export const KC_LOW = 0.6;
+/** °C above/below T_BASE at which temperature influence becomes strong. */
+export const TEMP_STRONG_DELTA = 4;
+/** % below/above H_BASE at which humidity influence becomes strong. */
+export const HUM_STRONG_DELTA = 15;
+/** m/s above W_BASE at which wind influence becomes strong. */
+export const WIND_STRONG_DELTA = 2;
+/** Method efficiency at/below which the method strongly raises applied water. */
+export const METHOD_LOW_EFFICIENCY = 0.6;
+
 /** Bound a value to an inclusive range. */
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);

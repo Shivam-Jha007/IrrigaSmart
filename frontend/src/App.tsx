@@ -8,6 +8,7 @@ import { Dashboard } from './pages/Dashboard';
 import { FarmsPage } from './pages/FarmsPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { Onboarding } from './pages/Onboarding';
 
 /**
  * Application shell (docs/05_UI_UX_Spec.md Navigation).
@@ -16,11 +17,14 @@ import { SettingsPage } from './pages/SettingsPage';
  * MVP's flat structure. All data flows through the single app store, which owns
  * storage + weather + decision-engine integration (Phase 6). All screens render
  * in the language chosen in Settings (docs/12_Product_Roadmap_v2.md Feature 2).
+ * The welcome/learning flow (Feature 6.5) gates the app on first run and can
+ * be re-opened from Settings.
  */
 function App() {
   const store = useAppStore();
   const online = useOnlineStatus();
   const [tab, setTab] = useState<Tab>('dashboard');
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const { t } = store;
 
   if (store.loading) {
@@ -30,6 +34,10 @@ function App() {
         <p>{t('app.loading')}</p>
       </div>
     );
+  }
+
+  if (showOnboarding || !store.settings.onboardingCompleted) {
+    return <Onboarding store={store} onDone={() => setShowOnboarding(false)} />;
   }
 
   return (
@@ -45,7 +53,7 @@ function App() {
         {tab === 'dashboard' && <Dashboard store={store} onGoToFarms={() => setTab('farms')} />}
         {tab === 'farms' && <FarmsPage store={store} />}
         {tab === 'history' && <HistoryPage store={store} />}
-        {tab === 'settings' && <SettingsPage store={store} />}
+        {tab === 'settings' && <SettingsPage store={store} onShowOnboarding={() => setShowOnboarding(true)} />}
       </main>
 
       <BottomNav

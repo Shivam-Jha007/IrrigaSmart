@@ -147,6 +147,62 @@ const en = {
   'lang.en': 'English',
   'lang.hi': 'हिन्दी',
   'lang.bn': 'বাংলা',
+
+  'factors.title': 'Why this recommendation',
+  'factors.name.crop': 'Crop',
+  'factors.name.growthStage': 'Growth stage',
+  'factors.name.temperature': 'Temperature',
+  'factors.name.rainfall': 'Rainfall',
+  'factors.name.humidity': 'Humidity',
+  'factors.name.wind': 'Wind',
+  'factors.name.soil': 'Soil type',
+  'factors.name.irrigationMethod': 'Irrigation method',
+  'factors.influence.increases': 'Raises need',
+  'factors.influence.decreases': 'Lowers need',
+  'factors.influence.neutral': 'Neutral',
+
+  'plan.title': 'Plan for the coming days',
+  'plan.today': 'Today',
+  'plan.tomorrow': 'Tomorrow',
+  'plan.rain': '{mm} mm rain',
+  'plan.action.Irrigate Today': 'Irrigate',
+  'plan.action.Delay Irrigation': 'Rain covers needs',
+  'plan.action.Monitor Tomorrow': 'Watch',
+  'plan.note.irrigate': 'Plan to irrigate on {day}.',
+  'plan.note.rain': 'Rain may cover crop needs on {day}.',
+  'plan.note.none': 'No irrigation expected in the coming days.',
+
+  'onb.welcome.title': 'Welcome to IrrigaSmart',
+  'onb.welcome.tagline':
+    'IrrigaSmart helps you make better irrigation decisions using weather, crop information, and agricultural knowledge.',
+  'onb.welcome.start': 'Get Started',
+  'onb.next': 'Next',
+  'onb.back': 'Back',
+  'onb.about.title': 'About IrrigaSmart',
+  'onb.about.body':
+    'IrrigaSmart was created to help farmers decide when and how much to irrigate. It works even without internet, explains every recommendation in simple language, and is designed for farmers first.',
+  'onb.how.title': 'How it works',
+  'onb.how.step1': 'Add your farm',
+  'onb.how.step2': 'We check the weather',
+  'onb.how.step3': 'The decision engine thinks',
+  'onb.how.step4': 'You get a recommendation',
+  'onb.how.step5': 'With a clear explanation',
+  'onb.trust.title': 'Why trust the recommendation',
+  'onb.trust.body':
+    'Every recommendation considers your crop, its growth stage, your soil, the weather, and your irrigation method — and always explains itself. IrrigaSmart supports your decisions; it does not replace your experience.',
+  'onb.offline.title': 'Works offline',
+  'onb.offline.body':
+    'Your farm information stays on your phone. Weather you already received stays available even without internet, so you always get advice.',
+  'onb.privacy.title': 'Your privacy',
+  'onb.privacy.body':
+    'Your farm details stay on your device. No personal information is shared with anyone.',
+  'onb.start.title': 'Getting started',
+  'onb.start.step1': 'Add your farm',
+  'onb.start.step2': 'Select your crop',
+  'onb.start.step3': 'Choose your soil type',
+  'onb.start.step4': 'Get your recommendation',
+
+  'settings.about': 'About IrrigaSmart',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -284,6 +340,62 @@ const hi: Record<TranslationKey, string> = {
   'lang.en': 'English',
   'lang.hi': 'हिन्दी',
   'lang.bn': 'বাংলা',
+
+  'factors.title': 'यह सिफ़ारिश क्यों',
+  'factors.name.crop': 'फ़सल',
+  'factors.name.growthStage': 'वृद्धि अवस्था',
+  'factors.name.temperature': 'तापमान',
+  'factors.name.rainfall': 'बारिश',
+  'factors.name.humidity': 'नमी',
+  'factors.name.wind': 'हवा',
+  'factors.name.soil': 'मिट्टी का प्रकार',
+  'factors.name.irrigationMethod': 'सिंचाई की विधि',
+  'factors.influence.increases': 'ज़रूरत बढ़ाता है',
+  'factors.influence.decreases': 'ज़रूरत घटाता है',
+  'factors.influence.neutral': 'कोई खास असर नहीं',
+
+  'plan.title': 'आने वाले दिनों की योजना',
+  'plan.today': 'आज',
+  'plan.tomorrow': 'कल',
+  'plan.rain': '{mm} मि.मी. बारिश',
+  'plan.action.Irrigate Today': 'सिंचाई करें',
+  'plan.action.Delay Irrigation': 'बारिश काफ़ी है',
+  'plan.action.Monitor Tomorrow': 'नज़र रखें',
+  'plan.note.irrigate': '{day} को सिंचाई की योजना बनाएँ।',
+  'plan.note.rain': '{day} को बारिश फ़सल की ज़रूरत पूरी कर सकती है।',
+  'plan.note.none': 'आने वाले दिनों में सिंचाई की उम्मीद नहीं है।',
+
+  'onb.welcome.title': 'IrrigaSmart में आपका स्वागत है',
+  'onb.welcome.tagline':
+    'IrrigaSmart मौसम, फ़सल जानकारी और कृषि ज्ञान से बेहतर सिंचाई निर्णय लेने में आपकी मदद करता है।',
+  'onb.welcome.start': 'शुरू करें',
+  'onb.next': 'आगे',
+  'onb.back': 'पीछे',
+  'onb.about.title': 'IrrigaSmart के बारे में',
+  'onb.about.body':
+    'IrrigaSmart किसानों को यह तय करने में मदद के लिए बनाया गया है कि कब और कितनी सिंचाई करनी है। यह बिना इंटरनेट के भी काम करता है, हर सिफ़ारिश सरल भाषा में समझाता है, और किसानों को ध्यान में रखकर बनाया गया है।',
+  'onb.how.title': 'यह कैसे काम करता है',
+  'onb.how.step1': 'अपना खेत जोड़ें',
+  'onb.how.step2': 'हम मौसम देखते हैं',
+  'onb.how.step3': 'निर्णय इंजन गणना करता है',
+  'onb.how.step4': 'आपको सिफ़ारिश मिलती है',
+  'onb.how.step5': 'स्पष्ट व्याख्या के साथ',
+  'onb.trust.title': 'सिफ़ारिश पर भरोसा क्यों करें',
+  'onb.trust.body':
+    'हर सिफ़ारिश आपकी फ़सल, उसकी अवस्था, आपकी मिट्टी, मौसम और सिंचाई विधि को ध्यान में रखती है — और हमेशा अपनी वजह बताती है। IrrigaSmart आपके निर्णयों में मदद करता है; यह आपके अनुभव की जगह नहीं लेता।',
+  'onb.offline.title': 'ऑफ़लाइन भी काम करता है',
+  'onb.offline.body':
+    'आपके खेत की जानकारी आपके फ़ोन पर ही रहती है। मिल चुका मौसम बिना इंटरनेट के भी उपलब्ध रहता है, ताकि सलाह हमेशा मिले।',
+  'onb.privacy.title': 'आपकी निजता',
+  'onb.privacy.body':
+    'आपके खेत की जानकारी आपके डिवाइस पर ही रहती है। कोई भी निजी जानकारी किसी के साथ साझा नहीं की जाती।',
+  'onb.start.title': 'शुरुआत कैसे करें',
+  'onb.start.step1': 'अपना खेत जोड़ें',
+  'onb.start.step2': 'अपनी फ़सल चुनें',
+  'onb.start.step3': 'अपनी मिट्टी चुनें',
+  'onb.start.step4': 'अपनी सिफ़ारिश पाएँ',
+
+  'settings.about': 'IrrigaSmart के बारे में',
 };
 
 const bn: Record<TranslationKey, string> = {
@@ -418,6 +530,62 @@ const bn: Record<TranslationKey, string> = {
   'lang.en': 'English',
   'lang.hi': 'हिन्दी',
   'lang.bn': 'বাংলা',
+
+  'factors.title': 'কেন এই সুপারিশ',
+  'factors.name.crop': 'ফসল',
+  'factors.name.growthStage': 'বৃদ্ধির পর্যায়',
+  'factors.name.temperature': 'তাপমাত্রা',
+  'factors.name.rainfall': 'বৃষ্টি',
+  'factors.name.humidity': 'আর্দ্রতা',
+  'factors.name.wind': 'বাতাস',
+  'factors.name.soil': 'মাটির ধরন',
+  'factors.name.irrigationMethod': 'সেচের পদ্ধতি',
+  'factors.influence.increases': 'প্রয়োজন বাড়ায়',
+  'factors.influence.decreases': 'প্রয়োজন কমায়',
+  'factors.influence.neutral': 'নিরপেক্ষ',
+
+  'plan.title': 'আগামী দিনের পরিকল্পনা',
+  'plan.today': 'আজ',
+  'plan.tomorrow': 'আগামীকাল',
+  'plan.rain': '{mm} মি.মি. বৃষ্টি',
+  'plan.action.Irrigate Today': 'সেচ দিন',
+  'plan.action.Delay Irrigation': 'বৃষ্টিতেই চলবে',
+  'plan.action.Monitor Tomorrow': 'নজরে রাখুন',
+  'plan.note.irrigate': '{day} সেচের পরিকল্পনা করুন।',
+  'plan.note.rain': '{day} বৃষ্টি ফসলের প্রয়োজন মেটাতে পারে।',
+  'plan.note.none': 'আগামী দিনগুলোতে সেচের প্রয়োজন নেই।',
+
+  'onb.welcome.title': 'IrrigaSmart-এ আপনাকে স্বাগতম',
+  'onb.welcome.tagline':
+    'IrrigaSmart আবহাওয়া, ফসলের তথ্য এবং কৃষি জ্ঞান দিয়ে আপনাকে ভালো সেচের সিদ্ধান্ত নিতে সাহায্য করে।',
+  'onb.welcome.start': 'শুরু করুন',
+  'onb.next': 'পরবর্তী',
+  'onb.back': 'পেছনে',
+  'onb.about.title': 'IrrigaSmart সম্পর্কে',
+  'onb.about.body':
+    'কখন এবং কতটা সেচ দেওয়া উচিত তা ঠিক করতে কৃষকদের সাহায্য করার জন্য IrrigaSmart তৈরি হয়েছে। এটি ইন্টারনেট ছাড়াও কাজ করে, প্রতিটি সুপারিশ সহজ ভাষায় বুঝিয়ে দেয় এবং কৃষকদের কথা ভেবে তৈরি।',
+  'onb.how.title': 'এটি কীভাবে কাজ করে',
+  'onb.how.step1': 'আপনার জমি যোগ করুন',
+  'onb.how.step2': 'আমরা আবহাওয়া দেখি',
+  'onb.how.step3': 'সিদ্ধান্ত ইঞ্জিন হিসাব করে',
+  'onb.how.step4': 'আপনি সুপারিশ পান',
+  'onb.how.step5': 'স্পষ্ট ব্যাখ্যা সহ',
+  'onb.trust.title': 'সুপারিশে ভরসা কেন করবেন',
+  'onb.trust.body':
+    'প্রতিটি সুপারিশ আপনার ফসল, এর পর্যায়, আপনার মাটি, আবহাওয়া এবং সেচ পদ্ধতি বিবেচনা করে — এবং সবসময় কারণ ব্যাখ্যা করে। IrrigaSmart আপনার সিদ্ধান্তে সাহায্য করে; এটি আপনার অভিজ্ঞতার বিকল্প নয়।',
+  'onb.offline.title': 'অফলাইনেও কাজ করে',
+  'onb.offline.body':
+    'আপনার জমির তথ্য আপনার ফোনেই থাকে। একবার পাওয়া আবহাওয়া ইন্টারনেট ছাড়াও পাওয়া যায়, তাই পরামর্শ সবসময় পাবেন।',
+  'onb.privacy.title': 'আপনার গোপনীয়তা',
+  'onb.privacy.body':
+    'আপনার জমির বিবরণ আপনার ডিভাইসেই থাকে। কোনো ব্যক্তিগত তথ্য কারো সাথে শেয়ার করা হয় না।',
+  'onb.start.title': 'শুরু করার উপায়',
+  'onb.start.step1': 'আপনার জমি যোগ করুন',
+  'onb.start.step2': 'আপনার ফসল বেছে নিন',
+  'onb.start.step3': 'আপনার মাটির ধরন বেছে নিন',
+  'onb.start.step4': 'আপনার সুপারিশ পান',
+
+  'settings.about': 'IrrigaSmart সম্পর্কে',
 };
 
 export const TRANSLATIONS: Record<Language, Record<TranslationKey, string>> = { en, hi, bn };

@@ -174,6 +174,7 @@ export function useAppStore(): AppStore {
         crop: profile.crop,
         soil: profile.soil,
         weather,
+        daily: weatherResult?.daily ?? null,
         now,
         language: settings.preferredLanguage,
       });
@@ -197,6 +198,7 @@ export function useAppStore(): AppStore {
         recommendation: result.recommendation,
         fromCache: weatherResult?.fromCache ?? false,
         weatherMissing: weather === null,
+        plan: result.plan,
       };
     },
     [profiles, settings.preferredLanguage],

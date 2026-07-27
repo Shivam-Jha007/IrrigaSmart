@@ -1,6 +1,7 @@
 import { type DBSchema, type IDBPDatabase, openDB } from 'idb';
 import type {
   Crop,
+  DailyWeather,
   Farm,
   Farmer,
   HistoryRecord,
@@ -34,6 +35,12 @@ export interface WeatherCacheEntry {
   weather: WeatherData;
   /** ISO-8601 timestamp of when this entry was written to the cache. */
   cachedAt: string;
+  /**
+   * Daily series fetched alongside the weather (roadmap Feature 5). Optional:
+   * entries written before V1.2 do not have it, in which case multi-day
+   * planning is skipped until the next live fetch.
+   */
+  daily?: DailyWeather[];
 }
 
 export interface IrrigaSmartDB extends DBSchema {
