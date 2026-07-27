@@ -1,0 +1,98 @@
+import { useState } from 'react';
+import type { AppStore } from '../app/useAppStore';
+import type { FarmProfile } from '../app/appTypes';
+import { FarmForm } from './FarmForm';
+
+/**
+ * Farms page — list, add, edit, and delete farms
+ * (docs/05_UI_UX_Spec.md Farm Management).
+ */
+
+interface Props {
+  store: AppStore;
+}
+
+type Mode = { kind: 'list' } | { kind: 'add' } | { kind: 'edit'; profile: FarmProfile };
+
+export function FarmsPage({ store }: Props) {
+  const [mode, setMode] = useState<Mode>({ kind: 'list' });
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  if (mode.kind === 'add' || mode.kind === 'edit') {
+    return (
+      <div className="page">
+        <FarmForm
+          initial={mode.kind === 'edit' ? mode.profile : undefined}
+          onSave={async (draft) => {
+            await store.saveFarm(draft);
+            setMode({ kind: 'list' });
+          }}
+          onCancel={() => setMode({ kind: 'list' })}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="page">
+      <div className="page__header">
+        <h2 className="page__title">Your farms</h2>
+        <button type="button" className="btn btn--primary" onClick={() => setMode({ kind: 'add' })}>
+          + Add farm
+        </button>
+      </div>
+
+      {store.profiles.length === 0 ? (
+        <p className="empty-state">
+          No farms yet. Add your first farm to get an irrigation recommendation.
+        </p>
+      ) : (
+        <ul className="farm-list">
+          {store.profiles.map(({ farm, crop, soil }) => (
+            <li key={farm.id} className="farm-list__item">
+              <div className="farm-list__main">
+                <h3 className="farm-list__name">{farm.name}</h3>
+                <p className="farm-list__meta">
+                  {crop.name} · {crop.growthStage} · {soil.name} soil
+                </p>
+                <p className="farm-list__meta">
+                  {farm.area} {farm.areaUnit} · {farm.irrigationMethod}
+                  {farm.location.label ? ` · ${farm.location.label}` : ''}
+                </p>
+              </div>
+              <div className="farm-list__actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={() => setMode({ kind: 'edit', profile: { farm, crop, soil } })}
+                >
+                  Edit
+                </button>
+                {confirmDelete === farm.id ? (
+                  <button
+                    type="button"
+                    className="btn btn--danger btn--sm"
+                    onClick={async () => {
+                      await store.deleteFarm(farm.id);
+                      setConfirmDelete(null);
+                    }}
+                  >
+                    Confirm
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm btn--danger-text"
+                    onClick={() => setConfirmDelete(farm.id)}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,3 @@
+# services
+#
+# Application-layer business logic and API access. UI calls services, never infrastructure directly.

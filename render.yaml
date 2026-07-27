@@ -1,0 +1,28 @@
+# Render Blueprint for the IrrigaSmart backend (docs/DEPLOYMENT.md).
+# Render auto-detects this file when you create a service from the repo.
+#
+# The frontend is deployed separately on Vercel — see DEPLOYMENT.md. Persistent
+# farmer/farm data lives client-side in IndexedDB (offline-first MVP), so the
+# backend is stateless and needs no database.
+
+services:
+  - type: web
+    name: irrigasmart-backend
+    runtime: node
+    plan: free
+    # Monorepo (npm workspaces): install at the repo root, then build only the
+    # backend workspace. tsc emits to backend/dist.
+    buildCommand: npm install && npm run build --workspace backend
+    startCommand: npm run start --workspace backend
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # Ensures Express does not emit stack traces in error responses.
+      - key: NODE_ENV
+        value: production
+      # Set this in the Render dashboard to your deployed Vercel URL AFTER the
+      # frontend is live, e.g. https://irrigasmart.vercel.app. sync:false keeps
+      # it out of source control.
+      - key: CORS_ORIGIN
+        sync: false
