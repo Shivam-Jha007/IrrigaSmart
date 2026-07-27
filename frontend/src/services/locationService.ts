@@ -25,6 +25,21 @@ export async function fetchLocationInfo(latitude: number, longitude: number): Pr
   return apiGet<LocationInfo>('/api/location', { lat: latitude, lon: longitude });
 }
 
+/** A place found by name search. */
+export interface LocationSearchHit {
+  label: string;
+  latitude: number;
+  longitude: number;
+}
+
+/**
+ * Search Indian places by name — the fallback for finding a farm location
+ * when GPS is unavailable or inaccurate.
+ */
+export async function searchPlaces(query: string): Promise<LocationSearchHit[]> {
+  return apiGet<LocationSearchHit[]>('/api/location/search', { q: query });
+}
+
 /** Why a device-position lookup failed, mapped to farmer-friendly UI copy. */
 export type GeolocationErrorCode = 'UNSUPPORTED' | 'PERMISSION_DENIED' | 'UNAVAILABLE';
 

@@ -17,6 +17,7 @@ import {
   soilRepository,
 } from '../storage';
 import {
+  buildCustomReminder,
   dueNotifications,
   fireBrowserNotification,
   generateRecommendation,
@@ -88,6 +89,15 @@ export interface AppStore extends AppData {
    * granted (roadmap Feature 7). Returns the outcome for UI feedback.
    */
   enableNotifications(): Promise<'granted' | 'denied' | 'unsupported'>;
+  /** Pending (undelivered) reminders for a farm, soonest first. */
+  loadPendingReminders(farmId: string): Promise<AppNotification[]>;
+  /**
+   * Add a farmer-chosen irrigation reminder for today at "HH:MM"
+   * (Feature 7 custom timings). Returns 'past' if the time already passed.
+   */
+  addCustomReminder(farmId: string, time: string): Promise<'ok' | 'past'>;
+  /** Remove a pending reminder. */
+  removeReminder(notificationId: string): Promise<void>;
 }
 
 export function useAppStore(): AppStore {
@@ -279,7 +289,8 @@ export function useAppStore(): AppStore {
       await historyRepository.save(historyRecord);
 
       // Schedule reminders from the recommendation (roadmap Feature 7).
-      // Pending reminders are replaced so a fresh plan always supersedes them.
+      // Pending AUTO reminders are replaced so a fresh plan supersedes them;
+      // farmer-added custom reminders are preserved.
       const planned = planNotifications({
         farm: profile.farm,
         recommendation: result.recommendation,
@@ -289,7 +300,9 @@ export function useAppStore(): AppStore {
       });
       const existing = await getNotificationsByFarm(farmId);
       await Promise.all(
-        existing.filter((n) => n.deliveredAt === null).map((n) => notificationRepository.remove(n.id)),
+        existing
+          .filter((n) => n.deliveredAt === null && n.source !== 'custom')
+          .map((n) => notificationRepository.remove(n.id)),
       );
       await Promise.all(planned.map((n) => notificationRepository.save(n)));
       await deliverDueReminders();
@@ -350,6 +363,39 @@ export function useAppStore(): AppStore {
     return granted ? 'granted' : 'denied';
   }, [settings]);
 
+  const loadPendingReminders = useCallback(async (farmId: string): Promise<AppNotification[]> => {
+    const all = await getNotificationsByFarm(farmId);
+    return all
+      .filter((n) => n.deliveredAt === null)
+      .sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+  }, []);
+
+  const addCustomReminder = useCallback(
+    async (farmId: string, time: string): Promise<'ok' | 'past'> => {
+      const profile = profiles.find((p) => p.farm.id === farmId);
+      if (!profile) return 'past';
+      const now = new Date().toISOString();
+      const latest = (await getRecommendationsByFarm(farmId)).sort((a, b) =>
+        b.generatedTime.localeCompare(a.generatedTime),
+      )[0];
+      const reminder = buildCustomReminder(
+        profile.farm,
+        time,
+        latest?.estimatedWaterAmount.volumeLiters,
+        now,
+        newId('notif'),
+      );
+      if (reminder === 'past') return 'past';
+      await notificationRepository.save(reminder);
+      return 'ok';
+    },
+    [profiles],
+  );
+
+  const removeReminder = useCallback(async (notificationId: string): Promise<void> => {
+    await notificationRepository.remove(notificationId);
+  }, []);
+
   const t: TranslateFn = useCallback(
     (key, vars) => translate(settings.preferredLanguage, key, vars),
     [settings.preferredLanguage],
@@ -371,5 +417,8 @@ export function useAppStore(): AppStore {
     updateSettings,
     updateFarmer,
     enableNotifications,
+    loadPendingReminders,
+    addCustomReminder,
+    removeReminder,
   };
 }

@@ -15,6 +15,12 @@ export interface AppNotification {
   id: string;
   farmId: string;
   kind: NotificationKind;
+  /**
+   * 'auto' records are created from each fresh recommendation and replaced on
+   * the next one; 'custom' records are added by the farmer (Feature 7 custom
+   * timings) and are kept until delivered or removed.
+   */
+  source: 'auto' | 'custom';
   /** ISO-8601 timestamp when the notification becomes due. */
   dueAt: string;
   /** ISO-8601 creation timestamp. */

@@ -12,6 +12,8 @@ import {
   detectCurrentPosition,
   fetchLocationInfo,
   GeolocationError,
+  searchPlaces,
+  type LocationSearchHit,
 } from '../services';
 import type { TranslateFn } from '../i18n';
 import {
@@ -100,9 +102,29 @@ export function FarmForm({ initial, onSave, onCancel, t }: Props) {
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [soilSuggestion, setSoilSuggestion] = useState<SoilType | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<LocationSearchHit[] | null>(null);
+  const [searching, setSearching] = useState(false);
 
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((v) => ({ ...v, [key]: value }));
+  }
+
+  /** Fill coordinates, then resolve place label + soil suggestion. */
+  async function applyCoordinates(latitude: number, longitude: number, fallbackLabel?: string) {
+    set('latitude', latitude.toFixed(5));
+    set('longitude', longitude.toFixed(5));
+    try {
+      const info = await fetchLocationInfo(latitude, longitude);
+      if (info.label) set('locationLabel', info.label);
+      else if (fallbackLabel) set('locationLabel', fallbackLabel);
+      if (info.suggestedSoilType) setSoilSuggestion(info.suggestedSoilType);
+    } catch {
+      // Coordinates are the essential part and were already filled; only the
+      // place-name/soil lookup failed.
+      if (fallbackLabel) set('locationLabel', fallbackLabel);
+      setLocationError(t('form.locationError.lookupFailed'));
+    }
   }
 
   async function handleUseMyLocation() {
@@ -111,17 +133,7 @@ export function FarmForm({ initial, onSave, onCancel, t }: Props) {
     setSoilSuggestion(null);
     try {
       const coords = await detectCurrentPosition();
-      set('latitude', coords.latitude.toFixed(5));
-      set('longitude', coords.longitude.toFixed(5));
-      try {
-        const info = await fetchLocationInfo(coords.latitude, coords.longitude);
-        if (info.label) set('locationLabel', info.label);
-        if (info.suggestedSoilType) setSoilSuggestion(info.suggestedSoilType);
-      } catch {
-        // Coordinates are the essential part and were already filled; only the
-        // place-name/soil lookup failed.
-        setLocationError(t('form.locationError.lookupFailed'));
-      }
+      await applyCoordinates(coords.latitude, coords.longitude);
     } catch (err) {
       if (err instanceof GeolocationError) {
         if (err.code === 'UNSUPPORTED') setLocationError(t('form.locationError.unsupported'));
@@ -133,6 +145,28 @@ export function FarmForm({ initial, onSave, onCancel, t }: Props) {
     } finally {
       setLocating(false);
     }
+  }
+
+  async function handleSearch() {
+    if (!searchQuery.trim() || searching) return;
+    setSearching(true);
+    setLocationError(null);
+    setSearchResults(null);
+    try {
+      const results = await searchPlaces(searchQuery);
+      setSearchResults(results);
+    } catch {
+      setLocationError(t('form.searchFailed'));
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function handlePickResult(hit: LocationSearchHit) {
+    setSearchResults(null);
+    setSearchQuery('');
+    setSoilSuggestion(null);
+    await applyCoordinates(hit.latitude, hit.longitude, hit.label);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -215,6 +249,47 @@ export function FarmForm({ initial, onSave, onCancel, t }: Props) {
         >
           {locating ? t('form.locating') : `📍 ${t('form.useMyLocation')}`}
         </button>
+
+        <div className="location-search">
+          <input
+            className="field__input"
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void handleSearch();
+              }
+            }}
+            placeholder={t('form.searchPlaceholder')}
+            aria-label={t('form.searchPlaceholder')}
+          />
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() => void handleSearch()}
+            disabled={searching || !searchQuery.trim()}
+          >
+            {searching ? t('form.searching') : t('form.search')}
+          </button>
+        </div>
+
+        {searchResults && searchResults.length === 0 && (
+          <p className="location-tools__hint">{t('form.searchNone')}</p>
+        )}
+        {searchResults && searchResults.length > 0 && (
+          <ul className="location-results">
+            {searchResults.map((hit) => (
+              <li key={`${hit.latitude},${hit.longitude}`}>
+                <button type="button" className="location-results__item" onClick={() => void handlePickResult(hit)}>
+                  {hit.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
         {locationError && <p className="form-error">{locationError}</p>}
       </div>
 

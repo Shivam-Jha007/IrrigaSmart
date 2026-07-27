@@ -58,6 +58,14 @@ function App() {
       <header className="app-header">
         <span className="app-header__brand">IrrigaSmart</span>
         {!online && <span className="app-header__offline-dot" aria-label="Offline" />}
+        <button
+          type="button"
+          className="app-header__help"
+          aria-label={t('settings.about')}
+          onClick={() => setShowOnboarding(true)}
+        >
+          ?
+        </button>
       </header>
 
       {!online && <OfflineBanner message={t('app.offlineBanner')} />}

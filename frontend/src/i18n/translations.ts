@@ -101,6 +101,11 @@ const en = {
   'form.latitude': 'Latitude',
   'form.longitude': 'Longitude',
   'form.useMyLocation': 'Use my location',
+  'form.searchPlaceholder': 'Search your village or city',
+  'form.search': 'Search',
+  'form.searching': 'Searching…',
+  'form.searchNone': 'No places found. Try a nearby town name.',
+  'form.searchFailed': 'Search failed. Check your internet and try again.',
   'form.locating': 'Finding your location…',
   'form.locationError.unsupported':
     'Location is not supported on this device. Please enter coordinates manually.',
@@ -206,7 +211,7 @@ const en = {
   'onb.start.step3': 'Choose your soil type',
   'onb.start.step4': 'Get your recommendation',
 
-  'settings.about': 'About IrrigaSmart',
+  'settings.about': 'Help & about IrrigaSmart',
 
   'notif.title': 'Reminders',
   'notif.reminderTitle': 'Irrigation reminder',
@@ -231,6 +236,22 @@ const en = {
   'settings.notifDenied':
     'Notifications are blocked by the browser. Allow them in your browser settings to get reminders.',
   'settings.notifUnsupported': 'This device does not support notifications.',
+
+  'onb.skip': 'Skip',
+  'onb.feature.weather': 'Weather-based advice',
+  'onb.feature.offline': 'Works fully offline',
+  'onb.feature.explain': 'Every recommendation explained',
+  'onb.feature.language': 'English, हिन्दी, বাংলা',
+
+  'reminder.title': 'Remind me',
+  'reminder.auto': 'Auto',
+  'reminder.custom': 'Custom',
+  'reminder.add': 'Add',
+  'reminder.remove': 'Remove',
+  'reminder.timeLabel': 'Reminder time',
+  'reminder.pastError': 'That time has already passed today. Pick a later time.',
+  'reminder.note':
+    'Reminders alert you while the app is open, or when you next open it — online or offline.',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -324,6 +345,11 @@ const hi: Record<TranslationKey, string> = {
   'form.latitude': 'अक्षांश',
   'form.longitude': 'देशांतर',
   'form.useMyLocation': 'मेरी लोकेशन इस्तेमाल करें',
+  'form.searchPlaceholder': 'अपना गाँव या शहर खोजें',
+  'form.search': 'खोजें',
+  'form.searching': 'खोजा जा रहा है…',
+  'form.searchNone': 'कोई जगह नहीं मिली। पास के कस्बे का नाम आज़माएँ।',
+  'form.searchFailed': 'खोज विफल रही। इंटरनेट जाँचें और फिर कोशिश करें।',
   'form.locating': 'आपकी लोकेशन खोजी जा रही है…',
   'form.locationError.unsupported':
     'इस डिवाइस पर लोकेशन उपलब्ध नहीं है। कृपया निर्देशांक हाथ से डालें।',
@@ -427,7 +453,7 @@ const hi: Record<TranslationKey, string> = {
   'onb.start.step3': 'अपनी मिट्टी चुनें',
   'onb.start.step4': 'अपनी सिफ़ारिश पाएँ',
 
-  'settings.about': 'IrrigaSmart के बारे में',
+  'settings.about': 'सहायता और IrrigaSmart के बारे में',
 
   'notif.title': 'अनुस्मारक',
   'notif.reminderTitle': 'सिंचाई अनुस्मारक',
@@ -451,6 +477,21 @@ const hi: Record<TranslationKey, string> = {
 
   'settings.notifDenied': 'ब्राउज़र ने सूचनाएँ रोकी हैं। अनुस्मारक पाने के लिए ब्राउज़र सेटिंग्स में अनुमति दें।',
   'settings.notifUnsupported': 'यह डिवाइस सूचनाओं का समर्थन नहीं करता।',
+
+  'onb.skip': 'छोड़ें',
+  'onb.feature.weather': 'मौसम-आधारित सलाह',
+  'onb.feature.offline': 'पूरी तरह ऑफ़लाइन काम करता है',
+  'onb.feature.explain': 'हर सिफ़ारिश की व्याख्या',
+  'onb.feature.language': 'English, हिन्दी, বাংলা',
+
+  'reminder.title': 'मुझे याद दिलाएँ',
+  'reminder.auto': 'ऑटो',
+  'reminder.custom': 'मेरा चुना हुआ',
+  'reminder.add': 'जोड़ें',
+  'reminder.remove': 'हटाएँ',
+  'reminder.timeLabel': 'अनुस्मारक समय',
+  'reminder.pastError': 'वह समय आज बीत चुका है। बाद का समय चुनें।',
+  'reminder.note': 'अनुस्मारक ऐप खुले होने पर या अगली बार खोलने पर सूचित करते हैं — ऑनलाइन या ऑफ़लाइन।',
 };
 
 const bn: Record<TranslationKey, string> = {
@@ -542,6 +583,11 @@ const bn: Record<TranslationKey, string> = {
   'form.latitude': 'অক্ষাংশ',
   'form.longitude': 'দ্রাঘিমাংশ',
   'form.useMyLocation': 'আমার অবস্থান ব্যবহার করুন',
+  'form.searchPlaceholder': 'আপনার গ্রাম বা শহর খুঁজুন',
+  'form.search': 'খুঁজুন',
+  'form.searching': 'খোঁজা হচ্ছে…',
+  'form.searchNone': 'কোনো জায়গা পাওয়া যায়নি। কাছের শহরের নাম দেখুন।',
+  'form.searchFailed': 'অনুসন্ধান ব্যর্থ। ইন্টারনেট দেখে আবার চেষ্টা করুন।',
   'form.locating': 'আপনার অবস্থান খোঁজা হচ্ছে…',
   'form.locationError.unsupported': 'এই ডিভাইসে অবস্থান সমর্থিত নয়। অনুগ্রহ করে স্থানাঙ্ক হাতে লিখুন।',
   'form.locationError.denied':
@@ -644,7 +690,7 @@ const bn: Record<TranslationKey, string> = {
   'onb.start.step3': 'আপনার মাটির ধরন বেছে নিন',
   'onb.start.step4': 'আপনার সুপারিশ পান',
 
-  'settings.about': 'IrrigaSmart সম্পর্কে',
+  'settings.about': 'সহায়তা ও IrrigaSmart সম্পর্কে',
 
   'notif.title': 'মনে করিয়ে দেওয়া',
   'notif.reminderTitle': 'সেচ অনুস্মারক',
@@ -667,6 +713,21 @@ const bn: Record<TranslationKey, string> = {
   'settings.notifDenied':
     'ব্রাউজার বিজ্ঞপ্তি ব্লক করেছে। মনে করিয়ে দেওয়ার জন্য ব্রাউজার সেটিংসে অনুমতি দিন।',
   'settings.notifUnsupported': 'এই ডিভাইসে বিজ্ঞপ্তি সমর্থিত নয়।',
+
+  'onb.skip': 'এড়িয়ে যান',
+  'onb.feature.weather': 'আবহাওয়া-ভিত্তিক পরামর্শ',
+  'onb.feature.offline': 'সম্পূর্ণ অফলাইনে কাজ করে',
+  'onb.feature.explain': 'প্রতিটি সুপারিশের ব্যাখ্যা',
+  'onb.feature.language': 'English, हिन्दी, বাংলা',
+
+  'reminder.title': 'মনে করিয়ে দিন',
+  'reminder.auto': 'অটো',
+  'reminder.custom': 'নিজের পছন্দ',
+  'reminder.add': 'যোগ করুন',
+  'reminder.remove': 'সরান',
+  'reminder.timeLabel': 'অনুস্মারকের সময়',
+  'reminder.pastError': 'সেই সময় আজ পেরিয়ে গেছে। পরের সময় বেছে নিন।',
+  'reminder.note': 'অ্যাপ খোলা থাকলে বা পরের বার খোলার সময় মনে করিয়ে দেয় — অনলাইন বা অফলাইন।',
 };
 
 export const TRANSLATIONS: Record<Language, Record<TranslationKey, string>> = { en, hi, bn };

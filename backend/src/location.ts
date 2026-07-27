@@ -36,6 +36,7 @@ export class LocationProviderError extends Error {
 }
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse';
+const NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search';
 const SOILGRIDS_CLASSIFICATION_URL = 'https://rest.isric.org/soilgrids/v2.0/classification/query';
 
 /** Nominatim's usage policy requires an identifying User-Agent. */
@@ -93,10 +94,26 @@ interface NominatimReverseResponse {
     city?: string;
     hamlet?: string;
     county?: string;
+    suburb?: string;
+    neighbourhood?: string;
+    city_district?: string;
+    municipality?: string;
     state_district?: string;
     district?: string;
     state?: string;
   };
+}
+
+interface NominatimSearchResult {
+  lat?: string;
+  lon?: string;
+  display_name?: string;
+}
+
+export interface LocationSearchHit {
+  label: string;
+  latitude: number;
+  longitude: number;
 }
 
 interface SoilGridsClassificationResponse {
@@ -109,6 +126,9 @@ async function reverseGeocode(latitude: number, longitude: number): Promise<Nomi
     lat: String(latitude),
     lon: String(longitude),
     'accept-language': 'en',
+    // Suburb/town-level granularity: the default building level can resolve to
+    // a road object with no locality names at all (common in urban India).
+    zoom: '14',
   });
 
   let response: globalThis.Response;
@@ -123,6 +143,45 @@ async function reverseGeocode(latitude: number, longitude: number): Promise<Nomi
     throw new LocationProviderError(`geocoding provider returned ${response.status}`, 502);
   }
   return (await response.json()) as NominatimReverseResponse;
+}
+
+/**
+ * Forward-geocode a place name (India only) so farmers can find their village
+ * or city by name when GPS is unavailable or inaccurate. Best-effort list.
+ */
+export async function searchPlaces(query: string): Promise<LocationSearchHit[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+
+  const params = new URLSearchParams({
+    format: 'jsonv2',
+    q: trimmed,
+    limit: '5',
+    countrycodes: 'in',
+    'accept-language': 'en',
+  });
+
+  let response: globalThis.Response;
+  try {
+    response = await fetch(`${NOMINATIM_SEARCH_URL}?${params.toString()}`, {
+      headers: { 'User-Agent': PROVIDER_USER_AGENT },
+    });
+  } catch {
+    throw new LocationProviderError('geocoding provider is unreachable', 502);
+  }
+  if (!response.ok) {
+    throw new LocationProviderError(`geocoding provider returned ${response.status}`, 502);
+  }
+
+  const results = (await response.json()) as NominatimSearchResult[];
+  return results
+    .filter((r) => r.display_name && r.lat && r.lon)
+    .map((r) => ({
+      label: r.display_name as string,
+      latitude: Number(r.lat),
+      longitude: Number(r.lon),
+    }))
+    .filter((r) => Number.isFinite(r.latitude) && Number.isFinite(r.longitude));
 }
 
 /** Map a WRB soil group name to a supported soil type suggestion, or null. */
@@ -177,10 +236,22 @@ export async function fetchLocationInfo(latitude: number, longitude: number): Pr
   ]);
 
   const address = geo.address ?? {};
-  const village = address.village ?? address.town ?? address.city ?? address.hamlet ?? address.county ?? null;
-  const district = address.state_district ?? address.district ?? null;
+  const village =
+    address.village ??
+    address.town ??
+    address.city ??
+    address.hamlet ??
+    address.suburb ??
+    address.neighbourhood ??
+    address.county ??
+    null;
+  const district = address.state_district ?? address.district ?? address.city_district ?? address.municipality ?? null;
   const state = address.state ?? null;
-  const label = [village, district, state].filter((part) => part !== null).join(', ');
+  // Assemble the label without repeating identical parts (e.g. "Chennai, Chennai").
+  const label = [village, district, state]
+    .filter((part): part is string => part !== null)
+    .filter((part, index, parts) => parts.indexOf(part) === index)
+    .join(', ');
 
   return { village, district, state, label, suggestedSoilType };
 }
