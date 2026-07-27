@@ -1,6 +1,6 @@
 import cors from 'cors';
 import express, { type Request, type Response } from 'express';
-import { fetchLocationInfo, LocationProviderError } from './location.js';
+import { fetchLocationInfo, LocationProviderError, searchPlaces } from './location.js';
 import { fetchWeather, WeatherProviderError } from './weather.js';
 
 /**
@@ -99,6 +99,32 @@ app.get('/api/location', (req: Request, res: Response) => {
     try {
       const location = await fetchLocationInfo(lat, lon);
       res.json({ status: 'ok', data: location, timestamp: nowIso() });
+    } catch (error) {
+      const status = error instanceof LocationProviderError ? error.status : 500;
+      const message = error instanceof Error ? error.message : 'unexpected error';
+      res.status(status).json({
+        status: 'error',
+        errorCode: status === 400 ? 'INVALID_INPUT' : 'LOCATION_UNAVAILABLE',
+        message,
+        timestamp: nowIso(),
+      });
+    }
+  })();
+});
+
+/**
+ * GET /api/location/search?q={name}
+ *
+ * Forward geocoding fallback (roadmap Feature 1): find a village/city by name
+ * when GPS is unavailable or inaccurate. India-only results.
+ */
+app.get('/api/location/search', (req: Request, res: Response) => {
+  const q = typeof req.query.q === 'string' ? req.query.q : '';
+
+  void (async () => {
+    try {
+      const results = await searchPlaces(q);
+      res.json({ status: 'ok', data: results, timestamp: nowIso() });
     } catch (error) {
       const status = error instanceof LocationProviderError ? error.status : 500;
       const message = error instanceof Error ? error.message : 'unexpected error';

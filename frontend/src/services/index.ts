@@ -29,11 +29,14 @@ export {
   detectCurrentPosition,
   fetchLocationInfo,
   GeolocationError,
+  searchPlaces,
   type Coordinates,
   type GeolocationErrorCode,
   type LocationInfo,
+  type LocationSearchHit,
 } from './locationService';
 export {
+  buildCustomReminder,
   dueNotifications,
   fireBrowserNotification,
   isSameLocalDay,

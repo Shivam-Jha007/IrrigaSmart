@@ -64,6 +64,7 @@ export function planNotifications(input: NotificationInput): AppNotification[] {
       id: newId('notif'),
       farmId: farm.id,
       kind: 'irrigation-reminder',
+      source: 'auto',
       dueAt: nextOccurrence(recommendation.recommendedTime, now),
       createdAt: now,
       deliveredAt: null,
@@ -82,6 +83,7 @@ export function planNotifications(input: NotificationInput): AppNotification[] {
         id: newId('notif'),
         farmId: farm.id,
         kind: 'rainfall-warning',
+        source: 'auto',
         dueAt: morningOf(day.date),
         createdAt: now,
         deliveredAt: null,
@@ -95,6 +97,38 @@ export function planNotifications(input: NotificationInput): AppNotification[] {
   }
 
   return notifications;
+}
+
+/**
+ * Build a farmer-chosen irrigation reminder for today at "HH:MM" (Feature 7
+ * custom timings). Returns 'past' when the time has already passed today.
+ */
+export function buildCustomReminder(
+  farm: Farm,
+  time: string,
+  volumeLiters: number | undefined,
+  now: string,
+  id: string,
+): AppNotification | 'past' {
+  const dueAt = new Date(now);
+  const [hours, minutes] = time.split(':').map(Number);
+  dueAt.setHours(hours ?? 0, minutes ?? 0, 0, 0);
+  if (dueAt.getTime() <= new Date(now).getTime()) {
+    return 'past';
+  }
+  return {
+    id,
+    farmId: farm.id,
+    kind: 'irrigation-reminder',
+    source: 'custom',
+    dueAt: dueAt.toISOString(),
+    createdAt: now,
+    deliveredAt: null,
+    context: {
+      farmName: farm.name,
+      ...(volumeLiters !== undefined ? { volumeLiters } : {}),
+    },
+  };
 }
 
 /** Undelivered notifications whose due time has passed, oldest first. */

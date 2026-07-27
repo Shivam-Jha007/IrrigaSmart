@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { AppStore } from '../app/useAppStore';
 import type { FarmSummary, RecommendationView } from '../app/appTypes';
-import type { WeatherData } from '../types';
+import type { AppNotification, WeatherData } from '../types';
 import { getCachedWeather } from '../storage';
 import { RecommendationCard } from '../components/RecommendationCard';
 import { WeatherSummary } from '../components/WeatherSummary';
@@ -9,6 +9,7 @@ import { FarmCard } from '../components/FarmCard';
 import { PlanOutlook } from '../components/PlanOutlook';
 import { RemindersCard } from '../components/RemindersCard';
 import { SeasonalGuidance } from '../components/SeasonalGuidance';
+import { ReminderPlanner } from '../components/ReminderPlanner';
 
 /**
  * Dashboard — answers "what should I do today?" immediately
@@ -27,11 +28,12 @@ interface Props {
 }
 
 export function Dashboard({ store, onGoToFarms }: Props) {
-  const { farmer, profiles, t, generateForFarm, loadFarmSummaries } = store;
+  const { farmer, profiles, t, generateForFarm, loadFarmSummaries, loadPendingReminders } = store;
   const [selectedFarmId, setSelectedFarmId] = useState<string>('');
   const [view, setView] = useState<RecommendationView | null>(null);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [summaries, setSummaries] = useState<FarmSummary[]>([]);
+  const [pendingReminders, setPendingReminders] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +57,14 @@ export function Dashboard({ store, onGoToFarms }: Props) {
     setSummaries(await loadFarmSummaries());
   }, [loadFarmSummaries]);
 
+  const loadPending = useCallback(
+    async (farmId: string) => {
+      if (!farmId) return;
+      setPendingReminders(await loadPendingReminders(farmId));
+    },
+    [loadPendingReminders],
+  );
+
   const refresh = useCallback(
     async (farmId: string) => {
       if (!farmId) return;
@@ -74,13 +84,14 @@ export function Dashboard({ store, onGoToFarms }: Props) {
         setWeather(cached?.weather ?? null);
         // Reflect the fresh recommendation/weather on the farm cards.
         await loadSummaries();
+        await loadPending(farmId);
       } catch {
         setError(t('dashboard.errorGeneric'));
       } finally {
         setLoading(false);
       }
     },
-    [generateForFarm, t, loadSummaries],
+    [generateForFarm, t, loadSummaries, loadPending],
   );
 
   // Auto-generate when the selected farm changes.
@@ -149,6 +160,22 @@ export function Dashboard({ store, onGoToFarms }: Props) {
                 ? t('dashboard.noteCached')
                 : undefined
           }
+        />
+      )}
+
+      {!loading && view?.recommendation.status === 'Irrigate Today' && (
+        <ReminderPlanner
+          reminders={pendingReminders}
+          t={t}
+          onAdd={async (time) => {
+            const result = await store.addCustomReminder(selectedFarmId, time);
+            if (result === 'ok') await loadPending(selectedFarmId);
+            return result;
+          }}
+          onRemove={async (id) => {
+            await store.removeReminder(id);
+            await loadPending(selectedFarmId);
+          }}
         />
       )}
 
