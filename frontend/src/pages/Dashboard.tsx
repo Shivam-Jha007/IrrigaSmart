@@ -6,6 +6,7 @@ import { getCachedWeather } from '../storage';
 import { RecommendationCard } from '../components/RecommendationCard';
 import { WeatherSummary } from '../components/WeatherSummary';
 import { FarmCard } from '../components/FarmCard';
+import { PlanOutlook } from '../components/PlanOutlook';
 
 /**
  * Dashboard — answers "what should I do today?" immediately
@@ -140,6 +141,10 @@ export function Dashboard({ store, onGoToFarms }: Props) {
 
       {!loading && weather && (
         <WeatherSummary weather={weather} fromCache={view?.fromCache ?? false} t={t} />
+      )}
+
+      {!loading && view?.plan && (
+        <PlanOutlook plan={view.plan} language={store.settings.preferredLanguage} t={t} />
       )}
 
       {!loading && (

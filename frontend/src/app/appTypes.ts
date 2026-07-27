@@ -1,4 +1,5 @@
 import type { Crop, Farm, Farmer, Recommendation, Settings, Soil } from '../types';
+import type { IrrigationPlan } from '../services';
 
 /**
  * A farm together with its resolved crop and soil — the complete profile the
@@ -37,6 +38,8 @@ export interface RecommendationView {
   fromCache: boolean;
   /** True when no weather (live or cached) was available. */
   weatherMissing: boolean;
+  /** Multi-day irrigation plan (roadmap Feature 5), or null without daily data. */
+  plan: IrrigationPlan | null;
 }
 
 /**

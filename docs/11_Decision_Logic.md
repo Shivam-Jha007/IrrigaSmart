@@ -4,7 +4,7 @@
 
 ## Decision Logic Specification
 
-Version: 1.0
+Version: 1.2
 
 Status: Active
 
@@ -22,6 +22,14 @@ It is the missing link between:
 This document owns **how facts combine into a recommendation**: the formulas, parameters, thresholds, and mappings required for the engine to satisfy the Engineering Rule "same input always produces the same output."
 
 This document does not define code, data storage, or UI. It defines behavior precisely enough to be implemented and unit-tested directly.
+
+**Version 1.2 changes** (driven by `12_Product_Roadmap_v2.md` Features 4–6):
+
+- Step 4b — soil-moisture carryover deficit from recent days' rainfall (Feature 6).
+- Step 10 — decision factors with relative influence (Feature 4).
+- Step 11 — multi-day irrigation plan (Feature 5).
+- Section 9 — new parameter tables for the above.
+- Section 10 Assumption 5 — revised: the engine now models a bounded multi-day carryover.
 
 ---
 
@@ -142,10 +150,25 @@ Pe = rainfallForecast_mm × rainEffFactor(soil)
 # Step 4 — Net Irrigation Need (NIR)
 
 ```
-NIR = max( 0, ETc_adj − Pe )   // mm
+NIR = max( 0, ETc_adj − Pe + D_past )   // mm
 ```
 
-`NIR` is the net water depth the crop needs today after accounting for rainfall.
+`NIR` is the net water depth the crop needs today after accounting for rainfall and the recent soil-moisture carryover (`D_past`, Step 4b). Without daily data `D_past = 0`, reproducing the V1.1 formula exactly.
+
+# Step 4b — Soil-Moisture Carryover Deficit (V1.2)
+
+Recent rain keeps the soil moist; a dry spell depletes it. When a daily weather series is available (see Inputs), the engine chains a simple day-by-day deficit over the past `CARRYOVER_DAYS` days, oldest first:
+
+```
+D = 0
+for each past day d (oldest → newest, at most CARRYOVER_DAYS days):
+    ETc_d = Kc_stage × ETo_ref × weatherMultiplier(d.temperatureMax, d.humidityMean, d.windSpeedMax)
+    Pe_d  = d.precipitationSum × rainEffFactor(soil)
+    D     = max( 0, D + ETc_d − Pe_d )
+D_past = D
+```
+
+This single mechanism encodes two Feature 6 inputs from the roadmap: **historical rainfall** (wet days shrink the deficit) and **consecutive dry days** (dry days grow it). History before the window is unknown and assumed neutral (`D = 0`).
 
 ---
 
@@ -234,6 +257,41 @@ The explanation must translate values into plain language (per Decision Engine S
 
 ---
 
+# Step 10 — Decision Factors (V1.2)
+
+Every recommendation includes the eight roadmap Feature 4 factors — crop, growth stage, temperature, rainfall, humidity, wind, soil type, irrigation method — each with a **relative influence** (`increases` / `decreases` / `neutral`) and a **strength** (`strong` / `moderate` / `weak`). Factors are a deterministic *explanation* of the outcome; they never change it. Weather factors are omitted when no weather exists.
+
+| Factor | increases (raises need/amount) | decreases (lowers need) | Strength rule |
+|--------|-------------------------------|--------------------------|---------------|
+| Crop | Kc ≥ KC_HIGH | Kc ≤ KC_LOW | strong at extremes, else weak/moderate |
+| Growth stage | Mid Season (strong) | Initial / Late Season (moderate) | Development → neutral/weak |
+| Temperature | T ≥ T_BASE + TEMP_STRONG_DELTA (strong); T > T_BASE (moderate) | T ≤ T_BASE − TEMP_STRONG_DELTA (moderate) | by \|T − T_BASE\| vs TEMP_STRONG_DELTA |
+| Rainfall | — | Pe > 0 (strong when Pe ≥ ETc_adj, else moderate) | no rain → neutral/weak |
+| Humidity | H ≤ H_BASE − HUM_STRONG_DELTA (strong); H < H_BASE (weak) | H ≥ H_BASE + HUM_STRONG_DELTA (strong) | by \|H − H_BASE\| vs HUM_STRONG_DELTA |
+| Wind | W ≥ W_BASE + WIND_STRONG_DELTA (strong) | — | else neutral/weak |
+| Soil | Sandy (moderate: low retention) | Clay (moderate: buffers) | Loamy → neutral/weak |
+| Irrigation method | efficiency ≤ METHOD_LOW_EFFICIENCY (moderate: more water must be applied) | — | else neutral/weak |
+
+---
+
+# Step 11 — Multi-Day Irrigation Plan (V1.2)
+
+When a daily series is available, the engine also returns a plan for today plus the next `PLAN_DAYS_AHEAD` days (roadmap Feature 5). Day 0 reuses today's recommendation exactly; each future day is evaluated with the same demand/rainfall/threshold rules as today, chaining a simulated deficit:
+
+```
+D = (today's NIR if not irrigating, else 0)
+for each forecast day d (offset 1..PLAN_DAYS_AHEAD):
+    ETc_d, Pe_d as in Step 4b
+    D = max( 0, D + ETc_d − Pe_d )
+    if Pe_d ≥ ETc_d:              action = "Delay Irrigation"
+    else if D < skipThreshold:    action = "Monitor Tomorrow"
+    else:                         action = "Irrigate Today"; D = 0   // advised irrigation resets the deficit
+```
+
+Per-day confidence reflects forecast distance, not data freshness: offsets 1..`PLAN_MEDIUM_MAX_OFFSET` → Medium; beyond → Low. Day 0 inherits today's confidence (Step 8). The plan also names the first irrigation day (`recommendedIrrigationDate`) and the first rain-covered day (`nextRainCoveredDate`), from which the UI assembles planning notes. The plan is returned alongside the recommendation; it is not persisted.
+
+---
+
 # Final Recommendation Object
 
 The engine returns the structure defined in `02_Decision_Engine.md` / `03_Data_Models.md`:
@@ -317,6 +375,25 @@ These are the numeric counterparts to the qualitative efficiency ratings in `10_
 | STALE_MAX_HOURS | 24 | ≤ this → Medium; above → Low |
 | IRRIGATION_TIME_DEFAULT | 06:00 local | evaporation-minimizing heuristic |
 
+## Multi-day planning (V1.2, Steps 4b & 11)
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| CARRYOVER_DAYS | 2 | past days feeding the carryover deficit |
+| PLAN_DAYS_AHEAD | 4 | forecast days beyond today in the plan (5 total) |
+| PLAN_MEDIUM_MAX_OFFSET | 2 | plan days ≤ this offset → Medium confidence; beyond → Low |
+
+## Factor-influence thresholds (V1.2, Step 10)
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| KC_HIGH | 1.1 | Kc ≥ this → crop strongly raises demand |
+| KC_LOW | 0.6 | Kc ≤ this → crop lowers demand |
+| TEMP_STRONG_DELTA | 4 | °C from T_BASE for strong temperature influence |
+| HUM_STRONG_DELTA | 15 | % from H_BASE for strong humidity influence |
+| WIND_STRONG_DELTA | 2 | m/s above W_BASE for strong wind influence |
+| METHOD_LOW_EFFICIENCY | 0.6 | efficiency ≤ this → method raises applied water (moderate) |
+
 ---
 
 # Section 10 — Assumptions (explicit)
@@ -327,8 +404,9 @@ These assumptions are required for the logic above and were previously implicit.
 2. **One primary crop per farm**, and **one recommendation per farm per day**, generated on demand.
 3. **ETo is not computed** in the MVP; a documented reference baseline (`ETo_ref`) is used. Cloud cover and any additional weather fields are retained for future ETo computation but are not used numerically now.
 4. **Units are metric.** Water depth is reported in millimetres and volume in litres; area is converted from the farm's stored `Area Unit`.
-5. **Effective rainfall** is a soil-scaled fraction of forecast rainfall; the MVP does not model multi-day soil moisture carryover.
+5. **Effective rainfall** is a soil-scaled fraction of forecast rainfall. As of V1.2 the engine additionally models a bounded multi-day soil-moisture carryover over the past `CARRYOVER_DAYS` days (Step 4b); deeper soil-moisture simulation remains future scope.
 6. **The Decision Engine runs client-side**, framework-independent, so recommendations work fully offline. Any backend "Generate Recommendation" endpoint in `04_System_Interfaces.md` is treated as future/optional.
+7. **The daily weather series** (V1.2) covers the past `CARRYOVER_DAYS` days, today, and the next `PLAN_DAYS_AHEAD` days, in the farm's timezone. When it is unavailable (offline with a pre-V1.2 cache), the engine reproduces the V1.1 behavior exactly and returns no plan.
 
 ---
 

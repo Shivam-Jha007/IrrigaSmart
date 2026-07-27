@@ -13,9 +13,11 @@ import { LANGUAGES, UNIT_SYSTEMS } from '../types';
 
 interface Props {
   store: AppStore;
+  /** Re-open the welcome/learning flow (roadmap Feature 6.5). */
+  onShowOnboarding(): void;
 }
 
-export function SettingsPage({ store }: Props) {
+export function SettingsPage({ store, onShowOnboarding }: Props) {
   const { settings, farmer, t } = store;
   const [name, setName] = useState(farmer?.name ?? '');
   const [savedNote, setSavedNote] = useState<string | null>(null);
@@ -96,6 +98,12 @@ export function SettingsPage({ store }: Props) {
           <input type="checkbox" checked={settings.offlineSyncEnabled} disabled readOnly />
           <span>{t('settings.cloudSync')}</span>
         </label>
+      </section>
+
+      <section className="settings-group">
+        <button type="button" className="btn btn--ghost btn--block" onClick={onShowOnboarding}>
+          {t('settings.about')}
+        </button>
       </section>
 
       {savedNote && <p className="settings-note">{savedNote}</p>}

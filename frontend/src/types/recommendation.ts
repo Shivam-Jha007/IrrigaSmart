@@ -14,6 +14,39 @@ export interface EstimatedWaterAmount {
 }
 
 /**
+ * A decision factor shown with every recommendation
+ * (docs/12_Product_Roadmap_v2.md Feature 4 — Recommendation Factors).
+ *
+ * `value` is a locale-neutral display string: either an enum member name
+ * (translated by the UI via the i18n enum mappers) or a formatted number
+ * (e.g. "34°C", "2.0 mm"). Enum-valued factors use these domains:
+ * crop → CropName, growthStage → GrowthStage, soil → SoilType,
+ * irrigationMethod → IrrigationMethod.
+ */
+export type FactorName =
+  | 'crop'
+  | 'growthStage'
+  | 'temperature'
+  | 'rainfall'
+  | 'humidity'
+  | 'wind'
+  | 'soil'
+  | 'irrigationMethod';
+
+/** Direction in which the factor pushes the irrigation need/amount. */
+export type FactorInfluence = 'increases' | 'decreases' | 'neutral';
+
+/** Relative magnitude of the factor's influence. */
+export type FactorStrength = 'strong' | 'moderate' | 'weak';
+
+export interface RecommendationFactor {
+  name: FactorName;
+  influence: FactorInfluence;
+  strength: FactorStrength;
+  value: string;
+}
+
+/**
  * Recommendation — the structured output of the Decision Engine
  * (docs/02_Decision_Engine.md, docs/03_Data_Models.md).
  *
@@ -35,4 +68,9 @@ export interface Recommendation {
   confidence: ConfidenceLevel;
   /** ISO-8601 timestamp of when the recommendation was generated. */
   generatedTime: string;
+  /**
+   * Decision factors with their relative influence (roadmap Feature 4).
+   * Optional for backward compatibility with records stored before V1.2.
+   */
+  factors?: RecommendationFactor[];
 }
