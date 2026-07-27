@@ -12,7 +12,12 @@ services:
     plan: free
     # Monorepo (npm workspaces): install at the repo root, then build only the
     # backend workspace. tsc emits to backend/dist.
-    buildCommand: npm install && npm run build --workspace backend
+    #
+    # --include=dev is required: NODE_ENV=production (set below, for runtime)
+    # would otherwise make npm skip devDependencies, but the build needs the
+    # TypeScript compiler and type definitions (@types/node, @types/cors) that
+    # live in devDependencies. The flag forces them to install for the build.
+    buildCommand: npm install --include=dev && npm run build --workspace backend
     startCommand: npm run start --workspace backend
     healthCheckPath: /health
     envVars:
