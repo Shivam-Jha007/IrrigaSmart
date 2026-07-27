@@ -14,6 +14,10 @@ import type { Language } from '../types';
 
 const en = {
   'app.loading': 'Loading…',
+  'app.initErrorTitle': 'Could not open the app data',
+  'app.initErrorBody':
+    'Please close all other IrrigaSmart tabs, then reload this page. Your saved farms are safe.',
+  'app.reload': 'Reload',
   'app.offlineBanner':
     'You are offline. Showing saved data — recommendations use your last weather.',
 
@@ -233,6 +237,10 @@ export type TranslationKey = keyof typeof en;
 
 const hi: Record<TranslationKey, string> = {
   'app.loading': 'लोड हो रहा है…',
+  'app.initErrorTitle': 'ऐप डेटा नहीं खुल सका',
+  'app.initErrorBody':
+    'कृपया IrrigaSmart के अन्य सभी टैब बंद करें, फिर इस पेज को रीलोड करें। आपके सहेजे खेत सुरक्षित हैं।',
+  'app.reload': 'रीलोड करें',
   'app.offlineBanner':
     'आप ऑफ़लाइन हैं। सहेजा गया डेटा दिख रहा है — सिफ़ारिशें आपके अंतिम मौसम पर आधारित हैं।',
 
@@ -447,6 +455,10 @@ const hi: Record<TranslationKey, string> = {
 
 const bn: Record<TranslationKey, string> = {
   'app.loading': 'লোড হচ্ছে…',
+  'app.initErrorTitle': 'অ্যাপ ডেটা খোলা যায়নি',
+  'app.initErrorBody':
+    'অনুগ্রহ করে IrrigaSmart-এর অন্য সব ট্যাব বন্ধ করুন, তারপর এই পৃষ্ঠাটি রিলোড করুন। আপনার সংরক্ষিত জমি নিরাপদ আছে।',
+  'app.reload': 'রিলোড করুন',
   'app.offlineBanner':
     'আপনি অফলাইনে আছেন। সংরক্ষিত তথ্য দেখানো হচ্ছে — সুপারিশগুলি আপনার শেষ আবহাওয়ার উপর ভিত্তি করে।',
 

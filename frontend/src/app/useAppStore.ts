@@ -56,6 +56,12 @@ const REMINDER_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
 export interface AppStore extends AppData {
   loading: boolean;
+  /**
+   * Set when the initial local-data load failed (e.g. the IndexedDB upgrade
+   * was blocked by another tab). The shell shows an actionable error instead
+   * of hanging on "Loading…" (docs/07_Engineering_Rules.md: Error Handling).
+   */
+  initError: boolean;
   /** Translate a UI key using the language from Settings (roadmap Feature 2). */
   t: TranslateFn;
   /** Notifications delivered today, for the dashboard reminders card. */
@@ -89,6 +95,7 @@ export function useAppStore(): AppStore {
   const [profiles, setProfiles] = useState<FarmProfile[]>([]);
   const [settings, setSettings] = useState<Settings>(SETTINGS_FALLBACK);
   const [loading, setLoading] = useState(true);
+  const [initError, setInitError] = useState(false);
   const [todaysReminders, setTodaysReminders] = useState<AppNotification[]>([]);
 
   const loadProfiles = useCallback(async (farmerId: string): Promise<FarmProfile[]> => {
@@ -108,21 +115,28 @@ export function useAppStore(): AppStore {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const existing = await farmerRepository.getAll();
-      let current = existing[0];
-      if (!current) {
-        current = { ...DEFAULT_FARMER, createdDate: new Date().toISOString() };
-        await farmerRepository.save(current);
+      try {
+        const existing = await farmerRepository.getAll();
+        let current = existing[0];
+        if (!current) {
+          current = { ...DEFAULT_FARMER, createdDate: new Date().toISOString() };
+          await farmerRepository.save(current);
+        }
+        const [loadedProfiles, loadedSettings] = await Promise.all([
+          loadProfiles(current.id),
+          getSettings(),
+        ]);
+        if (cancelled) return;
+        setFarmer(current);
+        setProfiles(loadedProfiles);
+        setSettings(loadedSettings);
+      } catch {
+        // Never hang on "Loading…": surface the failure (e.g. a blocked
+        // IndexedDB upgrade) so the user gets an actionable message.
+        if (!cancelled) setInitError(true);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      const [loadedProfiles, loadedSettings] = await Promise.all([
-        loadProfiles(current.id),
-        getSettings(),
-      ]);
-      if (cancelled) return;
-      setFarmer(current);
-      setProfiles(loadedProfiles);
-      setSettings(loadedSettings);
-      setLoading(false);
     })();
     return () => {
       cancelled = true;
@@ -139,10 +153,16 @@ export function useAppStore(): AppStore {
   const refreshTodaysReminders = useCallback(async () => {
     const all = await notificationRepository.getAll();
     const now = new Date().toISOString();
-    setTodaysReminders(
-      all
-        .filter((n) => n.deliveredAt !== null && isSameLocalDay(n.deliveredAt, now))
-        .sort((a, b) => a.dueAt.localeCompare(b.dueAt)),
+    const next = all
+      .filter((n) => n.deliveredAt !== null && isSameLocalDay(n.deliveredAt, now))
+      .sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+    // Keep the previous array when content is unchanged — a new reference
+    // would re-render the whole app after every generate/interval check.
+    setTodaysReminders((prev) =>
+      prev.length === next.length &&
+      prev.every((p, i) => p.id === next[i]!.id && p.deliveredAt === next[i]!.deliveredAt)
+        ? prev
+        : next,
     );
   }, []);
 
@@ -340,6 +360,7 @@ export function useAppStore(): AppStore {
     profiles,
     settings,
     loading,
+    initError,
     t,
     todaysReminders,
     saveFarm,

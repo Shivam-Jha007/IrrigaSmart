@@ -36,6 +36,19 @@ function App() {
     );
   }
 
+  if (store.initError) {
+    return (
+      <div className="app-loading">
+        <h1 className="app-loading__brand">IrrigaSmart</h1>
+        <h2 className="app-loading__error-title">{t('app.initErrorTitle')}</h2>
+        <p className="app-loading__error-body">{t('app.initErrorBody')}</p>
+        <button type="button" className="btn btn--primary" onClick={() => window.location.reload()}>
+          {t('app.reload')}
+        </button>
+      </div>
+    );
+  }
+
   if (showOnboarding || !store.settings.onboardingCompleted) {
     return <Onboarding store={store} onDone={() => setShowOnboarding(false)} />;
   }

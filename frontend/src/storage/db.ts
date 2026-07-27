@@ -91,13 +91,29 @@ export interface IrrigaSmartDB extends DBSchema {
 
 let dbPromise: Promise<IDBPDatabase<IrrigaSmartDB>> | null = null;
 
+/** Error thrown when a DB upgrade is blocked by another tab holding an older version. */
+export class DbBlockedError extends Error {
+  constructor() {
+    super('Database upgrade is blocked by another open IrrigaSmart tab');
+    this.name = 'DbBlockedError';
+  }
+}
+
 /**
  * Open (or reuse) the singleton database connection. The connection is created
  * lazily on first use and cached for the lifetime of the page.
+ *
+ * Multi-tab safety: this connection closes itself when another tab requests a
+ * version change (so upgrades are never blocked by us). If OUR upgrade is
+ * blocked by another tab holding an older version, the open hangs silently —
+ * so a guard rejects with DbBlockedError after a few seconds, letting callers
+ * show actionable feedback instead of an infinite "Loading…". If the other
+ * tab closes in time, the open completes normally.
  */
 export function getDb(): Promise<IDBPDatabase<IrrigaSmartDB>> {
   if (!dbPromise) {
-    dbPromise = openDB<IrrigaSmartDB>(DB_NAME, DB_VERSION, {
+    let blockedByOtherTab = false;
+    const open = openDB<IrrigaSmartDB>(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           db.createObjectStore('farmers', { keyPath: 'id' });
@@ -128,6 +144,29 @@ export function getDb(): Promise<IDBPDatabase<IrrigaSmartDB>> {
           notifications.createIndex('byFarm', 'farmId');
         }
       },
+      blocked() {
+        blockedByOtherTab = true;
+      },
+    }).then((db) => {
+      // If another tab needs to upgrade, release our connection so it can.
+      db.addEventListener('versionchange', () => {
+        db.close();
+        dbPromise = null;
+      });
+      return db;
+    });
+
+    const blockedGuard = new Promise<never>((_resolve, reject) => {
+      setTimeout(() => {
+        if (blockedByOtherTab) reject(new DbBlockedError());
+      }, 4000);
+    });
+
+    dbPromise = Promise.race([open, blockedGuard]);
+    // A failed open (blocked, VersionError) must not poison the singleton —
+    // the next call retries from scratch.
+    dbPromise.catch(() => {
+      dbPromise = null;
     });
   }
   return dbPromise;
