@@ -1,4 +1,5 @@
 import type { WeatherData } from '../types';
+import type { TranslateFn } from '../i18n';
 
 /**
  * WeatherSummary — shows only irrigation-relevant weather
@@ -9,30 +10,27 @@ import type { WeatherData } from '../types';
 interface Props {
   weather: WeatherData;
   fromCache: boolean;
+  t: TranslateFn;
 }
 
-export function WeatherSummary({ weather, fromCache }: Props) {
+export function WeatherSummary({ weather, fromCache, t }: Props) {
   return (
     <section className="weather" aria-label="Weather summary">
       <div className="weather__items">
         <div className="weather__item">
           <span className="weather__value">{Math.round(weather.temperature)}°C</span>
-          <span className="weather__label">Temperature</span>
+          <span className="weather__label">{t('weather.temperature')}</span>
         </div>
         <div className="weather__item">
           <span className="weather__value">{weather.rainfallForecast.toFixed(1)} mm</span>
-          <span className="weather__label">Rain today</span>
+          <span className="weather__label">{t('weather.rainToday')}</span>
         </div>
         <div className="weather__item">
           <span className="weather__value">{Math.round(weather.humidity)}%</span>
-          <span className="weather__label">Humidity</span>
+          <span className="weather__label">{t('weather.humidity')}</span>
         </div>
       </div>
-      {fromCache && (
-        <p className="weather__cache-note">
-          Showing your most recent saved weather — connect to update.
-        </p>
-      )}
+      {fromCache && <p className="weather__cache-note">{t('weather.cacheNote')}</p>}
     </section>
   );
 }

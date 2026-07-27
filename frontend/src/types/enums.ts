@@ -50,11 +50,11 @@ export const CONFIDENCE_LEVELS = ['High', 'Medium', 'Low'] as const;
 export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
 
 /**
- * Supported interface languages.
- * MVP ships English; the field exists now so profiles remain forward-compatible
- * with the multilingual support planned for a later phase (PRD Part 1 §16).
+ * Supported interface languages (docs/12_Product_Roadmap_v2.md Feature 2 —
+ * Multi-language Support): English, Hindi, Bengali. The preference is stored
+ * in Settings and applied to all screens.
  */
-export const LANGUAGES = ['en'] as const;
+export const LANGUAGES = ['en', 'hi', 'bn'] as const;
 export type Language = (typeof LANGUAGES)[number];
 
 /**

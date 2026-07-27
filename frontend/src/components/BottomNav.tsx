@@ -4,20 +4,22 @@ export type Tab = 'dashboard' | 'farms' | 'history' | 'settings';
 interface Props {
   active: Tab;
   onChange(tab: Tab): void;
+  /** Localized labels per tab, supplied by the caller (roadmap Feature 2). */
+  labels: Record<Tab, string>;
 }
 
-const TABS: Array<{ id: Tab; label: string; icon: string }> = [
-  { id: 'dashboard', label: 'Today', icon: '💧' },
-  { id: 'farms', label: 'Farms', icon: '🌱' },
-  { id: 'history', label: 'History', icon: '📋' },
-  { id: 'settings', label: 'Settings', icon: '⚙️' },
+const TABS: Array<{ id: Tab; icon: string }> = [
+  { id: 'dashboard', icon: '💧' },
+  { id: 'farms', icon: '🌱' },
+  { id: 'history', icon: '📋' },
+  { id: 'settings', icon: '⚙️' },
 ];
 
 /**
  * BottomNav — always-visible bottom navigation (docs/05_UI_UX_Spec.md).
  * Large touch targets for accessibility.
  */
-export function BottomNav({ active, onChange }: Props) {
+export function BottomNav({ active, onChange, labels }: Props) {
   return (
     <nav className="bottom-nav" aria-label="Primary">
       {TABS.map((tab) => (
@@ -31,7 +33,7 @@ export function BottomNav({ active, onChange }: Props) {
           <span className="bottom-nav__icon" aria-hidden>
             {tab.icon}
           </span>
-          <span className="bottom-nav__label">{tab.label}</span>
+          <span className="bottom-nav__label">{labels[tab.id]}</span>
         </button>
       ))}
     </nav>

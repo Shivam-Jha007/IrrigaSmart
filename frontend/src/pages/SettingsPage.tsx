@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import type { AppStore } from '../app/useAppStore';
+import type { Language, UnitSystem } from '../types';
 import { LANGUAGES, UNIT_SYSTEMS } from '../types';
 
 /**
  * Settings page — personalize the app (docs/05_UI_UX_Spec.md Settings):
- * language, units, offline and notification preferences. Notifications and
- * cloud sync are future scope and shown disabled (docs/06_Development_Roadmap.md
+ * language, units, offline and notification preferences. Language switching is
+ * live (docs/12_Product_Roadmap_v2.md Feature 2); notifications and cloud sync
+ * remain future scope and shown disabled (docs/06_Development_Roadmap.md
  * Deferred Features).
  */
 
@@ -14,7 +16,7 @@ interface Props {
 }
 
 export function SettingsPage({ store }: Props) {
-  const { settings, farmer } = store;
+  const { settings, farmer, t } = store;
   const [name, setName] = useState(farmer?.name ?? '');
   const [savedNote, setSavedNote] = useState<string | null>(null);
 
@@ -26,17 +28,17 @@ export function SettingsPage({ store }: Props) {
   async function saveName() {
     if (!farmer || !name.trim()) return;
     await store.updateFarmer({ ...farmer, name: name.trim() });
-    flash('Profile saved.');
+    flash(t('settings.saved'));
   }
 
   return (
     <div className="page">
-      <h2 className="page__title">Settings</h2>
+      <h2 className="page__title">{t('settings.title')}</h2>
 
       <section className="settings-group">
-        <h3 className="settings-group__title">Profile</h3>
+        <h3 className="settings-group__title">{t('settings.profile')}</h3>
         <label className="field">
-          <span className="field__label">Your name</span>
+          <span className="field__label">{t('settings.yourName')}</span>
           <input
             className="field__input"
             type="text"
@@ -48,36 +50,36 @@ export function SettingsPage({ store }: Props) {
       </section>
 
       <section className="settings-group">
-        <h3 className="settings-group__title">Preferences</h3>
+        <h3 className="settings-group__title">{t('settings.preferences')}</h3>
         <label className="field">
-          <span className="field__label">Language</span>
+          <span className="field__label">{t('settings.language')}</span>
           <select
             className="field__input"
             value={settings.preferredLanguage}
             onChange={(e) =>
-              void store.updateSettings({ ...settings, preferredLanguage: e.target.value as 'en' })
+              void store.updateSettings({ ...settings, preferredLanguage: e.target.value as Language })
             }
           >
             {LANGUAGES.map((l) => (
               <option key={l} value={l}>
-                {l === 'en' ? 'English' : l}
+                {t(`lang.${l}`)}
               </option>
             ))}
           </select>
         </label>
 
         <label className="field">
-          <span className="field__label">Units</span>
+          <span className="field__label">{t('settings.units')}</span>
           <select
             className="field__input"
             value={settings.units}
             onChange={(e) =>
-              void store.updateSettings({ ...settings, units: e.target.value as 'metric' })
+              void store.updateSettings({ ...settings, units: e.target.value as UnitSystem })
             }
           >
             {UNIT_SYSTEMS.map((u) => (
               <option key={u} value={u}>
-                {u === 'metric' ? 'Metric (°C, mm, litres)' : u}
+                {u === 'metric' ? t('settings.unitsMetric') : u}
               </option>
             ))}
           </select>
@@ -85,14 +87,14 @@ export function SettingsPage({ store }: Props) {
       </section>
 
       <section className="settings-group">
-        <h3 className="settings-group__title">Coming soon</h3>
+        <h3 className="settings-group__title">{t('settings.comingSoon')}</h3>
         <label className="toggle toggle--disabled">
           <input type="checkbox" checked={settings.notificationsEnabled} disabled readOnly />
-          <span>Notifications (future release)</span>
+          <span>{t('settings.notifications')}</span>
         </label>
         <label className="toggle toggle--disabled">
           <input type="checkbox" checked={settings.offlineSyncEnabled} disabled readOnly />
-          <span>Cloud sync (future release)</span>
+          <span>{t('settings.cloudSync')}</span>
         </label>
       </section>
 

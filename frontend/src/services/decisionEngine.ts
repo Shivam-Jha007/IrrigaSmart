@@ -3,12 +3,14 @@ import type {
   Crop,
   EstimatedWaterAmount,
   Farm,
+  Language,
   Recommendation,
   RecommendationStatus,
   Soil,
   WeatherData,
 } from '../types';
-import { getKc, METHOD_LABELS, SOIL_PROFILES } from './knowledgeBase';
+import { getKc } from './knowledgeBase';
+import { buildExplanation } from './explanationText';
 import {
   AREA_TO_M2,
   clamp,
@@ -28,7 +30,8 @@ import {
  * Deterministic and framework-independent (docs/07_Engineering_Rules.md:
  * Decision Engine Rules). Identical inputs always produce identical output.
  * `now` is injected rather than read from the clock so results are reproducible
- * and testable.
+ * and testable. `language` selects the explanation wording (roadmap Feature 2)
+ * and is likewise an explicit input, keeping determinism.
  */
 
 export interface DecisionInput {
@@ -39,6 +42,8 @@ export interface DecisionInput {
   weather: WeatherData | null;
   /** Current time as an ISO-8601 string, injected for determinism. */
   now: string;
+  /** Language for the farmer-facing explanation (roadmap Feature 2). */
+  language: Language;
 }
 
 /** A missing required field prevents recommendation (Decision Engine Stage 1). */
@@ -96,31 +101,6 @@ function computeConfidence(weather: WeatherData | null, now: string): Confidence
   return 'Low';
 }
 
-/** Stage 9 — Farmer-facing explanation (Decision Engine Stage 6). */
-function buildExplanation(
-  status: RecommendationStatus,
-  crop: Crop,
-  soil: Soil,
-  method: string,
-  rainMeaningful: boolean,
-  hot: boolean,
-): string {
-  const stage = crop.growthStage.toLowerCase();
-  const soilNote = SOIL_PROFILES[soil.name].frequency.toLowerCase();
-
-  if (status === 'Delay Irrigation') {
-    return `Rain expected today is enough to meet your ${crop.name.toLowerCase()}'s needs, so you can delay irrigation. On ${soil.name.toLowerCase()} soil this moisture stays available longer.`;
-  }
-  if (status === 'Monitor Tomorrow') {
-    return `Your ${crop.name.toLowerCase()} in the ${stage} stage needs only a little water today, and your ${soil.name.toLowerCase()} soil (${soilNote} watering) can hold it. Check again tomorrow.`;
-  }
-  const rainClause = rainMeaningful
-    ? 'The forecast rain is not enough to meet its needs, so'
-    : 'With little rain expected,';
-  const heatClause = hot ? ' Today is hot, which raises water demand.' : '';
-  return `Your ${crop.name.toLowerCase()} is in the ${stage} stage.${heatClause} ${rainClause} irrigate this morning using your ${method} system.`;
-}
-
 /**
  * Run the full decision pipeline for a single farm.
  * Returns either a validation failure (missing fields) or a recommendation.
@@ -132,7 +112,7 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
     return { ok: false, missingFields };
   }
 
-  const { farm, crop, soil, weather, now } = input;
+  const { farm, crop, soil, weather, now, language } = input;
 
   // Stage 2 — Knowledge retrieval
   const kc = getKc(crop.name, crop.growthStage);
@@ -179,12 +159,16 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
 
   // Stage 9 — Explanation
   const explanation = buildExplanation(
-    status,
-    crop,
-    soil,
-    METHOD_LABELS[farm.irrigationMethod],
-    pe > 0,
-    weather ? weather.temperature > WEATHER.T_BASE : false,
+    {
+      status,
+      cropName: crop.name,
+      growthStage: crop.growthStage,
+      soilName: soil.name,
+      method: farm.irrigationMethod,
+      rainMeaningful: pe > 0,
+      hot: weather ? weather.temperature > WEATHER.T_BASE : false,
+    },
+    language,
   );
 
   return {

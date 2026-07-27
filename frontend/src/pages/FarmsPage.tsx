@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import type { AppStore } from '../app/useAppStore';
 import type { FarmProfile } from '../app/appTypes';
+import {
+  areaUnitLabelKey,
+  cropLabelKey,
+  methodLabelKey,
+  soilLabelKey,
+  stageLabelKey,
+} from '../i18n';
 import { FarmForm } from './FarmForm';
 
 /**
@@ -15,6 +22,7 @@ interface Props {
 type Mode = { kind: 'list' } | { kind: 'add' } | { kind: 'edit'; profile: FarmProfile };
 
 export function FarmsPage({ store }: Props) {
+  const { t } = store;
   const [mode, setMode] = useState<Mode>({ kind: 'list' });
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
@@ -23,6 +31,7 @@ export function FarmsPage({ store }: Props) {
       <div className="page">
         <FarmForm
           initial={mode.kind === 'edit' ? mode.profile : undefined}
+          t={t}
           onSave={async (draft) => {
             await store.saveFarm(draft);
             setMode({ kind: 'list' });
@@ -36,16 +45,14 @@ export function FarmsPage({ store }: Props) {
   return (
     <div className="page">
       <div className="page__header">
-        <h2 className="page__title">Your farms</h2>
+        <h2 className="page__title">{t('farms.title')}</h2>
         <button type="button" className="btn btn--primary" onClick={() => setMode({ kind: 'add' })}>
-          + Add farm
+          {t('farms.add')}
         </button>
       </div>
 
       {store.profiles.length === 0 ? (
-        <p className="empty-state">
-          No farms yet. Add your first farm to get an irrigation recommendation.
-        </p>
+        <p className="empty-state">{t('farms.empty')}</p>
       ) : (
         <ul className="farm-list">
           {store.profiles.map(({ farm, crop, soil }) => (
@@ -53,10 +60,12 @@ export function FarmsPage({ store }: Props) {
               <div className="farm-list__main">
                 <h3 className="farm-list__name">{farm.name}</h3>
                 <p className="farm-list__meta">
-                  {crop.name} · {crop.growthStage} · {soil.name} soil
+                  {t(cropLabelKey(crop.name))} · {t(stageLabelKey(crop.growthStage))} ·{' '}
+                  {t(soilLabelKey(soil.name))} {t('farms.soilSuffix')}
                 </p>
                 <p className="farm-list__meta">
-                  {farm.area} {farm.areaUnit} · {farm.irrigationMethod}
+                  {farm.area} {t(areaUnitLabelKey(farm.areaUnit))} ·{' '}
+                  {t(methodLabelKey(farm.irrigationMethod))}
                   {farm.location.label ? ` · ${farm.location.label}` : ''}
                 </p>
               </div>
@@ -66,7 +75,7 @@ export function FarmsPage({ store }: Props) {
                   className="btn btn--ghost btn--sm"
                   onClick={() => setMode({ kind: 'edit', profile: { farm, crop, soil } })}
                 >
-                  Edit
+                  {t('farms.edit')}
                 </button>
                 {confirmDelete === farm.id ? (
                   <button
@@ -77,7 +86,7 @@ export function FarmsPage({ store }: Props) {
                       setConfirmDelete(null);
                     }}
                   >
-                    Confirm
+                    {t('farms.confirm')}
                   </button>
                 ) : (
                   <button
@@ -85,7 +94,7 @@ export function FarmsPage({ store }: Props) {
                     className="btn btn--ghost btn--sm btn--danger-text"
                     onClick={() => setConfirmDelete(farm.id)}
                   >
-                    Delete
+                    {t('farms.delete')}
                   </button>
                 )}
               </div>
