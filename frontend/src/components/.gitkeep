@@ -1,0 +1,3 @@
+# components
+#
+# Reusable presentational UI components. No business logic (see docs/07_Engineering_Rules.md).
