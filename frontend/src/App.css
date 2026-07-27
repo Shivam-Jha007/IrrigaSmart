@@ -24,6 +24,18 @@
 .app-loading__brand {
   color: var(--color-primary);
 }
+.app-loading__error-title {
+  font-size: 1.15rem;
+  margin: 0;
+  color: var(--color-text);
+}
+.app-loading__error-body {
+  max-width: 32em;
+  text-align: center;
+  line-height: 1.6;
+  margin: 0;
+  color: var(--color-text-muted);
+}
 
 /* --- Header --- */
 .app-header {

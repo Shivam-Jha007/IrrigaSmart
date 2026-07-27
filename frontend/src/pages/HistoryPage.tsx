@@ -19,7 +19,7 @@ interface Entry {
 }
 
 export function HistoryPage({ store }: Props) {
-  const { profiles, t } = store;
+  const { profiles, t, loadHistory } = store;
   const [selectedFarmId, setSelectedFarmId] = useState<string>('');
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -41,7 +41,9 @@ export function HistoryPage({ store }: Props) {
     let cancelled = false;
     setLoading(true);
     void (async () => {
-      const loaded = await store.loadHistory(selectedFarmId);
+      // Depend on the stable loadHistory method, not the whole store object —
+      // the store is re-created on every App render.
+      const loaded = await loadHistory(selectedFarmId);
       if (!cancelled) {
         setEntries(loaded);
         setLoading(false);
@@ -50,7 +52,7 @@ export function HistoryPage({ store }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [selectedFarmId, store]);
+  }, [selectedFarmId, loadHistory]);
 
   if (profiles.length === 0) {
     return (

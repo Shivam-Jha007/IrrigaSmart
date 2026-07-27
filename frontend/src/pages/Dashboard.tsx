@@ -27,7 +27,7 @@ interface Props {
 }
 
 export function Dashboard({ store, onGoToFarms }: Props) {
-  const { farmer, profiles, t } = store;
+  const { farmer, profiles, t, generateForFarm, loadFarmSummaries } = store;
   const [selectedFarmId, setSelectedFarmId] = useState<string>('');
   const [view, setView] = useState<RecommendationView | null>(null);
   const [weather, setWeather] = useState<WeatherData | null>(null);
@@ -47,9 +47,13 @@ export function Dashboard({ store, onGoToFarms }: Props) {
     }
   }, [profiles, selectedFarmId]);
 
+  // NOTE: effects depend on the store's stable useCallback'd methods, never on
+  // the `store` object itself — that object is re-created on every App render,
+  // and depending on it re-fires the generate effect after any app-level state
+  // update (e.g. reminder delivery), causing an infinite generate loop.
   const loadSummaries = useCallback(async () => {
-    setSummaries(await store.loadFarmSummaries());
-  }, [store]);
+    setSummaries(await loadFarmSummaries());
+  }, [loadFarmSummaries]);
 
   const refresh = useCallback(
     async (farmId: string) => {
@@ -57,7 +61,7 @@ export function Dashboard({ store, onGoToFarms }: Props) {
       setLoading(true);
       setError(null);
       try {
-        const result = await store.generateForFarm(farmId);
+        const result = await generateForFarm(farmId);
         if (!result) {
           setError(t('dashboard.errorMissing'));
           setView(null);
@@ -76,7 +80,7 @@ export function Dashboard({ store, onGoToFarms }: Props) {
         setLoading(false);
       }
     },
-    [store, t, loadSummaries],
+    [generateForFarm, t, loadSummaries],
   );
 
   // Auto-generate when the selected farm changes.

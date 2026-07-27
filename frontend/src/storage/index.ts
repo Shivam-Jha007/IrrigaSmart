@@ -5,7 +5,7 @@
  * from here; nothing outside this folder opens IndexedDB directly
  * (docs/07_Engineering_Rules.md: Storage Rules).
  */
-export { DB_NAME, DB_VERSION, closeDb, type WeatherCacheEntry } from './db';
+export { DB_NAME, DB_VERSION, closeDb, DbBlockedError, type WeatherCacheEntry } from './db';
 export { type Repository, createRepository } from './repository';
 export {
   cropRepository,
