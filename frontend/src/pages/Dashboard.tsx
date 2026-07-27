@@ -7,6 +7,8 @@ import { RecommendationCard } from '../components/RecommendationCard';
 import { WeatherSummary } from '../components/WeatherSummary';
 import { FarmCard } from '../components/FarmCard';
 import { PlanOutlook } from '../components/PlanOutlook';
+import { RemindersCard } from '../components/RemindersCard';
+import { SeasonalGuidance } from '../components/SeasonalGuidance';
 
 /**
  * Dashboard — answers "what should I do today?" immediately
@@ -90,6 +92,7 @@ export function Dashboard({ store, onGoToFarms }: Props) {
   }, [loadSummaries, profiles]);
 
   const greeting = t('dashboard.greeting', { name: farmer?.name ?? 'Farmer' });
+  const selectedProfile = profiles.find((p) => p.farm.id === selectedFarmId);
 
   if (profiles.length === 0) {
     return (
@@ -108,6 +111,12 @@ export function Dashboard({ store, onGoToFarms }: Props) {
   return (
     <div className="page">
       <p className="dashboard__greeting">{greeting}</p>
+
+      <RemindersCard
+        reminders={store.todaysReminders}
+        language={store.settings.preferredLanguage}
+        t={t}
+      />
 
       <div className="farm-cards" role="list">
         {profiles.map((profile) => (
@@ -145,6 +154,10 @@ export function Dashboard({ store, onGoToFarms }: Props) {
 
       {!loading && view?.plan && (
         <PlanOutlook plan={view.plan} language={store.settings.preferredLanguage} t={t} />
+      )}
+
+      {!loading && selectedProfile && (
+        <SeasonalGuidance crop={selectedProfile.crop} language={store.settings.preferredLanguage} t={t} />
       )}
 
       {!loading && (

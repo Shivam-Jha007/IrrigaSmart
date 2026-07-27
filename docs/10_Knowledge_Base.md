@@ -601,6 +601,44 @@ Primary Sources
 
 ---
 
+# 9. Regional & Seasonal Knowledge (V2.0)
+
+Added for `12_Product_Roadmap_v2.md` Feature 8. The dataset is bundled with the application — the most offline-first form of a "locally cached dataset" — and requires no network access.
+
+## 9.1 Indian Cropping Seasons
+
+| Season | Months | Character |
+|--------|--------|-----------|
+| Kharif | June–September | Monsoon season; rain covers much of crop demand. |
+| Rabi | October–February | Cool, dry season; regular irrigation needed, lower demand. |
+| Zaid | March–May | Hot summer season; highest evaporative demand. |
+
+## 9.2 Crop Calendars (typical Indian windows)
+
+| Crop | Sowing | Harvest | Main Season |
+|------|--------|---------|-------------|
+| Rice | June–July | October–December | Kharif |
+| Wheat | November–December | March–April | Rabi |
+| Maize | June–July | September–October | Kharif |
+
+Windows vary by region and cultivar; they are guidance, not rules.
+
+## 9.3 Seasonal Irrigation Guidelines
+
+- **Kharif:** irrigate only during dry spells and let the rain do the work; watch for waterlogging.
+- **Rabi:** crops need regular irrigation, but demand is lower than in summer.
+- **Zaid:** water demand is highest; irrigate early morning to reduce evaporation.
+
+## 9.4 Seasonal ETo Adjustment
+
+A coarse seasonal factor shifts the ETo baseline used by the Decision Engine (monsoon and winter lower, hot summer higher). The numeric values are tunable engineering parameters owned by `11_Decision_Logic.md` §9 — this document owns only the agronomic rationale:
+
+- **Kharif (< 1.0):** high humidity and cloud cover suppress evapotranspiration.
+- **Rabi (< 1.0):** low temperatures suppress evapotranspiration.
+- **Zaid (> 1.0):** heat and dry air raise evapotranspiration.
+
+---
+
 ## Scope Disclaimer
 
 The Knowledge Base provides simplified agronomic knowledge suitable for an offline decision-support application.

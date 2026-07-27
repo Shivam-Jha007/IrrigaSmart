@@ -57,3 +57,8 @@ export function formatWeekday(dateStr: string, locale: string): string {
   const d = new Date(`${dateStr}T00:00:00`);
   return d.toLocaleDateString(locale, { weekday: 'short' });
 }
+
+/** Format an ISO timestamp as a short weekday in local time. */
+export function formatWeekdayIso(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale, { weekday: 'short' });
+}

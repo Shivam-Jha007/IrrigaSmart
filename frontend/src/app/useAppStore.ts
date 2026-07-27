@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Farm, Farmer, HistoryRecord, Recommendation } from '../types';
+import type { AppNotification, Farm, Farmer, HistoryRecord, Recommendation } from '../types';
 import {
   cropRepository,
   farmRepository,
@@ -7,14 +7,24 @@ import {
   getCachedWeather,
   getFarmsByFarmer,
   getHistoryByFarm,
+  getNotificationsByFarm,
   getRecommendationsByFarm,
   getSettings,
   historyRepository,
+  notificationRepository,
   recommendationRepository,
   saveSettings as persistSettings,
   soilRepository,
 } from '../storage';
-import { generateRecommendation, getWeatherForFarm } from '../services';
+import {
+  dueNotifications,
+  fireBrowserNotification,
+  generateRecommendation,
+  getWeatherForFarm,
+  isSameLocalDay,
+  notificationText,
+  planNotifications,
+} from '../services';
 import { translate, type TranslateFn } from '../i18n';
 import type { Settings } from '../types';
 import type { AppData, FarmDraft, FarmProfile, FarmSummary, RecommendationView } from './appTypes';
@@ -41,10 +51,15 @@ function newId(prefix: string): string {
   return `${prefix}-${rand}`;
 }
 
+/** How often due reminders are checked while the app is open (Feature 7). */
+const REMINDER_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+
 export interface AppStore extends AppData {
   loading: boolean;
   /** Translate a UI key using the language from Settings (roadmap Feature 2). */
   t: TranslateFn;
+  /** Notifications delivered today, for the dashboard reminders card. */
+  todaysReminders: AppNotification[];
   /** Create or update a farm (with its crop and soil) from a form draft. */
   saveFarm(draft: FarmDraft): Promise<void>;
   /** Delete a farm and its associated crop, soil, recommendations, history. */
@@ -62,6 +77,11 @@ export interface AppStore extends AppData {
   updateSettings(next: Settings): Promise<void>;
   /** Update the farmer profile. */
   updateFarmer(next: Farmer): Promise<void>;
+  /**
+   * Request browser notification permission and enable reminders when
+   * granted (roadmap Feature 7). Returns the outcome for UI feedback.
+   */
+  enableNotifications(): Promise<'granted' | 'denied' | 'unsupported'>;
 }
 
 export function useAppStore(): AppStore {
@@ -69,6 +89,7 @@ export function useAppStore(): AppStore {
   const [profiles, setProfiles] = useState<FarmProfile[]>([]);
   const [settings, setSettings] = useState<Settings>(SETTINGS_FALLBACK);
   const [loading, setLoading] = useState(true);
+  const [todaysReminders, setTodaysReminders] = useState<AppNotification[]>([]);
 
   const loadProfiles = useCallback(async (farmerId: string): Promise<FarmProfile[]> => {
     const farms = await getFarmsByFarmer(farmerId);
@@ -112,6 +133,49 @@ export function useAppStore(): AppStore {
     if (!farmer) return;
     setProfiles(await loadProfiles(farmer.id));
   }, [farmer, loadProfiles]);
+
+  // --- Smart Notifications (roadmap Feature 7) ---
+
+  const refreshTodaysReminders = useCallback(async () => {
+    const all = await notificationRepository.getAll();
+    const now = new Date().toISOString();
+    setTodaysReminders(
+      all
+        .filter((n) => n.deliveredAt !== null && isSameLocalDay(n.deliveredAt, now))
+        .sort((a, b) => a.dueAt.localeCompare(b.dueAt)),
+    );
+  }, []);
+
+  /**
+   * Deliver any due reminders: mark them delivered, fire a browser
+   * notification when enabled, and refresh the dashboard list. Reminders due
+   * while the app was closed are delivered on next open (offline-first).
+   */
+  const deliverDueReminders = useCallback(async () => {
+    const now = new Date().toISOString();
+    const due = dueNotifications(await notificationRepository.getAll(), now);
+    for (const notification of due) {
+      const delivered: AppNotification = { ...notification, deliveredAt: now };
+      await notificationRepository.save(delivered);
+      if (settings.notificationsEnabled) {
+        const { title, body } = notificationText(
+          delivered,
+          (key, vars) => translate(settings.preferredLanguage, key, vars),
+          settings.preferredLanguage,
+        );
+        fireBrowserNotification(title, body);
+      }
+    }
+    await refreshTodaysReminders();
+  }, [settings.notificationsEnabled, settings.preferredLanguage, refreshTodaysReminders]);
+
+  // Check for due reminders on launch and periodically while the app is open.
+  useEffect(() => {
+    if (loading) return;
+    void deliverDueReminders();
+    const id = window.setInterval(() => void deliverDueReminders(), REMINDER_CHECK_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [loading, deliverDueReminders]);
 
   const saveFarm = useCallback(
     async (draft: FarmDraft) => {
@@ -194,6 +258,22 @@ export function useAppStore(): AppStore {
       };
       await historyRepository.save(historyRecord);
 
+      // Schedule reminders from the recommendation (roadmap Feature 7).
+      // Pending reminders are replaced so a fresh plan always supersedes them.
+      const planned = planNotifications({
+        farm: profile.farm,
+        recommendation: result.recommendation,
+        plan: result.plan,
+        now,
+        newId,
+      });
+      const existing = await getNotificationsByFarm(farmId);
+      await Promise.all(
+        existing.filter((n) => n.deliveredAt === null).map((n) => notificationRepository.remove(n.id)),
+      );
+      await Promise.all(planned.map((n) => notificationRepository.save(n)));
+      await deliverDueReminders();
+
       return {
         recommendation: result.recommendation,
         fromCache: weatherResult?.fromCache ?? false,
@@ -201,7 +281,7 @@ export function useAppStore(): AppStore {
         plan: result.plan,
       };
     },
-    [profiles, settings.preferredLanguage],
+    [profiles, settings.preferredLanguage, deliverDueReminders],
   );
 
   const loadFarmSummaries = useCallback(async (): Promise<FarmSummary[]> => {
@@ -240,6 +320,16 @@ export function useAppStore(): AppStore {
     setFarmer(next);
   }, []);
 
+  const enableNotifications = useCallback(async (): Promise<'granted' | 'denied' | 'unsupported'> => {
+    if (!('Notification' in window)) return 'unsupported';
+    const permission = await Notification.requestPermission();
+    const granted = permission === 'granted';
+    const next = { ...settings, notificationsEnabled: granted };
+    await persistSettings(next);
+    setSettings(next);
+    return granted ? 'granted' : 'denied';
+  }, [settings]);
+
   const t: TranslateFn = useCallback(
     (key, vars) => translate(settings.preferredLanguage, key, vars),
     [settings.preferredLanguage],
@@ -251,6 +341,7 @@ export function useAppStore(): AppStore {
     settings,
     loading,
     t,
+    todaysReminders,
     saveFarm,
     deleteFarm,
     generateForFarm,
@@ -258,5 +349,6 @@ export function useAppStore(): AppStore {
     loadHistory,
     updateSettings,
     updateFarmer,
+    enableNotifications,
   };
 }

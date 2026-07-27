@@ -13,6 +13,7 @@ export const cropRepository = createRepository('crops');
 export const soilRepository = createRepository('soils');
 export const recommendationRepository = createRepository('recommendations');
 export const historyRepository = createRepository('history');
+export const notificationRepository = createRepository('notifications');
 
 /** Farms belonging to a given farmer (uses the `byFarmer` index). */
 export function getFarmsByFarmer(farmerId: string) {
@@ -27,4 +28,9 @@ export function getRecommendationsByFarm(farmId: string) {
 /** History records for a given farm (uses the `byFarm` index). */
 export function getHistoryByFarm(farmId: string) {
   return historyRepository.getAllByIndex('byFarm', farmId);
+}
+
+/** Notifications for a given farm (uses the `byFarm` index). */
+export function getNotificationsByFarm(farmId: string) {
+  return notificationRepository.getAllByIndex('byFarm', farmId);
 }

@@ -64,3 +64,10 @@ export type Language = (typeof LANGUAGES)[number];
  */
 export const UNIT_SYSTEMS = ['metric'] as const;
 export type UnitSystem = (typeof UNIT_SYSTEMS)[number];
+
+/**
+ * Indian cropping seasons (docs/10_Knowledge_Base.md §9 — Regional Knowledge;
+ * docs/12_Product_Roadmap_v2.md Feature 8).
+ */
+export const SEASONS = ['Kharif', 'Rabi', 'Zaid'] as const;
+export type Season = (typeof SEASONS)[number];

@@ -13,8 +13,10 @@ export {
   farmerRepository,
   getFarmsByFarmer,
   getHistoryByFarm,
+  getNotificationsByFarm,
   getRecommendationsByFarm,
   historyRepository,
+  notificationRepository,
   recommendationRepository,
   soilRepository,
 } from './repositories';

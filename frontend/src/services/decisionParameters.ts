@@ -1,4 +1,4 @@
-import type { AreaUnit, IrrigationMethod, SoilType } from '../types';
+import type { AreaUnit, IrrigationMethod, Season, SoilType } from '../types';
 
 /**
  * Decision Engine tunable parameters (docs/11_Decision_Logic.md §9).
@@ -10,6 +10,18 @@ import type { AreaUnit, IrrigationMethod, SoilType } from '../types';
 
 /** Reference evapotranspiration baseline in mm/day (Decision Logic §2, §9). */
 export const ETO_REF = 5.0;
+
+/**
+ * Regional seasonal ETo factors (Decision Logic §2 / §9;
+ * docs/10_Knowledge_Base.md §9.4; roadmap Feature 8). Multiplies ETo_ref to
+ * shift the demand baseline by Indian cropping season before the
+ * weather multiplier applies.
+ */
+export const SEASONAL_ETO_FACTOR: Record<Season, number> = {
+  Kharif: 0.95,
+  Rabi: 0.9,
+  Zaid: 1.15,
+};
 
 /** Weather multiplier parameters (Decision Logic §2 / §9). */
 export const WEATHER = {

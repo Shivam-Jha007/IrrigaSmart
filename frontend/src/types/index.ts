@@ -16,3 +16,4 @@ export * from './recommendation';
 export * from './history';
 export * from './settings';
 export * from './irrigationSchedule';
+export * from './appNotification';

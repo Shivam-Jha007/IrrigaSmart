@@ -43,5 +43,10 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
+    // Bind the dual-stack wildcard so the dev server answers on BOTH 127.0.0.1
+    // and ::1 — Node's default 'localhost' resolution can bind only ::1 on
+    // Windows, which makes the app unreachable for browsers that resolve
+    // localhost to IPv4. Also enables LAN access for testing on a phone.
+    host: '::',
   },
 });
