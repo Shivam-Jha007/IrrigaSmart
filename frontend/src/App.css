@@ -451,6 +451,87 @@
   font-size: 0.68rem;
 }
 
+/* --- Reminders (roadmap Feature 7) --- */
+.reminders {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.reminders__title {
+  font-size: 1rem;
+  margin: 0;
+}
+.reminders__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.reminders__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+.reminders__icon {
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+.reminders__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.reminders__item-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.reminders__body {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+/* --- Seasonal guidance (roadmap Feature 8) --- */
+.seasonal {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.seasonal__title {
+  font-size: 1rem;
+  margin: 0;
+}
+.seasonal__line {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.seasonal__meta {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+.seasonal__guide {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
 /* --- Onboarding (roadmap Feature 6.5) --- */
 .onboarding {
   min-height: 100vh;

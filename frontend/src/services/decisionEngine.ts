@@ -13,6 +13,7 @@ import type {
 } from '../types';
 import { getKc } from './knowledgeBase';
 import { buildExplanation } from './explanationText';
+import { getSeasonForDate } from './regionalKnowledge';
 import {
   AREA_TO_M2,
   CARRYOVER_DAYS,
@@ -28,6 +29,7 @@ import {
   PLAN_DAYS_AHEAD,
   PLAN_MEDIUM_MAX_OFFSET,
   RAIN_EFF_FACTOR,
+  SEASONAL_ETO_FACTOR,
   SKIP_THRESHOLD_MM,
   STALE_MAX_HOURS,
   TEMP_STRONG_DELTA,
@@ -153,7 +155,7 @@ function dailyDemand(kc: number, day: DailyWeather): number {
     humidity: day.humidityMean,
     windSpeed: day.windSpeedMax,
   });
-  return kc * ETO_REF * multiplier;
+  return kc * ETO_REF * SEASONAL_ETO_FACTOR[getSeasonForDate(day.date)] * multiplier;
 }
 
 /** Farm-local calendar date (YYYY-MM-DD) for an ISO timestamp. */
@@ -382,9 +384,10 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
 
   // Stage 3/4 — Weather analysis + crop demand.
   // With no weather, assume a neutral multiplier so a recommendation still exists
-  // offline; confidence will reflect the missing data.
+  // offline; confidence will reflect the missing data. The seasonal ETo factor
+  // (Decision Logic §2, roadmap Feature 8) shifts the baseline by season.
   const multiplier = weather ? weatherMultiplier(weather) : 1;
-  const etcAdj = kc * ETO_REF * multiplier;
+  const etcAdj = kc * ETO_REF * SEASONAL_ETO_FACTOR[getSeasonForDate(now)] * multiplier;
 
   // Effective rainfall (Decision Logic §3)
   const rainfall = weather?.rainfallForecast ?? 0;

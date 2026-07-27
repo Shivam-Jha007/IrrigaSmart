@@ -4,7 +4,7 @@
 
 ## Decision Logic Specification
 
-Version: 1.2
+Version: 1.3
 
 Status: Active
 
@@ -30,6 +30,11 @@ This document does not define code, data storage, or UI. It defines behavior pre
 - Step 11 — multi-day irrigation plan (Feature 5).
 - Section 9 — new parameter tables for the above.
 - Section 10 Assumption 5 — revised: the engine now models a bounded multi-day carryover.
+
+**Version 1.3 changes** (driven by `12_Product_Roadmap_v2.md` Feature 8):
+
+- Step 2 — seasonal ETo factor (`seasonFactor`) shifts the demand baseline by Indian cropping season.
+- Section 9 — seasonal ETo factor table.
 
 ---
 
@@ -104,13 +109,13 @@ Growth stage is a **farmer-provided input** (see Assumptions, Section 10).
 
 # Step 2 — Crop Water Demand (ETc_adj)
 
-The Knowledge Base adopts `ETc = Kc × ETo`. The MVP weather data model does not contain the variables required to compute ETo scientifically (no Tmin/Tmax, no solar radiation), so the MVP uses a **documented reference baseline** `ETo_ref` and modulates it with the available weather signals.
+The Knowledge Base adopts `ETc = Kc × ETo`. The MVP weather data model does not contain the variables required to compute ETo scientifically (no Tmin/Tmax, no solar radiation), so the MVP uses a **documented reference baseline** `ETo_ref` and modulates it with the available weather signals. As of V1.3 the baseline is additionally shifted by a **seasonal factor** (regional knowledge, `10_Knowledge_Base.md` §9.4).
 
 ```
-ETc_adj = Kc_stage × ETo_ref × weatherMultiplier
+ETc_adj = Kc_stage × ETo_ref × seasonFactor(season(now)) × weatherMultiplier
 ```
 
-`ETo_ref` is a fixed baseline (Section 9). Future phases may replace it with a computed ETo without changing this pipeline.
+`seasonFactor` comes from the seasonal ETo factor table (Section 9) for the Indian cropping season (`10_Knowledge_Base.md` §9.1) of the date being evaluated — today's date for the recommendation, each entry's own date for daily demand (Steps 4b & 11). Future phases may replace `ETo_ref` with a computed ETo without changing this pipeline.
 
 ## Weather Multiplier
 
@@ -316,6 +321,14 @@ All values are tunable engineering parameters. Changing any value here must not 
 | Parameter | Value | Unit | Notes |
 |-----------|-------|------|-------|
 | ETo_ref | 5.0 | mm/day | Documented baseline reference ET for warm growing conditions (FAO indicative range 4–7 mm/day). Replaced by computed ETo in a future phase. |
+
+## Seasonal ETo factors (V1.3, Step 2)
+
+| Season | seasonFactor | Rationale (docs/10 §9.4) |
+|--------|--------------|---------------------------|
+| Kharif (Jun–Sep) | 0.95 | monsoon humidity/cloud suppress ETo |
+| Rabi (Oct–Feb) | 0.90 | cool season suppresses ETo |
+| Zaid (Mar–May) | 1.15 | hot dry season raises ETo |
 
 ## Weather multiplier
 

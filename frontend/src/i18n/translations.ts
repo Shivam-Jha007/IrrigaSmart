@@ -141,7 +141,7 @@ const en = {
   'settings.units': 'Units',
   'settings.unitsMetric': 'Metric (°C, mm, litres)',
   'settings.comingSoon': 'Coming soon',
-  'settings.notifications': 'Notifications (future release)',
+  'settings.notifications': 'Irrigation reminders',
   'settings.cloudSync': 'Cloud sync (future release)',
 
   'lang.en': 'English',
@@ -203,6 +203,30 @@ const en = {
   'onb.start.step4': 'Get your recommendation',
 
   'settings.about': 'About IrrigaSmart',
+
+  'notif.title': 'Reminders',
+  'notif.reminderTitle': 'Irrigation reminder',
+  'notif.reminderBody': 'Time to irrigate {farm} — about {volume} this morning.',
+  'notif.rainTitle': 'Rainfall warning',
+  'notif.rainBody': 'About {mm} of rain expected {day} on {farm}. You may skip irrigation.',
+
+  'season.title': 'Season guide',
+  'season.Kharif': 'Kharif (monsoon)',
+  'season.Rabi': 'Rabi (winter)',
+  'season.Zaid': 'Zaid (summer)',
+  'season.inSeason': '{crop} is in its main growing season.',
+  'season.offSeason': '{crop} is usually grown in {season}.',
+  'season.calendar': 'Sowing: {sow} · Harvest: {harvest}',
+  'season.guide.Kharif':
+    'Monsoon months: irrigate only during dry spells and let the rain do the work. Watch for waterlogging.',
+  'season.guide.Rabi':
+    'Cool, dry months: crops need regular irrigation, but demand is lower than in summer.',
+  'season.guide.Zaid':
+    'Hot summer months: water demand is highest — irrigate early morning to reduce evaporation.',
+
+  'settings.notifDenied':
+    'Notifications are blocked by the browser. Allow them in your browser settings to get reminders.',
+  'settings.notifUnsupported': 'This device does not support notifications.',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -334,7 +358,7 @@ const hi: Record<TranslationKey, string> = {
   'settings.units': 'इकाइयाँ',
   'settings.unitsMetric': 'मीट्रिक (°C, मि.मी., लीटर)',
   'settings.comingSoon': 'जल्द आ रहा है',
-  'settings.notifications': 'सूचनाएँ (आने वाले संस्करण में)',
+  'settings.notifications': 'सिंचाई अनुस्मारक',
   'settings.cloudSync': 'क्लाउड सिंक (आने वाले संस्करण में)',
 
   'lang.en': 'English',
@@ -396,6 +420,29 @@ const hi: Record<TranslationKey, string> = {
   'onb.start.step4': 'अपनी सिफ़ारिश पाएँ',
 
   'settings.about': 'IrrigaSmart के बारे में',
+
+  'notif.title': 'अनुस्मारक',
+  'notif.reminderTitle': 'सिंचाई अनुस्मारक',
+  'notif.reminderBody': '{farm} में सिंचाई का समय — आज सुबह लगभग {volume}।',
+  'notif.rainTitle': 'बारिश की चेतावनी',
+  'notif.rainBody': '{farm} में {day} लगभग {mm} मि.मी. बारिश की उम्मीद है। आप सिंचाई छोड़ सकते हैं।',
+
+  'season.title': 'मौसम मार्गदर्शिका',
+  'season.Kharif': 'ख़रीफ़ (मानसून)',
+  'season.Rabi': 'रबी (सर्दी)',
+  'season.Zaid': 'ज़ायद (गर्मी)',
+  'season.inSeason': '{crop} अपने मुख्य मौसम में है।',
+  'season.offSeason': '{crop} आमतौर पर {season} में उगाई जाती है।',
+  'season.calendar': 'बुवाई: {sow} · कटाई: {harvest}',
+  'season.guide.Kharif':
+    'मानसून के महीने: केवल सूखे दिनों में सिंचाई करें और बारिश को काम करने दें। जलभराव पर नज़र रखें।',
+  'season.guide.Rabi':
+    'ठंडे, सूखे महीने: फ़सलों को नियमित सिंचाई चाहिए, लेकिन गर्मियों की तुलना में ज़रूरत कम होती है।',
+  'season.guide.Zaid':
+    'गर्मियों के महीने: पानी की ज़रूरत सबसे ज़्यादा — वाष्पीकरण कम करने के लिए सुबह जल्दी सिंचाई करें।',
+
+  'settings.notifDenied': 'ब्राउज़र ने सूचनाएँ रोकी हैं। अनुस्मारक पाने के लिए ब्राउज़र सेटिंग्स में अनुमति दें।',
+  'settings.notifUnsupported': 'यह डिवाइस सूचनाओं का समर्थन नहीं करता।',
 };
 
 const bn: Record<TranslationKey, string> = {
@@ -524,7 +571,7 @@ const bn: Record<TranslationKey, string> = {
   'settings.units': 'একক',
   'settings.unitsMetric': 'মেট্রিক (°C, মি.মি., লিটার)',
   'settings.comingSoon': 'শীঘ্রই আসছে',
-  'settings.notifications': 'বিজ্ঞপ্তি (ভবিষ্যৎ সংস্করণে)',
+  'settings.notifications': 'সেচ অনুস্মারক',
   'settings.cloudSync': 'ক্লাউড সিংক (ভবিষ্যৎ সংস্করণে)',
 
   'lang.en': 'English',
@@ -586,6 +633,28 @@ const bn: Record<TranslationKey, string> = {
   'onb.start.step4': 'আপনার সুপারিশ পান',
 
   'settings.about': 'IrrigaSmart সম্পর্কে',
+
+  'notif.title': 'মনে করিয়ে দেওয়া',
+  'notif.reminderTitle': 'সেচ অনুস্মারক',
+  'notif.reminderBody': '{farm}-এ সেচের সময় — আজ সকালে প্রায় {volume}।',
+  'notif.rainTitle': 'বৃষ্টির সতর্কতা',
+  'notif.rainBody': '{farm}-এ {day} প্রায় {mm} মি.মি. বৃষ্টির সম্ভাবনা। আপনি সেচ এড়িয়ে যেতে পারেন।',
+
+  'season.title': 'মৌসুম নির্দেশিকা',
+  'season.Kharif': 'খরিফ (বর্ষা)',
+  'season.Rabi': 'রবি (শীত)',
+  'season.Zaid': 'জায়েদ (গ্রীষ্ম)',
+  'season.inSeason': '{crop} এখন তার মূল মৌসুমে আছে।',
+  'season.offSeason': '{crop} সাধারণত {season} মৌসুমে চাষ হয়।',
+  'season.calendar': 'বপন: {sow} · ফসল কাটা: {harvest}',
+  'season.guide.Kharif':
+    'বর্ষার মাসগুলো: শুধু শুকনো সময়ে সেচ দিন, বৃষ্টিকেই কাজ করতে দিন। জলাবদ্ধতার দিকে নজর রাখুন।',
+  'season.guide.Rabi': 'ঠান্ডা, শুষ্ক মাস: ফসলের নিয়মিত সেচ প্রয়োজন, তবে গ্রীষ্মের তুলনায় চাহিদা কম।',
+  'season.guide.Zaid': 'গরম গ্রীষ্মের মাস: জলের চাহিদা সর্বাধিক — বাষ্পীভবন কমাতে ভোরে সেচ দিন।',
+
+  'settings.notifDenied':
+    'ব্রাউজার বিজ্ঞপ্তি ব্লক করেছে। মনে করিয়ে দেওয়ার জন্য ব্রাউজার সেটিংসে অনুমতি দিন।',
+  'settings.notifUnsupported': 'এই ডিভাইসে বিজ্ঞপ্তি সমর্থিত নয়।',
 };
 
 export const TRANSLATIONS: Record<Language, Record<TranslationKey, string>> = { en, hi, bn };

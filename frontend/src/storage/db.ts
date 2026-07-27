@@ -1,5 +1,6 @@
 import { type DBSchema, type IDBPDatabase, openDB } from 'idb';
 import type {
+  AppNotification,
   Crop,
   DailyWeather,
   Farm,
@@ -18,10 +19,12 @@ import type {
  * opens the connection. All persistence flows through repositories built on top
  * of this — the UI never opens or touches the database directly
  * (docs/07_Engineering_Rules.md: Storage Rules).
+ *
+ * Migrations: v1 → MVP stores; v2 → + notifications store (roadmap Feature 7).
  */
 
 export const DB_NAME = 'irrigasmart';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 /** Key for the single application settings record. */
 export const SETTINGS_KEY = 'app';
@@ -79,6 +82,11 @@ export interface IrrigaSmartDB extends DBSchema {
     key: string;
     value: Settings;
   };
+  notifications: {
+    key: string;
+    value: AppNotification;
+    indexes: { byFarm: string };
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<IrrigaSmartDB>> | null = null;
@@ -90,27 +98,35 @@ let dbPromise: Promise<IDBPDatabase<IrrigaSmartDB>> | null = null;
 export function getDb(): Promise<IDBPDatabase<IrrigaSmartDB>> {
   if (!dbPromise) {
     dbPromise = openDB<IrrigaSmartDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        db.createObjectStore('farmers', { keyPath: 'id' });
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          db.createObjectStore('farmers', { keyPath: 'id' });
 
-        const farms = db.createObjectStore('farms', { keyPath: 'id' });
-        farms.createIndex('byFarmer', 'farmerId');
+          const farms = db.createObjectStore('farms', { keyPath: 'id' });
+          farms.createIndex('byFarmer', 'farmerId');
 
-        db.createObjectStore('crops', { keyPath: 'id' });
-        db.createObjectStore('soils', { keyPath: 'id' });
+          db.createObjectStore('crops', { keyPath: 'id' });
+          db.createObjectStore('soils', { keyPath: 'id' });
 
-        const recommendations = db.createObjectStore('recommendations', { keyPath: 'id' });
-        recommendations.createIndex('byFarm', 'farmId');
+          const recommendations = db.createObjectStore('recommendations', { keyPath: 'id' });
+          recommendations.createIndex('byFarm', 'farmId');
 
-        const history = db.createObjectStore('history', { keyPath: 'id' });
-        history.createIndex('byFarm', 'farmId');
-        history.createIndex('byDate', 'generatedDate');
+          const history = db.createObjectStore('history', { keyPath: 'id' });
+          history.createIndex('byFarm', 'farmId');
+          history.createIndex('byDate', 'generatedDate');
 
-        // Weather cache is keyed explicitly by farmId (out-of-line key).
-        db.createObjectStore('weatherCache', { keyPath: 'farmId' });
+          // Weather cache is keyed explicitly by farmId (out-of-line key).
+          db.createObjectStore('weatherCache', { keyPath: 'farmId' });
 
-        // Settings is a singleton keyed by a constant.
-        db.createObjectStore('settings');
+          // Settings is a singleton keyed by a constant.
+          db.createObjectStore('settings');
+        }
+
+        if (oldVersion < 2) {
+          // V2.0 — Smart Notifications (roadmap Feature 7).
+          const notifications = db.createObjectStore('notifications', { keyPath: 'id' });
+          notifications.createIndex('byFarm', 'farmId');
+        }
       },
     });
   }

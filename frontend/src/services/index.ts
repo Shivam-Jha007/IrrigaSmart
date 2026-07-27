@@ -33,3 +33,21 @@ export {
   type GeolocationErrorCode,
   type LocationInfo,
 } from './locationService';
+export {
+  dueNotifications,
+  fireBrowserNotification,
+  isSameLocalDay,
+  notificationText,
+  planNotifications,
+  RAIN_WARNING_MM,
+  RAIN_WARNING_WINDOW_DAYS,
+  type NotificationInput,
+} from './notificationService';
+export {
+  CROP_CALENDAR,
+  getSeasonForDate,
+  getSeasonForMonth,
+  getSeasonalGuidance,
+  type CropCalendarEntry,
+  type SeasonalGuidance,
+} from './regionalKnowledge';

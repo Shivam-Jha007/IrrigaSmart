@@ -33,6 +33,16 @@ export function SettingsPage({ store, onShowOnboarding }: Props) {
     flash(t('settings.saved'));
   }
 
+  async function toggleNotifications(enabled: boolean) {
+    if (!enabled) {
+      await store.updateSettings({ ...settings, notificationsEnabled: false });
+      return;
+    }
+    const result = await store.enableNotifications();
+    if (result === 'denied') flash(t('settings.notifDenied'));
+    if (result === 'unsupported') flash(t('settings.notifUnsupported'));
+  }
+
   return (
     <div className="page">
       <h2 className="page__title">{t('settings.title')}</h2>
@@ -89,11 +99,19 @@ export function SettingsPage({ store, onShowOnboarding }: Props) {
       </section>
 
       <section className="settings-group">
-        <h3 className="settings-group__title">{t('settings.comingSoon')}</h3>
-        <label className="toggle toggle--disabled">
-          <input type="checkbox" checked={settings.notificationsEnabled} disabled readOnly />
+        <h3 className="settings-group__title">{t('settings.preferences')}</h3>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={settings.notificationsEnabled}
+            onChange={(e) => void toggleNotifications(e.target.checked)}
+          />
           <span>{t('settings.notifications')}</span>
         </label>
+      </section>
+
+      <section className="settings-group">
+        <h3 className="settings-group__title">{t('settings.comingSoon')}</h3>
         <label className="toggle toggle--disabled">
           <input type="checkbox" checked={settings.offlineSyncEnabled} disabled readOnly />
           <span>{t('settings.cloudSync')}</span>
