@@ -26,19 +26,31 @@ Instead, this document defines the scientific facts and domain knowledge that th
 
 ## 2. Scope
 
-The MVP intentionally supports only a limited number of agricultural entities.
+The MVP intentionally supports only a limited number of agricultural entities. (Expanded in V2.1 from 3 crops / 3 soils to 10 crops / 6 soils covering India's major cropping regions.)
 
 ### Supported Crops
 
 - Rice
 - Wheat
 - Maize
+- Cotton
+- Sugarcane
+- Soybean
+- Groundnut
+- Tomato
+- Potato
+- Onion
 
 ### Supported Soil Types
 
 - Sandy
+- Sandy Loam
 - Loamy
+- Silty Loam
+- Clay Loam
 - Clay
+
+Indicative mapping to Indian regional soils: Alluvial → Loamy / Silty Loam; Black (Regur) → Clay / Clay Loam; Red → Sandy Loam; Laterite → Sandy Loam / Clay Loam; Desert/Arid → Sandy.
 
 ### Supported Irrigation Methods
 
@@ -74,6 +86,13 @@ The MVP supports three crops selected for their agricultural importance, availab
 | Rice | Oryza sativa | 90–150 days |
 | Wheat | Triticum aestivum | 120–240 days |
 | Maize | Zea mays | 80–150 days |
+| Cotton | Gossypium spp. | 150–210 days |
+| Sugarcane | Saccharum officinarum | 300–360 days |
+| Soybean | Glycine max | 90–120 days |
+| Groundnut | Arachis hypogaea | 100–140 days |
+| Tomato | Solanum lycopersicum | 90–150 days |
+| Potato | Solanum tuberosum | 80–120 days |
+| Onion | Allium cepa | 100–150 days |
 
 \*Growing duration varies by cultivar, climate, and management practices.
 
@@ -106,13 +125,20 @@ where:
 - Kc = Crop Coefficient
 - ETo = Reference Evapotranspiration
 
-Representative Kc values used by the MVP are:
+Representative Kc values used by the MVP are (FAO-56 Table 12):
 
 | Crop | Initial | Mid Season | Late Season |
 |------|---------|------------|--------------|
 | Rice | 1.05 | 1.20 | 0.90 |
 | Wheat | 0.30 | 1.15 | 0.25 |
 | Maize | 0.30 | 1.20 | 0.35 |
+| Cotton | 0.35 | 1.15 | 0.70 |
+| Sugarcane | 0.40 | 1.25 | 0.75 |
+| Soybean | 0.50 | 1.15 | 0.50 |
+| Groundnut | 0.40 | 1.15 | 0.60 |
+| Tomato | 0.60 | 1.15 | 0.80 |
+| Potato | 0.50 | 1.15 | 0.75 |
+| Onion | 0.70 | 1.05 | 0.75 |
 
 Notes:
 

@@ -13,12 +13,26 @@ const CROP_CATEGORY: Record<CropName, CropCategory> = {
   Rice: 'Cereal',
   Wheat: 'Cereal',
   Maize: 'Cereal',
+  Cotton: 'Other',
+  Sugarcane: 'Other',
+  Soybean: 'Grain',
+  Groundnut: 'Grain',
+  Tomato: 'Vegetable',
+  Potato: 'Vegetable',
+  Onion: 'Vegetable',
 };
 
 const CROP_WATER_REQUIREMENT: Record<CropName, Crop['typicalWaterRequirement']> = {
   Rice: 'High',
   Wheat: 'Moderate',
   Maize: 'Moderate',
+  Cotton: 'Moderate',
+  Sugarcane: 'High',
+  Soybean: 'Moderate',
+  Groundnut: 'Moderate',
+  Tomato: 'Moderate',
+  Potato: 'Moderate',
+  Onion: 'Moderate',
 };
 
 /** Build a Soil entity from just the soil type, using Knowledge Base profiles. */

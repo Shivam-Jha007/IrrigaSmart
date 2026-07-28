@@ -200,6 +200,14 @@ function computeConfidence(weather: WeatherData | null, now: string): Confidence
 }
 
 /**
+ * Soil classes by drainage behaviour for the factor display (Decision Logic
+ * §10): light soils drain fast and raise irrigation need; heavy soils buffer
+ * water and lower it; middle soils are neutral.
+ */
+const LIGHT_SOILS: ReadonlySet<string> = new Set(['Sandy', 'Sandy Loam']);
+const HEAVY_SOILS: ReadonlySet<string> = new Set(['Clay Loam', 'Clay']);
+
+/**
  * Decision factors with relative influence (Decision Logic §10;
  * roadmap Feature 4). Classification is deterministic and uses only the
  * thresholds in decisionParameters.ts; factors never change the outcome.
@@ -286,8 +294,8 @@ function buildFactors(
   factors.push({
     name: 'soil',
     value: soil.name,
-    influence: soil.name === 'Sandy' ? 'increases' : soil.name === 'Clay' ? 'decreases' : 'neutral',
-    strength: soil.name === 'Loamy' ? 'weak' : 'moderate',
+    influence: LIGHT_SOILS.has(soil.name) ? 'increases' : HEAVY_SOILS.has(soil.name) ? 'decreases' : 'neutral',
+    strength: soil.name === 'Loamy' || soil.name === 'Silty Loam' ? 'weak' : 'moderate',
   });
 
   const efficiency = METHOD_EFFICIENCY[farm.irrigationMethod];

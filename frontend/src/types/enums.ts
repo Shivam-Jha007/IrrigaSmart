@@ -7,7 +7,18 @@
  */
 
 // --- Crops (Knowledge Base §2 / §3) ---
-export const CROP_NAMES = ['Rice', 'Wheat', 'Maize'] as const;
+export const CROP_NAMES = [
+  'Rice',
+  'Wheat',
+  'Maize',
+  'Cotton',
+  'Sugarcane',
+  'Soybean',
+  'Groundnut',
+  'Tomato',
+  'Potato',
+  'Onion',
+] as const;
 export type CropName = (typeof CROP_NAMES)[number];
 
 // --- Crop growth stages (Knowledge Base §3.1, FAO-56 four-stage model) ---
@@ -18,8 +29,8 @@ export type GrowthStage = (typeof GROWTH_STAGES)[number];
 export const CROP_CATEGORIES = ['Cereal', 'Grain', 'Vegetable', 'Other'] as const;
 export type CropCategory = (typeof CROP_CATEGORIES)[number];
 
-// --- Soil types (Knowledge Base §2 / §4) ---
-export const SOIL_TYPES = ['Sandy', 'Loamy', 'Clay'] as const;
+// --- Soil types (Knowledge Base §2 / §4), ordered light → heavy ---
+export const SOIL_TYPES = ['Sandy', 'Sandy Loam', 'Loamy', 'Silty Loam', 'Clay Loam', 'Clay'] as const;
 export type SoilType = (typeof SOIL_TYPES)[number];
 
 // Qualitative soil categories (Knowledge Base §4.1).
