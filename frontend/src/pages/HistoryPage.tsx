@@ -107,6 +107,9 @@ export function HistoryPage({ store }: Props) {
                     <p className="history-item__water">
                       {formatLiters(recommendation.estimatedWaterAmount.volumeLiters)} ·{' '}
                       {recommendation.estimatedWaterAmount.depthMm.toFixed(1)} mm
+                      {recommendation.estimatedWaterAmount.durationMinutes
+                        ? ` · ${t('rec.minutes', { n: recommendation.estimatedWaterAmount.durationMinutes })}`
+                        : ''}
                       {recommendation.recommendedTime
                         ? ` · ${t('history.at')} ${recommendation.recommendedTime}`
                         : ''}

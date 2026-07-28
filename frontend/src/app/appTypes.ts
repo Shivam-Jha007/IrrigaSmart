@@ -54,3 +54,25 @@ export interface FarmSummary {
   /** ISO timestamp of the last cached weather write, if any. */
   weatherCachedAt: string | null;
 }
+
+/**
+ * Today's irrigation checklist plus lifetime savings, read from the water
+ * ledger. Answers "how much is to be done, how much is already done, and how
+ * much water have I saved".
+ */
+export interface WaterProgress {
+  /** Local calendar date this progress refers to (YYYY-MM-DD). */
+  date: string;
+  /** Litres advised today; 0 when no irrigation is advised. */
+  targetLiters: number;
+  /** Advised run time today in minutes; 0 when no irrigation is advised. */
+  targetMinutes: number;
+  appliedLiters: number;
+  appliedMinutes: number;
+  /** Litres credited as saved today (see services/waterSavings.creditedSaving). */
+  savedTodayLiters: number;
+  /** Litres credited as saved across every day in the ledger. */
+  savedLifetimeLiters: number;
+  /** How many days the ledger has recorded for this farm. */
+  daysTracked: number;
+}

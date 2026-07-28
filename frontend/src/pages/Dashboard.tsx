@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { AppStore } from '../app/useAppStore';
-import type { FarmSummary, RecommendationView } from '../app/appTypes';
+import type { FarmSummary, RecommendationView, WaterProgress } from '../app/appTypes';
 import type { AppNotification, WeatherData } from '../types';
 import { getCachedWeather } from '../storage';
 import { RecommendationCard } from '../components/RecommendationCard';
@@ -10,6 +10,7 @@ import { PlanOutlook } from '../components/PlanOutlook';
 import { RemindersCard } from '../components/RemindersCard';
 import { SeasonalGuidance } from '../components/SeasonalGuidance';
 import { ReminderPlanner } from '../components/ReminderPlanner';
+import { WaterChecklist } from '../components/WaterChecklist';
 
 /**
  * Dashboard — answers "what should I do today?" immediately
@@ -28,12 +29,21 @@ interface Props {
 }
 
 export function Dashboard({ store, onGoToFarms }: Props) {
-  const { farmer, profiles, t, generateForFarm, loadFarmSummaries, loadPendingReminders } = store;
+  const {
+    farmer,
+    profiles,
+    t,
+    generateForFarm,
+    loadFarmSummaries,
+    loadPendingReminders,
+    loadWaterProgress,
+  } = store;
   const [selectedFarmId, setSelectedFarmId] = useState<string>('');
   const [view, setView] = useState<RecommendationView | null>(null);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [summaries, setSummaries] = useState<FarmSummary[]>([]);
   const [pendingReminders, setPendingReminders] = useState<AppNotification[]>([]);
+  const [waterProgress, setWaterProgress] = useState<WaterProgress | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +75,14 @@ export function Dashboard({ store, onGoToFarms }: Props) {
     [loadPendingReminders],
   );
 
+  const loadWater = useCallback(
+    async (farmId: string) => {
+      if (!farmId) return;
+      setWaterProgress(await loadWaterProgress(farmId));
+    },
+    [loadWaterProgress],
+  );
+
   const refresh = useCallback(
     async (farmId: string) => {
       if (!farmId) return;
@@ -85,13 +103,15 @@ export function Dashboard({ store, onGoToFarms }: Props) {
         // Reflect the fresh recommendation/weather on the farm cards.
         await loadSummaries();
         await loadPending(farmId);
+        // Read the ledger AFTER generating: today's target is written there.
+        await loadWater(farmId);
       } catch {
         setError(t('dashboard.errorGeneric'));
       } finally {
         setLoading(false);
       }
     },
-    [generateForFarm, t, loadSummaries, loadPending],
+    [generateForFarm, t, loadSummaries, loadPending, loadWater],
   );
 
   // Auto-generate when the selected farm changes.
@@ -166,21 +186,34 @@ export function Dashboard({ store, onGoToFarms }: Props) {
                 }
               />
             )}
-            {view?.recommendation.status === 'Irrigate Today' && (
-              <ReminderPlanner
-                reminders={pendingReminders}
+            {waterProgress && (
+              <WaterChecklist
+                progress={waterProgress}
+                savings={view?.recommendation.waterSavings}
                 t={t}
-                onAdd={async (time) => {
-                  const result = await store.addCustomReminder(selectedFarmId, time);
-                  if (result === 'ok') await loadPending(selectedFarmId);
-                  return result;
+                onLog={async (minutes) => {
+                  setWaterProgress(await store.logIrrigation(selectedFarmId, minutes));
                 }}
-                onRemove={async (id) => {
-                  await store.removeReminder(id);
-                  await loadPending(selectedFarmId);
+                onReset={async () => {
+                  setWaterProgress(await store.resetTodayIrrigation(selectedFarmId));
                 }}
               />
             )}
+            {/* Reminders are useful on every outcome, not only when irrigating:
+                a "monitor tomorrow" day is exactly when a farmer wants a nudge. */}
+            <ReminderPlanner
+              reminders={pendingReminders}
+              t={t}
+              onAdd={async (time) => {
+                const result = await store.addCustomReminder(selectedFarmId, time);
+                if (result !== 'error') await loadPending(selectedFarmId);
+                return result;
+              }}
+              onRemove={async (id) => {
+                await store.removeReminder(id);
+                await loadPending(selectedFarmId);
+              }}
+            />
             <button
               type="button"
               className="btn btn--ghost btn--block"

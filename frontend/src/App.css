@@ -443,7 +443,7 @@
 }
 .rec-card__facts {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
   gap: var(--space-2);
 }
 .rec-card__fact {
@@ -522,6 +522,20 @@
   letter-spacing: 0.04em;
   margin: 0;
 }
+.rec-card__factors-legend {
+  margin: -4px 0 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+.rec-card__timing-why {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--color-blue-dark);
+  background: var(--color-blue-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
 .factor-list {
   list-style: none;
   margin: 0;
@@ -530,16 +544,52 @@
   flex-direction: column;
   gap: 6px;
 }
+/* Grid, not flex: icon | text | stars | arrow | label stay in tidy columns
+   so the stars line up down the list and can be compared at a glance. */
 .factor-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1.4em minmax(0, 1fr) auto 1.1em auto;
   align-items: center;
   gap: var(--space-2);
   font-size: 0.85rem;
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-sm);
+  padding: 6px var(--space-2);
+}
+.factor-item--increases {
+  box-shadow: inset 3px 0 0 var(--color-danger);
+}
+.factor-item--decreases {
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+.factor-item__icon {
+  font-size: 1.1rem;
+  text-align: center;
+}
+.factor-item__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.factor-item__stars {
+  letter-spacing: 1px;
+  white-space: nowrap;
+  font-size: 0.95rem;
+}
+.factor-item__stars--increases {
+  color: var(--color-danger);
+}
+.factor-item__stars--decreases {
+  color: var(--color-primary);
+}
+.factor-item__stars--neutral {
+  color: var(--color-text-muted);
+}
+.factor-item__stars-empty {
+  opacity: 0.22;
 }
 .factor-item__arrow {
-  width: 1.1em;
   text-align: center;
-  flex-shrink: 0;
 }
 .factor-item__arrow--increases {
   color: var(--color-danger);
@@ -550,23 +600,172 @@
 .factor-item__arrow--neutral {
   color: var(--color-text-muted);
 }
-.factor-item__arrow--weak {
-  opacity: 0.45;
-}
-.factor-item__arrow--moderate {
-  opacity: 0.75;
-}
 .factor-item__name {
   font-weight: 600;
 }
 .factor-item__value {
   color: var(--color-text-muted);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .factor-item__influence {
-  margin-left: auto;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--color-text-muted);
   text-align: right;
+}
+@media (max-width: 380px) {
+  /* Narrow phones: the wording is redundant once arrow + stars are visible. */
+  .factor-item {
+    grid-template-columns: 1.4em minmax(0, 1fr) auto 1.1em;
+  }
+  .factor-item__influence {
+    display: none;
+  }
+}
+
+/* --- Water checklist (advised vs applied vs saved) --- */
+.water-checklist {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  animation: fade-up 0.5s var(--ease-out) both;
+}
+.water-checklist__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.water-checklist__empty {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+.water-checklist__bar {
+  position: relative;
+  height: 26px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-alt);
+  overflow: hidden;
+}
+.water-checklist__bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-blue), var(--color-blue-dark));
+  transition: width 0.4s var(--ease-out);
+}
+.water-checklist__bar-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+.water-checklist__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.water-checklist__row {
+  display: grid;
+  grid-template-columns: 1.4em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+}
+.water-checklist__label {
+  color: var(--color-text-muted);
+}
+.water-checklist__value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.water-checklist__row--done .water-checklist__value {
+  color: var(--color-primary-dark);
+}
+.water-checklist__complete {
+  margin: 0;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+.water-checklist__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.water-checklist__savings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+.water-savings-tile {
+  background: var(--color-blue-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+}
+.water-savings-tile--total {
+  background: var(--color-primary-soft);
+}
+.water-savings-tile__label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+.water-savings-tile__value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-blue-dark);
+}
+.water-savings-tile--total .water-savings-tile__value {
+  color: var(--color-primary-dark);
+}
+.water-savings-tile__meta {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+.water-checklist__attribution {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+.water-checklist__note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+.reminder-planner__hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--color-blue-dark);
+  background: var(--color-blue-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
 }
 
 /* --- Multi-day plan (roadmap Feature 5) --- */

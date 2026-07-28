@@ -4,11 +4,13 @@ import type {
   CropName,
   FactorInfluence,
   FactorName,
+  FactorStrength,
   GrowthStage,
   IrrigationMethod,
   Language,
   RecommendationStatus,
   SoilType,
+  TimingReason,
 } from '../types';
 import { TRANSLATIONS, type TranslationKey } from './translations';
 
@@ -97,6 +99,15 @@ export function factorNameKey(name: FactorName): TranslationKey {
 
 export function factorInfluenceKey(influence: FactorInfluence): TranslationKey {
   return `factors.influence.${influence}`;
+}
+
+export function factorStrengthKey(strength: FactorStrength): TranslationKey {
+  return `factors.strength.${strength}`;
+}
+
+/** Why the engine chose a given irrigation window (Decision Logic §7). */
+export function timingReasonKey(reason: TimingReason): TranslationKey {
+  return `rec.why.${reason}`;
 }
 
 export function planActionKey(status: RecommendationStatus): TranslationKey {

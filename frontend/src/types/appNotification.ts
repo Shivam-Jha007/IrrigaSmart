@@ -32,6 +32,8 @@ export interface AppNotification {
     farmName: string;
     /** Irrigation reminder: planned volume in litres. */
     volumeLiters?: number;
+    /** Irrigation reminder: how long the run is expected to take, in minutes. */
+    durationMinutes?: number;
     /** Rainfall warning: expected effective rain in mm. */
     rainMm?: number;
     /** Rainfall warning: plan offset of the rainy day (1 = tomorrow). */

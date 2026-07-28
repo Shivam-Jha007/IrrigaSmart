@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { AppNotification, Farm, Farmer, HistoryRecord, Recommendation } from '../types';
+import type {
+  AppNotification,
+  Farm,
+  Farmer,
+  HistoryRecord,
+  Recommendation,
+  WaterLedgerEntry,
+} from '../types';
 import {
   cropRepository,
   farmRepository,
@@ -7,6 +14,7 @@ import {
   getCachedWeather,
   getFarmsByFarmer,
   getHistoryByFarm,
+  getLedgerByFarm,
   getNotificationsByFarm,
   getRecommendationsByFarm,
   getSettings,
@@ -15,20 +23,35 @@ import {
   recommendationRepository,
   saveSettings as persistSettings,
   soilRepository,
+  waterLedgerRepository,
 } from '../storage';
 import {
   buildCustomReminder,
+  creditedSaving,
   dueNotifications,
+  farmAreaM2,
   fireBrowserNotification,
+  flowLitersPerMinute,
   generateRecommendation,
   getWeatherForFarm,
+  historyToPrune,
   isSameLocalDay,
+  localDayString,
   notificationText,
+  orphanedRecommendationIds,
   planNotifications,
+  remindersToPrune,
 } from '../services';
 import { translate, type TranslateFn } from '../i18n';
 import type { Settings } from '../types';
-import type { AppData, FarmDraft, FarmProfile, FarmSummary, RecommendationView } from './appTypes';
+import type {
+  AppData,
+  FarmDraft,
+  FarmProfile,
+  FarmSummary,
+  RecommendationView,
+  WaterProgress,
+} from './appTypes';
 import { buildCrop, buildSoil } from './entityFactories';
 import { DEFAULT_FARMER, SETTINGS_FALLBACK } from './defaults';
 
@@ -92,12 +115,19 @@ export interface AppStore extends AppData {
   /** Pending (undelivered) reminders for a farm, soonest first. */
   loadPendingReminders(farmId: string): Promise<AppNotification[]>;
   /**
-   * Add a farmer-chosen irrigation reminder for today at "HH:MM"
-   * (Feature 7 custom timings). Returns 'past' if the time already passed.
+   * Add a farmer-chosen irrigation reminder at "HH:MM" (Feature 7 custom
+   * timings). Reports which day it landed on: a time that has already passed
+   * today is scheduled for tomorrow rather than refused.
    */
-  addCustomReminder(farmId: string, time: string): Promise<'ok' | 'past'>;
+  addCustomReminder(farmId: string, time: string): Promise<'today' | 'tomorrow' | 'error'>;
   /** Remove a pending reminder. */
   removeReminder(notificationId: string): Promise<void>;
+  /** Today's irrigation checklist and lifetime savings for a farm. */
+  loadWaterProgress(farmId: string): Promise<WaterProgress | null>;
+  /** Record that the farmer irrigated for `minutes`; returns the updated progress. */
+  logIrrigation(farmId: string, minutes: number): Promise<WaterProgress | null>;
+  /** Clear today's logged irrigation for a farm (undo a mis-tap). */
+  resetTodayIrrigation(farmId: string): Promise<WaterProgress | null>;
 }
 
 export function useAppStore(): AppStore {
@@ -157,6 +187,38 @@ export function useAppStore(): AppStore {
     if (!farmer) return;
     setProfiles(await loadProfiles(farmer.id));
   }, [farmer, loadProfiles]);
+
+  // --- Automatic local cleanup ---
+
+  /**
+   * Prune aged local data once per launch: history beyond the retention window
+   * plus same-day duplicates, the recommendations those rows referenced, and
+   * long-delivered reminders. Nothing here is recoverable elsewhere, and the
+   * water ledger — which holds the lifetime savings total — is never touched.
+   */
+  useEffect(() => {
+    if (loading || initError) return;
+    let cancelled = false;
+    void (async () => {
+      const now = new Date().toISOString();
+      const stale = historyToPrune(await historyRepository.getAll(), now);
+      if (stale.length > 0 && !cancelled) {
+        await Promise.all(stale.map((h) => historyRepository.remove(h.id)));
+        // Only recommendations referenced by the rows just deleted are
+        // candidates, so a recommendation saved concurrently by a dashboard
+        // refresh can never be mistaken for an orphan.
+        const candidates = [...new Set(stale.map((h) => h.recommendationId))];
+        const orphans = orphanedRecommendationIds(candidates, await historyRepository.getAll());
+        await Promise.all(orphans.map((id) => recommendationRepository.remove(id)));
+      }
+      const expired = remindersToPrune(await notificationRepository.getAll(), now);
+      if (cancelled) return;
+      await Promise.all(expired.map((n) => notificationRepository.remove(n.id)));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, initError]);
 
   // --- Smart Notifications (roadmap Feature 7) ---
 
@@ -249,9 +311,94 @@ export function useAppStore(): AppStore {
       await Promise.all(recs.map((r) => recommendationRepository.remove(r.id)));
       const hist = await getHistoryByFarm(farmId);
       await Promise.all(hist.map((h) => historyRepository.remove(h.id)));
+      const notifications = await getNotificationsByFarm(farmId);
+      await Promise.all(notifications.map((n) => notificationRepository.remove(n.id)));
+      const ledger = await getLedgerByFarm(farmId);
+      await Promise.all(ledger.map((row) => waterLedgerRepository.remove(row.id)));
       await refresh();
     },
     [profiles, refresh],
+  );
+
+  // --- Water checklist (advised vs applied vs saved) ---
+
+  /** Read a farm's ledger and fold it into today's progress view. */
+  const buildProgress = useCallback(
+    async (farmId: string, day: string): Promise<WaterProgress> => {
+      const rows = await getLedgerByFarm(farmId);
+      const today = rows.find((row) => row.date === day);
+      return {
+        date: day,
+        targetLiters: today?.targetLiters ?? 0,
+        targetMinutes: today?.targetMinutes ?? 0,
+        appliedLiters: today?.appliedLiters ?? 0,
+        appliedMinutes: today?.appliedMinutes ?? 0,
+        savedTodayLiters: today?.savedLiters ?? 0,
+        savedLifetimeLiters: rows.reduce((sum, row) => sum + row.savedLiters, 0),
+        daysTracked: rows.length,
+      };
+    },
+    [],
+  );
+
+  const loadWaterProgress = useCallback(
+    async (farmId: string): Promise<WaterProgress | null> => {
+      if (!profiles.some((p) => p.farm.id === farmId)) return null;
+      return buildProgress(farmId, localDayString(new Date().toISOString()));
+    },
+    [profiles, buildProgress],
+  );
+
+  const logIrrigation = useCallback(
+    async (farmId: string, minutes: number): Promise<WaterProgress | null> => {
+      const profile = profiles.find((p) => p.farm.id === farmId);
+      if (!profile || minutes <= 0) return null;
+      const now = new Date().toISOString();
+      const day = localDayString(now);
+      const id = `${farmId}:${day}`;
+      const row = await waterLedgerRepository.getById(id);
+
+      // Minutes are what a farmer actually knows ("the pump ran half an hour");
+      // litres are derived from the method's delivery rate over the field.
+      const flow = flowLitersPerMinute(profile.farm.irrigationMethod, farmAreaM2(profile.farm));
+      const appliedLiters = (row?.appliedLiters ?? 0) + Math.round(minutes * flow);
+      const advisedSavingLiters = row?.advisedSavingLiters ?? 0;
+      const targetLiters = row?.targetLiters ?? 0;
+
+      const next: WaterLedgerEntry = {
+        id,
+        farmId,
+        date: day,
+        targetLiters,
+        targetMinutes: row?.targetMinutes ?? 0,
+        appliedLiters,
+        appliedMinutes: (row?.appliedMinutes ?? 0) + minutes,
+        advisedSavingLiters,
+        savedLiters: creditedSaving(advisedSavingLiters, targetLiters, appliedLiters),
+        updatedAt: now,
+      };
+      await waterLedgerRepository.save(next);
+      return buildProgress(farmId, day);
+    },
+    [profiles, buildProgress],
+  );
+
+  const resetTodayIrrigation = useCallback(
+    async (farmId: string): Promise<WaterProgress | null> => {
+      const now = new Date().toISOString();
+      const day = localDayString(now);
+      const row = await waterLedgerRepository.getById(`${farmId}:${day}`);
+      if (!row) return buildProgress(farmId, day);
+      await waterLedgerRepository.save({
+        ...row,
+        appliedLiters: 0,
+        appliedMinutes: 0,
+        savedLiters: creditedSaving(row.advisedSavingLiters, row.targetLiters, 0),
+        updatedAt: now,
+      });
+      return buildProgress(farmId, day);
+    },
+    [buildProgress],
   );
 
   const generateForFarm = useCallback(
@@ -280,13 +427,45 @@ export function useAppStore(): AppStore {
       }
 
       await recommendationRepository.save(result.recommendation);
+
+      // One history entry per calendar day. The dashboard regenerates on every
+      // visit and every farm switch, so appending unconditionally used to fill
+      // History with near-identical rows; today's entry is replaced instead.
+      const day = localDayString(now);
+      const priorToday = (await getHistoryByFarm(farmId)).find(
+        (h) => localDayString(h.generatedDate) === day,
+      );
       const historyRecord: HistoryRecord = {
-        id: newId('history'),
+        id: priorToday?.id ?? newId('history'),
         farmId,
         recommendationId: result.recommendation.id,
         generatedDate: now,
       };
       await historyRepository.save(historyRecord);
+      if (priorToday && priorToday.recommendationId !== result.recommendation.id) {
+        await recommendationRepository.remove(priorToday.recommendationId);
+      }
+
+      // Water ledger: keep today's advised figures current without disturbing
+      // anything the farmer has already logged (deterministic id, so no
+      // double-counting however often this runs).
+      const water = result.recommendation.estimatedWaterAmount;
+      const ledgerId = `${farmId}:${day}`;
+      const priorLedger = await waterLedgerRepository.getById(ledgerId);
+      const appliedLiters = priorLedger?.appliedLiters ?? 0;
+      const advisedSavingLiters = result.recommendation.waterSavings?.todayLiters ?? 0;
+      await waterLedgerRepository.save({
+        id: ledgerId,
+        farmId,
+        date: day,
+        targetLiters: water.volumeLiters,
+        targetMinutes: water.durationMinutes ?? 0,
+        appliedLiters,
+        appliedMinutes: priorLedger?.appliedMinutes ?? 0,
+        advisedSavingLiters,
+        savedLiters: creditedSaving(advisedSavingLiters, water.volumeLiters, appliedLiters),
+        updatedAt: now,
+      });
 
       // Schedule reminders from the recommendation (roadmap Feature 7).
       // Pending AUTO reminders are replaced so a fresh plan supersedes them;
@@ -371,23 +550,25 @@ export function useAppStore(): AppStore {
   }, []);
 
   const addCustomReminder = useCallback(
-    async (farmId: string, time: string): Promise<'ok' | 'past'> => {
+    async (farmId: string, time: string): Promise<'today' | 'tomorrow' | 'error'> => {
       const profile = profiles.find((p) => p.farm.id === farmId);
-      if (!profile) return 'past';
+      if (!profile) return 'error';
       const now = new Date().toISOString();
       const latest = (await getRecommendationsByFarm(farmId)).sort((a, b) =>
         b.generatedTime.localeCompare(a.generatedTime),
       )[0];
-      const reminder = buildCustomReminder(
+      const { notification, nextDay } = buildCustomReminder(
         profile.farm,
         time,
-        latest?.estimatedWaterAmount.volumeLiters,
+        {
+          volumeLiters: latest?.estimatedWaterAmount.volumeLiters,
+          durationMinutes: latest?.estimatedWaterAmount.durationMinutes,
+        },
         now,
         newId('notif'),
       );
-      if (reminder === 'past') return 'past';
-      await notificationRepository.save(reminder);
-      return 'ok';
+      await notificationRepository.save(notification);
+      return nextDay ? 'tomorrow' : 'today';
     },
     [profiles],
   );
@@ -420,5 +601,8 @@ export function useAppStore(): AppStore {
     loadPendingReminders,
     addCustomReminder,
     removeReminder,
+    loadWaterProgress,
+    logIrrigation,
+    resetTodayIrrigation,
   };
 }

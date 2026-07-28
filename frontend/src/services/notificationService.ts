@@ -71,6 +71,9 @@ export function planNotifications(input: NotificationInput): AppNotification[] {
       context: {
         farmName: farm.name,
         volumeLiters: recommendation.estimatedWaterAmount.volumeLiters,
+        ...(recommendation.estimatedWaterAmount.durationMinutes
+          ? { durationMinutes: recommendation.estimatedWaterAmount.durationMinutes }
+          : {}),
       },
     });
   }
@@ -100,33 +103,53 @@ export function planNotifications(input: NotificationInput): AppNotification[] {
 }
 
 /**
- * Build a farmer-chosen irrigation reminder for today at "HH:MM" (Feature 7
- * custom timings). Returns 'past' when the time has already passed today.
+ * A farmer-chosen reminder, plus whether the chosen time had already passed
+ * today and so rolled to tomorrow.
+ */
+export interface CustomReminderResult {
+  notification: AppNotification;
+  nextDay: boolean;
+}
+
+/**
+ * Build a farmer-chosen irrigation reminder at "HH:MM" (Feature 7 custom
+ * timings).
+ *
+ * A time that has already passed today is scheduled for TOMORROW rather than
+ * rejected. Rejecting it was a dead end: a farmer setting a 05:30 habit at
+ * lunchtime got only an error, with no way to express the very thing they
+ * wanted. Rolling forward matches how every alarm clock behaves, and the
+ * caller is told so it can say which day was chosen.
  */
 export function buildCustomReminder(
   farm: Farm,
   time: string,
-  volumeLiters: number | undefined,
+  water: { volumeLiters: number | undefined; durationMinutes: number | undefined },
   now: string,
   id: string,
-): AppNotification | 'past' {
+): CustomReminderResult {
   const dueAt = new Date(now);
   const [hours, minutes] = time.split(':').map(Number);
   dueAt.setHours(hours ?? 0, minutes ?? 0, 0, 0);
-  if (dueAt.getTime() <= new Date(now).getTime()) {
-    return 'past';
+  const nextDay = dueAt.getTime() <= new Date(now).getTime();
+  if (nextDay) {
+    dueAt.setDate(dueAt.getDate() + 1);
   }
   return {
-    id,
-    farmId: farm.id,
-    kind: 'irrigation-reminder',
-    source: 'custom',
-    dueAt: dueAt.toISOString(),
-    createdAt: now,
-    deliveredAt: null,
-    context: {
-      farmName: farm.name,
-      ...(volumeLiters !== undefined ? { volumeLiters } : {}),
+    nextDay,
+    notification: {
+      id,
+      farmId: farm.id,
+      kind: 'irrigation-reminder',
+      source: 'custom',
+      dueAt: dueAt.toISOString(),
+      createdAt: now,
+      deliveredAt: null,
+      context: {
+        farmName: farm.name,
+        ...(water.volumeLiters !== undefined ? { volumeLiters: water.volumeLiters } : {}),
+        ...(water.durationMinutes ? { durationMinutes: water.durationMinutes } : {}),
+      },
     },
   };
 }
@@ -164,12 +187,16 @@ export function notificationText(
 ): { title: string; body: string } {
   const { context } = notification;
   if (notification.kind === 'irrigation-reminder') {
+    const volume = context.volumeLiters !== undefined ? formatLiters(context.volumeLiters) : '—';
     return {
       title: t('notif.reminderTitle'),
-      body: t('notif.reminderBody', {
-        farm: context.farmName,
-        volume: context.volumeLiters !== undefined ? formatLiters(context.volumeLiters) : '—',
-      }),
+      body: context.durationMinutes
+        ? t('notif.reminderBodyTimed', {
+            farm: context.farmName,
+            volume,
+            minutes: String(context.durationMinutes),
+          })
+        : t('notif.reminderBody', { farm: context.farmName, volume }),
     };
   }
   const day =
