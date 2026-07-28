@@ -65,6 +65,13 @@ const en = {
   'enum.crop.Rice': 'Rice',
   'enum.crop.Wheat': 'Wheat',
   'enum.crop.Maize': 'Maize',
+  'enum.crop.Cotton': 'Cotton',
+  'enum.crop.Sugarcane': 'Sugarcane',
+  'enum.crop.Soybean': 'Soybean',
+  'enum.crop.Groundnut': 'Groundnut',
+  'enum.crop.Tomato': 'Tomato',
+  'enum.crop.Potato': 'Potato',
+  'enum.crop.Onion': 'Onion',
 
   'enum.stage.Initial': 'Initial',
   'enum.stage.Development': 'Development',
@@ -72,7 +79,10 @@ const en = {
   'enum.stage.Late Season': 'Late Season',
 
   'enum.soil.Sandy': 'Sandy',
+  'enum.soil.Sandy Loam': 'Sandy Loam',
   'enum.soil.Loamy': 'Loamy',
+  'enum.soil.Silty Loam': 'Silty Loam',
+  'enum.soil.Clay Loam': 'Clay Loam',
   'enum.soil.Clay': 'Clay',
 
   'enum.method.Drip': 'Drip',
@@ -309,6 +319,13 @@ const hi: Record<TranslationKey, string> = {
   'enum.crop.Rice': 'धान',
   'enum.crop.Wheat': 'गेहूं',
   'enum.crop.Maize': 'मक्का',
+  'enum.crop.Cotton': 'कपास',
+  'enum.crop.Sugarcane': 'गन्ना',
+  'enum.crop.Soybean': 'सोयाबीन',
+  'enum.crop.Groundnut': 'मूंगफली',
+  'enum.crop.Tomato': 'टमाटर',
+  'enum.crop.Potato': 'आलू',
+  'enum.crop.Onion': 'प्याज़',
 
   'enum.stage.Initial': 'प्रारंभिक',
   'enum.stage.Development': 'विकास',
@@ -316,7 +333,10 @@ const hi: Record<TranslationKey, string> = {
   'enum.stage.Late Season': 'अंतिम मौसम',
 
   'enum.soil.Sandy': 'रेतीली',
+  'enum.soil.Sandy Loam': 'रेतीली दोमट',
   'enum.soil.Loamy': 'दोमट',
+  'enum.soil.Silty Loam': 'गाद दोमट',
+  'enum.soil.Clay Loam': 'चिकनी दोमट',
   'enum.soil.Clay': 'चिकनी',
 
   'enum.method.Drip': 'ड्रिप',
@@ -547,6 +567,13 @@ const bn: Record<TranslationKey, string> = {
   'enum.crop.Rice': 'ধান',
   'enum.crop.Wheat': 'গম',
   'enum.crop.Maize': 'ভুট্টা',
+  'enum.crop.Cotton': 'তুলা',
+  'enum.crop.Sugarcane': 'আখ',
+  'enum.crop.Soybean': 'সয়াবিন',
+  'enum.crop.Groundnut': 'চিনাবাদাম',
+  'enum.crop.Tomato': 'টমেটো',
+  'enum.crop.Potato': 'আলু',
+  'enum.crop.Onion': 'পেঁয়াজ',
 
   'enum.stage.Initial': 'প্রাথমিক',
   'enum.stage.Development': 'বৃদ্ধি',
@@ -554,7 +581,10 @@ const bn: Record<TranslationKey, string> = {
   'enum.stage.Late Season': 'শেষ মৌসুম',
 
   'enum.soil.Sandy': 'বালুকাময়',
+  'enum.soil.Sandy Loam': 'বালুকাময় দোঁআশ',
   'enum.soil.Loamy': 'দোঁআশ',
+  'enum.soil.Silty Loam': 'পলি দোঁআশ',
+  'enum.soil.Clay Loam': 'এঁটেল দোঁআশ',
   'enum.soil.Clay': 'এঁটেল',
 
   'enum.method.Drip': 'ড্রিপ',

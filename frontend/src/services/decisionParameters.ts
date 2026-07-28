@@ -44,14 +44,20 @@ export const WEATHER = {
 /** Effective-rainfall fraction by soil (Decision Logic §3 / §9). */
 export const RAIN_EFF_FACTOR: Record<SoilType, number> = {
   Sandy: 0.6,
+  'Sandy Loam': 0.65,
   Loamy: 0.75,
+  'Silty Loam': 0.8,
+  'Clay Loam': 0.8,
   Clay: 0.85,
 };
 
 /** "Monitor Tomorrow" cutoff in mm by soil (Decision Logic §5 / §9). */
 export const SKIP_THRESHOLD_MM: Record<SoilType, number> = {
   Sandy: 1.0,
+  'Sandy Loam': 1.2,
   Loamy: 1.5,
+  'Silty Loam': 1.6,
+  'Clay Loam': 1.8,
   Clay: 2.0,
 };
 

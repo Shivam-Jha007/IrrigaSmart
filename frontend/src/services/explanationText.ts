@@ -44,32 +44,78 @@ interface SentenceVocab {
 }
 
 const EN_VOCAB: SentenceVocab = {
-  crops: { Rice: 'rice', Wheat: 'wheat', Maize: 'maize' },
+  crops: {
+    Rice: 'rice',
+    Wheat: 'wheat',
+    Maize: 'maize',
+    Cotton: 'cotton',
+    Sugarcane: 'sugarcane',
+    Soybean: 'soybean',
+    Groundnut: 'groundnut',
+    Tomato: 'tomato',
+    Potato: 'potato',
+    Onion: 'onion',
+  },
   stages: {
     Initial: 'initial',
     Development: 'development',
     'Mid Season': 'mid season',
     'Late Season': 'late season',
   },
-  soils: { Sandy: 'sandy', Loamy: 'loamy', Clay: 'clay' },
+  soils: {
+    Sandy: 'sandy',
+    'Sandy Loam': 'sandy loam',
+    Loamy: 'loamy',
+    'Silty Loam': 'silty loam',
+    'Clay Loam': 'clay loam',
+    Clay: 'clay',
+  },
   soilFrequency: {
     Sandy: SOIL_PROFILES.Sandy.frequency.toLowerCase(),
+    'Sandy Loam': SOIL_PROFILES['Sandy Loam'].frequency.toLowerCase(),
     Loamy: SOIL_PROFILES.Loamy.frequency.toLowerCase(),
+    'Silty Loam': SOIL_PROFILES['Silty Loam'].frequency.toLowerCase(),
+    'Clay Loam': SOIL_PROFILES['Clay Loam'].frequency.toLowerCase(),
     Clay: SOIL_PROFILES.Clay.frequency.toLowerCase(),
   },
   methods: METHOD_LABELS,
 };
 
 const HI_VOCAB: SentenceVocab = {
-  crops: { Rice: 'धान', Wheat: 'गेहूं', Maize: 'मक्का' },
+  crops: {
+    Rice: 'धान',
+    Wheat: 'गेहूं',
+    Maize: 'मक्का',
+    Cotton: 'कपास',
+    Sugarcane: 'गन्ना',
+    Soybean: 'सोयाबीन',
+    Groundnut: 'मूंगफली',
+    Tomato: 'टमाटर',
+    Potato: 'आलू',
+    Onion: 'प्याज़',
+  },
   stages: {
     Initial: 'प्रारंभिक',
     Development: 'विकास',
     'Mid Season': 'मध्य मौसम',
     'Late Season': 'अंतिम मौसम',
   },
-  soils: { Sandy: 'रेतीली', Loamy: 'दोमट', Clay: 'चिकनी' },
-  soilFrequency: { Sandy: 'बार-बार', Loamy: 'मध्यम', Clay: 'कम' },
+  soils: {
+    Sandy: 'रेतीली',
+    'Sandy Loam': 'रेतीली दोमट',
+    Loamy: 'दोमट',
+    'Silty Loam': 'गाद दोमट',
+    'Clay Loam': 'चिकनी दोमट',
+    Clay: 'चिकनी',
+  },
+  soilFrequency: {
+    Sandy: 'बार-बार',
+    'Sandy Loam': 'बार-बार',
+    Loamy: 'मध्यम',
+    'Silty Loam': 'मध्यम',
+    'Clay Loam': 'कम',
+    Clay: 'कम',
+  },
   methods: {
     Drip: 'उच्च-दक्षता ड्रिप',
     Sprinkler: 'स्प्रिंकलर',
@@ -79,15 +125,40 @@ const HI_VOCAB: SentenceVocab = {
 };
 
 const BN_VOCAB: SentenceVocab = {
-  crops: { Rice: 'ধান', Wheat: 'গম', Maize: 'ভুট্টা' },
+  crops: {
+    Rice: 'ধান',
+    Wheat: 'গম',
+    Maize: 'ভুট্টা',
+    Cotton: 'তুলা',
+    Sugarcane: 'আখ',
+    Soybean: 'সয়াবিন',
+    Groundnut: 'চিনাবাদাম',
+    Tomato: 'টমেটো',
+    Potato: 'আলু',
+    Onion: 'পেঁয়াজ',
+  },
   stages: {
     Initial: 'প্রাথমিক',
     Development: 'বৃদ্ধি',
     'Mid Season': 'মধ্য মৌসুম',
     'Late Season': 'শেষ মৌসুম',
   },
-  soils: { Sandy: 'বালুকাময়', Loamy: 'দোঁআশ', Clay: 'এঁটেল' },
-  soilFrequency: { Sandy: 'ঘন ঘন', Loamy: 'মাঝারি', Clay: 'কম' },
+  soils: {
+    Sandy: 'বালুকাময়',
+    'Sandy Loam': 'বালুকাময় দোঁআশ',
+    Loamy: 'দোঁআশ',
+    'Silty Loam': 'পলি দোঁআশ',
+    'Clay Loam': 'এঁটেল দোঁআশ',
+    Clay: 'এঁটেল',
+  },
+  soilFrequency: {
+    Sandy: 'ঘন ঘন',
+    'Sandy Loam': 'ঘন ঘন',
+    Loamy: 'মাঝারি',
+    'Silty Loam': 'মাঝারি',
+    'Clay Loam': 'কম',
+    Clay: 'কম',
+  },
   methods: {
     Drip: 'উচ্চ-দক্ষতার ড্রিপ',
     Sprinkler: 'স্প্রিংকলার',

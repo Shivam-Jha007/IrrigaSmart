@@ -38,6 +38,13 @@ export const CROP_CALENDAR: Record<CropName, CropCalendarEntry> = {
   Rice: { sowingMonths: [6, 7], harvestMonths: [10, 12], mainSeason: 'Kharif' },
   Wheat: { sowingMonths: [11, 12], harvestMonths: [3, 4], mainSeason: 'Rabi' },
   Maize: { sowingMonths: [6, 7], harvestMonths: [9, 10], mainSeason: 'Kharif' },
+  Cotton: { sowingMonths: [4, 5], harvestMonths: [10, 1], mainSeason: 'Kharif' },
+  Sugarcane: { sowingMonths: [2, 3], harvestMonths: [12, 3], mainSeason: 'Zaid' },
+  Soybean: { sowingMonths: [6, 7], harvestMonths: [9, 10], mainSeason: 'Kharif' },
+  Groundnut: { sowingMonths: [6, 7], harvestMonths: [10, 11], mainSeason: 'Kharif' },
+  Tomato: { sowingMonths: [10, 12], harvestMonths: [1, 4], mainSeason: 'Rabi' },
+  Potato: { sowingMonths: [10, 11], harvestMonths: [1, 3], mainSeason: 'Rabi' },
+  Onion: { sowingMonths: [10, 11], harvestMonths: [3, 4], mainSeason: 'Rabi' },
 };
 
 /** Seasonal guidance for the dashboard card (docs/10 §9.3). */
