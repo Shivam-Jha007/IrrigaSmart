@@ -16,7 +16,7 @@ export default defineConfig({
         name: 'IrrigaSmart',
         short_name: 'IrrigaSmart',
         description: 'Offline-first smart irrigation decision support for farmers',
-        theme_color: '#1b7f4d',
+        theme_color: '#16814c',
         background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
