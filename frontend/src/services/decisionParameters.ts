@@ -76,10 +76,82 @@ export const AREA_TO_M2: Record<AreaUnit, number> = {
   Hectare: 10000,
 };
 
-/** Confidence and timing parameters (Decision Logic §8, §7 / §9). */
+/** Confidence parameters (Decision Logic §8 / §9). */
 export const FRESH_MAX_HOURS = 6;
 export const STALE_MAX_HOURS = 24;
-export const IRRIGATION_TIME_DEFAULT = '06:00';
+
+/**
+ * Irrigation application rate in mm/hour by method (Decision Logic §6 / §9).
+ *
+ * How fast each method delivers water over the field. Turns a gross
+ * application depth into a run time so the farmer is told how LONG to irrigate,
+ * not just how much. These are typical smallholder system rates, not device
+ * specifications — a farmer with a measured pump output will differ, so run
+ * time is always presented as an estimate.
+ */
+export const METHOD_APPLICATION_RATE_MM_H: Record<IrrigationMethod, number> = {
+  Drip: 3,
+  Sprinkler: 8,
+  Furrow: 25,
+  Flood: 40,
+};
+
+/** Shortest run time worth advising; below this, timing precision is noise. */
+export const MIN_RUN_MINUTES = 5;
+
+/**
+ * Irrigation timing parameters (Decision Logic §7 / §9).
+ *
+ * These replace the former single fixed 06:00 default. The window is chosen
+ * from the season, the day's heat and wind, how long the run takes, and what
+ * time the farmer is actually asking — so the advised time moves with
+ * conditions instead of always reading "06:00".
+ */
+export const TIMING = {
+  /** Earliest start hour ever advised (pre-dawn). */
+  EARLIEST_HOUR: 4,
+  /** Baseline morning start hour. */
+  BASE_HOUR: 6,
+  /** Latest morning start hour (cool season, short runs). */
+  LATEST_MORNING_HOUR: 8,
+  /** Irrigation should finish by this hour to avoid the evaporation peak. */
+  MORNING_DEADLINE_HOUR: 10,
+  /** Earliest evening start hour, once the afternoon heat has broken. */
+  EVENING_HOUR: 17,
+  /** Evening irrigation should finish by this hour. */
+  EVENING_DEADLINE_HOUR: 21,
+  /** Rabi (cool season) shifts the start later by this many hours. */
+  COOL_SEASON_SHIFT_H: 1.5,
+  /** Zaid (hot season) shifts the start earlier by this many hours. */
+  HOT_SEASON_SHIFT_H: 1,
+  /** An unusually hot day shifts the start earlier by this many hours. */
+  HOT_DAY_SHIFT_H: 0.5,
+  /** A windy day shifts spray irrigation earlier by this many hours. */
+  WINDY_SHIFT_H: 1,
+  /** Advised start times are rounded up to a multiple of this many minutes. */
+  ROUND_MINUTES: 15,
+} as const;
+
+/**
+ * Baseline practice for the water-saved comparison (Decision Logic §6).
+ *
+ * Savings are stated against untimed flood irrigation that gives no credit to
+ * rainfall — the habit IrrigaSmart is meant to replace. Comparing per DAY of
+ * crop demand (not per irrigation event) keeps the figure independent of how
+ * often either schedule waters, so it never over-counts a skipped day whose
+ * deficit simply carries forward.
+ */
+export const SAVINGS_BASELINE_METHOD: IrrigationMethod = 'Flood';
+
+/**
+ * Automatic cleanup windows (docs/07_Engineering_Rules.md: storage stays
+ * bounded). History and delivered reminders are pruned on app launch so local
+ * storage cannot grow without limit on a farmer's phone.
+ */
+/** Days of recommendation history kept before automatic deletion. */
+export const HISTORY_RETENTION_DAYS = 60;
+/** Days a delivered reminder is kept before automatic deletion. */
+export const REMINDER_RETENTION_DAYS = 7;
 
 /**
  * Multi-day planning parameters (docs/11_Decision_Logic.md §11;

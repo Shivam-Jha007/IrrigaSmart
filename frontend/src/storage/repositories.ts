@@ -14,6 +14,7 @@ export const soilRepository = createRepository('soils');
 export const recommendationRepository = createRepository('recommendations');
 export const historyRepository = createRepository('history');
 export const notificationRepository = createRepository('notifications');
+export const waterLedgerRepository = createRepository('waterLedger');
 
 /** Farms belonging to a given farmer (uses the `byFarmer` index). */
 export function getFarmsByFarmer(farmerId: string) {
@@ -33,4 +34,9 @@ export function getHistoryByFarm(farmId: string) {
 /** Notifications for a given farm (uses the `byFarm` index). */
 export function getNotificationsByFarm(farmId: string) {
   return notificationRepository.getAllByIndex('byFarm', farmId);
+}
+
+/** Water ledger rows for a given farm (uses the `byFarm` index). */
+export function getLedgerByFarm(farmId: string) {
+  return waterLedgerRepository.getAllByIndex('byFarm', farmId);
 }

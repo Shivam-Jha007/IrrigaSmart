@@ -15,7 +15,14 @@ import { getDb, type IrrigaSmartDB } from './db';
 /** Store names whose value is an object with a string `id` primary key. */
 export type EntityStoreName = Extract<
   StoreNames<IrrigaSmartDB>,
-  'farmers' | 'farms' | 'crops' | 'soils' | 'recommendations' | 'history' | 'notifications'
+  | 'farmers'
+  | 'farms'
+  | 'crops'
+  | 'soils'
+  | 'recommendations'
+  | 'history'
+  | 'notifications'
+  | 'waterLedger'
 >;
 
 type EntityValue<Name extends EntityStoreName> = IrrigaSmartDB[Name]['value'];

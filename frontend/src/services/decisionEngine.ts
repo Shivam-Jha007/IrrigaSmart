@@ -4,6 +4,7 @@ import type {
   DailyWeather,
   EstimatedWaterAmount,
   Farm,
+  IrrigationWindow,
   Language,
   Recommendation,
   RecommendationFactor,
@@ -14,6 +15,9 @@ import type {
 import { getKc } from './knowledgeBase';
 import { buildExplanation } from './explanationText';
 import { getSeasonForDate } from './regionalKnowledge';
+import { localDayString } from './dateUtils';
+import { chooseIrrigationWindow, flowLitersPerMinute, runMinutes } from './irrigationTiming';
+import { computeWaterSavings } from './waterSavings';
 import {
   AREA_TO_M2,
   CARRYOVER_DAYS,
@@ -21,7 +25,6 @@ import {
   ETO_REF,
   FRESH_MAX_HOURS,
   HUM_STRONG_DELTA,
-  IRRIGATION_TIME_DEFAULT,
   KC_HIGH,
   KC_LOW,
   METHOD_EFFICIENCY,
@@ -156,14 +159,6 @@ function dailyDemand(kc: number, day: DailyWeather): number {
     windSpeed: day.windSpeedMax,
   });
   return kc * ETO_REF * SEASONAL_ETO_FACTOR[getSeasonForDate(day.date)] * multiplier;
-}
-
-/** Farm-local calendar date (YYYY-MM-DD) for an ISO timestamp. */
-function localDateString(iso: string): string {
-  const d = new Date(iso);
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${month}-${day}`;
 }
 
 /** Ascending date comparator for DailyWeather entries. */
@@ -385,7 +380,8 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
   }
 
   const { farm, crop, soil, weather, daily, now, language } = input;
-  const todayDate = localDateString(now);
+  const todayDate = localDayString(now);
+  const season = getSeasonForDate(now);
 
   // Stage 2 — Knowledge retrieval
   const kc = getKc(crop.name, crop.growthStage);
@@ -395,7 +391,7 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
   // offline; confidence will reflect the missing data. The seasonal ETo factor
   // (Decision Logic §2, roadmap Feature 8) shifts the baseline by season.
   const multiplier = weather ? weatherMultiplier(weather) : 1;
-  const etcAdj = kc * ETO_REF * SEASONAL_ETO_FACTOR[getSeasonForDate(now)] * multiplier;
+  const etcAdj = kc * ETO_REF * SEASONAL_ETO_FACTOR[season] * multiplier;
 
   // Effective rainfall (Decision Logic §3)
   const rainfall = weather?.rainfallForecast ?? 0;
@@ -417,19 +413,49 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
     status = 'Irrigate Today';
   }
 
-  // Stage 6 — Water estimation (only meaningful when irrigating)
-  let water: EstimatedWaterAmount = { depthMm: 0, volumeLiters: 0 };
+  // Stage 6 — Water estimation (only meaningful when irrigating).
+  // Depth and volume answer "how much"; run time and flow answer "for how
+  // long", which is what a farmer standing at a valve actually needs.
+  const areaM2 = farm.area * AREA_TO_M2[farm.areaUnit];
+  let water: EstimatedWaterAmount = {
+    depthMm: 0,
+    volumeLiters: 0,
+    durationMinutes: 0,
+    flowLitersPerMinute: 0,
+  };
   if (status === 'Irrigate Today') {
     const grossDepth = nir / METHOD_EFFICIENCY[farm.irrigationMethod];
-    const areaM2 = farm.area * AREA_TO_M2[farm.areaUnit];
     water = {
       depthMm: round(grossDepth, 2),
       volumeLiters: Math.round(grossDepth * areaM2),
+      durationMinutes: runMinutes(grossDepth, farm.irrigationMethod),
+      flowLitersPerMinute: flowLitersPerMinute(farm.irrigationMethod, areaM2),
     };
   }
 
-  // Stage 7 — Recommended time
-  const recommendedTime = status === 'Irrigate Today' ? IRRIGATION_TIME_DEFAULT : null;
+  // Stage 7 — Irrigation window (Decision Logic §7). Chosen from season, heat,
+  // wind, run length and the current time — not a fixed hour.
+  const irrigationWindow: IrrigationWindow | null =
+    status === 'Irrigate Today'
+      ? chooseIrrigationWindow({
+          season,
+          weather,
+          method: farm.irrigationMethod,
+          durationMinutes: water.durationMinutes ?? 0,
+          now,
+        })
+      : null;
+  const recommendedTime = irrigationWindow?.start ?? null;
+
+  // Water saved by following this advice instead of untimed flood irrigation
+  // (Decision Logic §6). Computed for every outcome, because skipping a
+  // watering the rain already covered is itself a saving.
+  const waterSavings = computeWaterSavings({
+    demandMm: etcAdj,
+    effectiveRainMm: pe,
+    method: farm.irrigationMethod,
+    areaM2,
+  });
 
   // Stage 8 — Confidence
   const confidence = computeConfidence(weather, now);
@@ -463,7 +489,9 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
       farmId: farm.id,
       status,
       recommendedTime,
+      irrigationWindow,
       estimatedWaterAmount: water,
+      waterSavings,
       explanation,
       confidence,
       generatedTime: now,

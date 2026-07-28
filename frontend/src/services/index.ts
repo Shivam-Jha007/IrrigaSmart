@@ -44,6 +44,7 @@ export {
   planNotifications,
   RAIN_WARNING_MM,
   RAIN_WARNING_WINDOW_DAYS,
+  type CustomReminderResult,
   type NotificationInput,
 } from './notificationService';
 export {
@@ -54,3 +55,17 @@ export {
   type CropCalendarEntry,
   type SeasonalGuidance,
 } from './regionalKnowledge';
+export { DAY_MS, localDayString } from './dateUtils';
+export {
+  chooseIrrigationWindow,
+  farmAreaM2,
+  flowLitersPerMinute,
+  runMinutes,
+  type TimingInput,
+} from './irrigationTiming';
+export { computeWaterSavings, creditedSaving, type SavingsInput } from './waterSavings';
+export {
+  historyToPrune,
+  orphanedRecommendationIds,
+  remindersToPrune,
+} from './storageMaintenance';

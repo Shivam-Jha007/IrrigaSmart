@@ -9,6 +9,7 @@ import type {
   Recommendation,
   Settings,
   Soil,
+  WaterLedgerEntry,
   WeatherData,
 } from '../types';
 
@@ -20,11 +21,12 @@ import type {
  * of this — the UI never opens or touches the database directly
  * (docs/07_Engineering_Rules.md: Storage Rules).
  *
- * Migrations: v1 → MVP stores; v2 → + notifications store (roadmap Feature 7).
+ * Migrations: v1 → MVP stores; v2 → + notifications store (roadmap Feature 7);
+ * v3 → + waterLedger store (per-day advised/applied/saved water tracking).
  */
 
 export const DB_NAME = 'irrigasmart';
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 /** Key for the single application settings record. */
 export const SETTINGS_KEY = 'app';
@@ -87,6 +89,11 @@ export interface IrrigaSmartDB extends DBSchema {
     value: AppNotification;
     indexes: { byFarm: string };
   };
+  waterLedger: {
+    key: string;
+    value: WaterLedgerEntry;
+    indexes: { byFarm: string };
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<IrrigaSmartDB>> | null = null;
@@ -142,6 +149,12 @@ export function getDb(): Promise<IDBPDatabase<IrrigaSmartDB>> {
           // V2.0 — Smart Notifications (roadmap Feature 7).
           const notifications = db.createObjectStore('notifications', { keyPath: 'id' });
           notifications.createIndex('byFarm', 'farmId');
+        }
+
+        if (oldVersion < 3) {
+          // Per-day water tracking: advised vs applied vs saved.
+          const ledger = db.createObjectStore('waterLedger', { keyPath: 'id' });
+          ledger.createIndex('byFarm', 'farmId');
         }
       },
       blocked() {
