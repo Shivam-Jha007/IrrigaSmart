@@ -56,6 +56,20 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
+        <span className="app-header__logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* Water drop cradling a leaf — the brand mark. */}
+            <path
+              d="M12 2.5c3.6 4.3 6 7.6 6 10.6a6 6 0 1 1-12 0c0-3 2.4-6.3 6-10.6Z"
+              fill="#ffffff"
+              fillOpacity="0.9"
+            />
+            <path
+              d="M12 16.5c0-2.6 1.6-4.4 3.8-5-.2 2.7-1.7 4.5-3.8 5Zm0 0c0-2.2-1.3-3.8-3.2-4.4.1 2.4 1.4 3.9 3.2 4.4Z"
+              fill="#16814c"
+            />
+          </svg>
+        </span>
         <span className="app-header__brand">IrrigaSmart</span>
         {!online && <span className="app-header__offline-dot" aria-label="Offline" />}
         <button

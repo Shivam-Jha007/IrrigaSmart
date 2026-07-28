@@ -111,7 +111,7 @@ export function Dashboard({ store, onGoToFarms }: Props) {
 
   if (profiles.length === 0) {
     return (
-      <div className="page">
+      <div className="page dashboard">
         <p className="dashboard__greeting">{greeting}</p>
         <div className="empty-state empty-state--cta">
           <p>{t('dashboard.addFirstFarm')}</p>
@@ -124,7 +124,7 @@ export function Dashboard({ store, onGoToFarms }: Props) {
   }
 
   return (
-    <div className="page">
+    <div className="page dashboard">
       <p className="dashboard__greeting">{greeting}</p>
 
       <RemindersCard
@@ -149,56 +149,60 @@ export function Dashboard({ store, onGoToFarms }: Props) {
       {loading && <p className="dashboard__loading">{t('dashboard.checking')}</p>}
       {error && <p className="form-error">{error}</p>}
 
-      {!loading && view && (
-        <RecommendationCard
-          recommendation={view.recommendation}
-          t={t}
-          note={
-            view.weatherMissing
-              ? t('dashboard.noteNoWeather')
-              : view.fromCache
-                ? t('dashboard.noteCached')
-                : undefined
-          }
-        />
-      )}
-
-      {!loading && view?.recommendation.status === 'Irrigate Today' && (
-        <ReminderPlanner
-          reminders={pendingReminders}
-          t={t}
-          onAdd={async (time) => {
-            const result = await store.addCustomReminder(selectedFarmId, time);
-            if (result === 'ok') await loadPending(selectedFarmId);
-            return result;
-          }}
-          onRemove={async (id) => {
-            await store.removeReminder(id);
-            await loadPending(selectedFarmId);
-          }}
-        />
-      )}
-
-      {!loading && weather && (
-        <WeatherSummary weather={weather} fromCache={view?.fromCache ?? false} t={t} />
-      )}
-
-      {!loading && view?.plan && (
-        <PlanOutlook plan={view.plan} language={store.settings.preferredLanguage} t={t} />
-      )}
-
-      {!loading && selectedProfile && (
-        <SeasonalGuidance crop={selectedProfile.crop} language={store.settings.preferredLanguage} t={t} />
-      )}
-
       {!loading && (
-        <button
-          type="button"
-          className="btn btn--ghost btn--block"
-          onClick={() => void refresh(selectedFarmId)}
-        >
-          {t('dashboard.refresh')}
-        </button>
+        <div className="dashboard__grid">
+          {/* Primary zone: the decision */}
+          <div className="dashboard__primary">
+            {view && (
+              <RecommendationCard
+                recommendation={view.recommendation}
+                t={t}
+                note={
+                  view.weatherMissing
+                    ? t('dashboard.noteNoWeather')
+                    : view.fromCache
+                      ? t('dashboard.noteCached')
+                      : undefined
+                }
+              />
+            )}
+            {view?.recommendation.status === 'Irrigate Today' && (
+              <ReminderPlanner
+                reminders={pendingReminders}
+                t={t}
+                onAdd={async (time) => {
+                  const result = await store.addCustomReminder(selectedFarmId, time);
+                  if (result === 'ok') await loadPending(selectedFarmId);
+                  return result;
+                }}
+                onRemove={async (id) => {
+                  await store.removeReminder(id);
+                  await loadPending(selectedFarmId);
+                }}
+              />
+            )}
+            <button
+              type="button"
+              className="btn btn--ghost btn--block"
+              onClick={() => void refresh(selectedFarmId)}
+            >
+              {t('dashboard.refresh')}
+            </button>
+          </div>
+
+          {/* Aside zone: supporting context */}
+          <div className="dashboard__aside">
+            {weather && (
+              <WeatherSummary weather={weather} fromCache={view?.fromCache ?? false} t={t} />
+            )}
+            {view?.plan && (
+              <PlanOutlook plan={view.plan} language={store.settings.preferredLanguage} t={t} />
+            )}
+            {selectedProfile && (
+              <SeasonalGuidance crop={selectedProfile.crop} language={store.settings.preferredLanguage} t={t} />
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
