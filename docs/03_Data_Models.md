@@ -137,6 +137,9 @@ Fields
 - Cloud Cover
 - Observation Time
 - Data Source
+- Daily Series (V1.2) — one record per day covering the past 2 days, today, and the next 4 days. Each record carries: Date, Rainfall Total, Maximum Temperature, Mean Humidity, Maximum Wind Speed, and (V1.5) **Reference ET** — daily reference evapotranspiration computed by the provider using the FAO-56 Penman-Monteith method, in millimetres.
+
+Reference ET is optional on a per-day basis: records cached before V1.5 do not carry it, and the Decision Engine falls back to its own estimate for those days (`11_Decision_Logic.md` Step 2). Cloud Cover is retained for display; it is not used numerically, because the provider's Reference ET already accounts for radiation.
 
 Weather data should always include the timestamp of retrieval.
 
