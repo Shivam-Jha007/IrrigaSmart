@@ -9,10 +9,18 @@
  *   requires an identifying User-Agent, which we send).
  * - Soil suggestion: ISRIC SoilGrids WRB classification (free, no key), mapped
  *   conservatively into the three soil types the Knowledge Base supports
- *   (docs/10_Knowledge_Base.md §4). This is a *suggestion* only — the farmer
- *   must always confirm it in the UI (roadmap Feature 1 Optional Enhancement).
+ *   (docs/10_Knowledge_Base.md §4). A group name says nothing about the actual
+ *   clay percentage, so this is coarse; `soil.ts` refines it from measured
+ *   sand/silt/clay via the USDA texture triangle on a separate, slower request.
+ *   Either way it is a *suggestion* only — the farmer must always confirm it in
+ *   the UI (roadmap Feature 1 Optional Enhancement).
  */
 
+/**
+ * The three types the WRB name mapping can reach. `soil.ts` reaches all six
+ * from measured texture; this stays narrow because widening it would imply a
+ * precision the group name does not carry.
+ */
 export type SuggestedSoilType = 'Sandy' | 'Loamy' | 'Clay';
 
 export interface LocationPayload {
@@ -197,8 +205,15 @@ function soilTypeFromWrbClass(wrbClassName: string | undefined): SuggestedSoilTy
  * Look up the WRB soil classification for a coordinate and map it to a
  * supported soil type. Best-effort: any failure or missing data resolves to
  * null rather than an error, since the suggestion is an optional enhancement.
+ *
+ * Exported as of V1.7 so the soil route can use it as its fallback when the
+ * measured texture fails to classify — same provider, coarser question, but it
+ * answers in well under a second where the property query takes ~15 s.
  */
-async function suggestSoilType(latitude: number, longitude: number): Promise<SuggestedSoilType | null> {
+export async function suggestSoilTypeFromWrb(
+  latitude: number,
+  longitude: number,
+): Promise<SuggestedSoilType | null> {
   try {
     const params = new URLSearchParams({
       lon: String(longitude),
@@ -221,6 +236,12 @@ async function suggestSoilType(latitude: number, longitude: number): Promise<Sug
  * Resolve a coordinate to place names (village/district/state) and an optional
  * soil suggestion. Throws LocationProviderError on invalid input or when the
  * geocoding provider fails; soil lookup failures degrade to null.
+ *
+ * DELIBERATELY DOES NOT FETCH THE MEASURED PROFILE. SoilGrids' 7-property query
+ * takes ~15 s (measured, not assumed), and this endpoint is on the critical path
+ * of farm creation — the farmer is watching the form fill in. `GET /api/soil`
+ * fetches the profile separately in the background and refines the suggestion
+ * when it lands.
  */
 export async function fetchLocationInfo(latitude: number, longitude: number): Promise<LocationPayload> {
   if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
@@ -232,7 +253,7 @@ export async function fetchLocationInfo(latitude: number, longitude: number): Pr
 
   const [geo, suggestedSoilType] = await Promise.all([
     reverseGeocode(latitude, longitude),
-    suggestSoilType(latitude, longitude),
+    suggestSoilTypeFromWrb(latitude, longitude),
   ]);
 
   const address = geo.address ?? {};
