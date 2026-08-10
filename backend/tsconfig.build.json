@@ -1,0 +1,7 @@
+{
+  // Emit configuration only. `tsconfig.json` still type-checks everything,
+  // tests included; this narrower project keeps the deployed `dist/` free of
+  // test code and its dev-only imports.
+  "extends": "./tsconfig.json",
+  "exclude": ["src/**/__tests__/**"]
+}
