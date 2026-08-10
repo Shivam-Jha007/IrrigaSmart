@@ -1,0 +1,230 @@
+{
+  "properties": {
+    "layers": [
+      {
+        "name": "bdod",
+        "unit_measure": {
+          "d_factor": 100
+        },
+        "depths": [
+          {
+            "label": "0-5cm",
+            "values": {
+              "mean": 131
+            }
+          },
+          {
+            "label": "5-15cm",
+            "values": {
+              "mean": 134
+            }
+          },
+          {
+            "label": "15-30cm",
+            "values": {
+              "mean": 138
+            }
+          },
+          {
+            "label": "30-60cm",
+            "values": {
+              "mean": 141
+            }
+          }
+        ]
+      },
+      {
+        "name": "clay",
+        "unit_measure": {
+          "d_factor": 10
+        },
+        "depths": [
+          {
+            "label": "0-5cm",
+            "values": {
+              "mean": 283
+            }
+          },
+          {
+            "label": "5-15cm",
+            "values": {
+              "mean": 301
+            }
+          },
+          {
+            "label": "15-30cm",
+            "values": {
+              "mean": 322
+            }
+          },
+          {
+            "label": "30-60cm",
+            "values": {
+              "mean": 350
+            }
+          }
+        ]
+      },
+      {
+        "name": "sand",
+        "unit_measure": {
+          "d_factor": 10
+        },
+        "depths": [
+          {
+            "label": "0-5cm",
+            "values": {
+              "mean": 284
+            }
+          },
+          {
+            "label": "5-15cm",
+            "values": {
+              "mean": 286
+            }
+          },
+          {
+            "label": "15-30cm",
+            "values": {
+              "mean": 268
+            }
+          },
+          {
+            "label": "30-60cm",
+            "values": {
+              "mean": 255
+            }
+          }
+        ]
+      },
+      {
+        "name": "silt",
+        "unit_measure": {
+          "d_factor": 10
+        },
+        "depths": [
+          {
+            "label": "0-5cm",
+            "values": {
+              "mean": 433
+            }
+          },
+          {
+            "label": "5-15cm",
+            "values": {
+              "mean": 413
+            }
+          },
+          {
+            "label": "15-30cm",
+            "values": {
+              "mean": 410
+            }
+          },
+          {
+            "label": "30-60cm",
+            "values": {
+              "mean": 394
+            }
+          }
+        ]
+      },
+      {
+        "name": "soc",
+        "unit_measure": {
+          "d_factor": 10
+        },
+        "depths": [
+          {
+            "label": "0-5cm",
+            "values": {
+              "mean": 182
+            }
+          },
+          {
+            "label": "5-15cm",
+            "values": {
+              "mean": 108
+            }
+          },
+          {
+            "label": "15-30cm",
+            "values": {
+              "mean": 53
+            }
+          },
+          {
+            "label": "30-60cm",
+            "values": {
+              "mean": 45
+            }
+          }
+        ]
+      },
+      {
+        "name": "wv0033",
+        "unit_measure": {
+          "d_factor": 10
+        },
+        "depths": [
+          {
+            "label": "0-5cm",
+            "values": {
+              "mean": 332
+            }
+          },
+          {
+            "label": "5-15cm",
+            "values": {
+              "mean": 333
+            }
+          },
+          {
+            "label": "15-30cm",
+            "values": {
+              "mean": 340
+            }
+          },
+          {
+            "label": "30-60cm",
+            "values": {
+              "mean": 337
+            }
+          }
+        ]
+      },
+      {
+        "name": "wv1500",
+        "unit_measure": {
+          "d_factor": 10
+        },
+        "depths": [
+          {
+            "label": "0-5cm",
+            "values": {
+              "mean": 129
+            }
+          },
+          {
+            "label": "5-15cm",
+            "values": {
+              "mean": 132
+            }
+          },
+          {
+            "label": "15-30cm",
+            "values": {
+              "mean": 133
+            }
+          },
+          {
+            "label": "30-60cm",
+            "values": {
+              "mean": 176
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
