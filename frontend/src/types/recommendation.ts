@@ -34,7 +34,8 @@ export type TimingReason =
   | 'cool-season'
   | 'long-run'
   | 'later-today'
-  | 'evening-slot';
+  | 'evening-slot'
+  | 'drying-window';
 
 /**
  * The advised irrigation window (docs/11_Decision_Logic.md §7).

@@ -1,4 +1,5 @@
 import type { AreaUnit, IrrigationMethod, SoilType } from './enums';
+import type { FarmTerrain } from './terrain';
 
 /**
  * Geographic location of a farm. Weather data is associated with this location
@@ -28,4 +29,10 @@ export interface Farm {
   irrigationMethod: IrrigationMethod;
   /** References the id of the Crop cultivated on this farm. */
   primaryCropId: string;
+  /**
+   * Approximate terrain, fetched once at farm creation (V1.7, item 10).
+   * Absent on every farm created before it existed and whenever the elevation
+   * provider was unreachable; consumers must behave identically without it.
+   */
+  terrain?: FarmTerrain;
 }

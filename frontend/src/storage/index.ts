@@ -9,6 +9,7 @@ export { DB_NAME, DB_VERSION, closeDb, DbBlockedError, type WeatherCacheEntry } 
 export { type Repository, createRepository } from './repository';
 export {
   cropRepository,
+  depletionStateRepository,
   farmRepository,
   farmerRepository,
   getFarmsByFarmer,
