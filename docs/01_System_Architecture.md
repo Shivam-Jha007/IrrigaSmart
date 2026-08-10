@@ -1,4 +1,9 @@
-v
+> **Document Role**
+>
+> This document is part of the IrrigaSmart engineering specification.
+> It is intended to be read alongside the other documents in the `/docs` directory.
+> If implementation depends on information defined elsewhere, reference the appropriate document instead of making assumptions.
+
 # 01_System_Architecture.md
 
 # IrrigaSmart

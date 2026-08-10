@@ -238,6 +238,8 @@ Automatic Pump Control
 
 These features belong to future releases.
 
+Post-MVP amendment: **weather-based disease risk** was approved as `12_Product_Roadmap_v2.md` Version 1.3 Feature 9 and is implemented. It reports that weather conditions favour a disease, using weather data the application already caches; it makes no visual diagnosis. "Computer Vision" and "Disease Detection" above continue to mean image-based diagnosis, which remains excluded.
+
 12. Product Boundaries
 
 The application is a decision-support system.

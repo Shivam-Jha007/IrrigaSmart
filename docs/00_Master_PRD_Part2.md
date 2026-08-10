@@ -234,6 +234,8 @@ The MVP does not include:
 - Cloud synchronization
 - Payments
 
+Post-MVP amendment: **weather-based disease risk** was approved as `12_Product_Roadmap_v2.md` Version 1.3 Feature 9 and is implemented. It warns that weather favours a disease; it does not detect disease. "Disease detection" above continues to mean **visual diagnosis from images**, which remains out of scope.
+
 ---
 
 # Assumptions

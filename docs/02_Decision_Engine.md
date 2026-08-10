@@ -32,6 +32,15 @@ Future AI capabilities may enhance the engine but should not replace its overall
 > `10_Knowledge_Base.md`. Stages 4 (Recommendation Logic) and 5 (Water
 > Estimation) are realized by that specification.
 
+> **Note on disease risk.** Weather-based disease risk
+> (`12_Product_Roadmap_v2.md` Version 1.3 Feature 9, specified in
+> `11_Decision_Logic.md` Step 12) is **not** a stage of this pipeline. It reads
+> the same normalized weather but runs independently and contributes nothing to
+> the irrigation status, amount, timing, confidence, or factors. It was kept
+> outside the pipeline deliberately: the irrigation recommendation must stay
+> exactly as testable and as explainable as it is today, and an advisory signal
+> that cannot change the outcome should not be able to change it by accident.
+
 ---
 
 # Objectives

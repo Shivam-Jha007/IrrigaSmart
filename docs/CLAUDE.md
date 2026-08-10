@@ -9,4 +9,4 @@ Before coding:
 3. Obey `07_Engineering_Rules.md`.
 4. Only implement the requested phase.
 5. Do not implement future roadmap items.
-6. If documentation is missing or ambiguous, ask for clarification instead of guessing.
+6. If documentation is missing or ambiguous, ask for clarification instead of guessing. 

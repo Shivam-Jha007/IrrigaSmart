@@ -175,8 +175,9 @@ Responsibilities
 - Current weather
 - Forecast
 - Timestamp
+- Daily reference evapotranspiration (V1.5) — the provider computes ETo by the FAO-56 Penman-Monteith method for the requested coordinate. The backend passes it through per day; it is the Decision Engine's primary crop-water-demand input.
 
-Weather providers may change without affecting the frontend.
+Weather providers may change without affecting the frontend. A replacement provider must supply FAO-56 ETo per day, or the engine silently degrades to its coarser fallback estimate.
 
 ---
 
