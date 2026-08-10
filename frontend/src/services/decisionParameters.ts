@@ -182,6 +182,149 @@ export const WIND_STRONG_DELTA = 2;
 /** Method efficiency at/below which the method strongly raises applied water. */
 export const METHOD_LOW_EFFICIENCY = 0.6;
 
+/**
+ * Sunshine thresholds (V1.7 item 2), expressed as relative sunshine duration
+ * n/N so they mean the same thing in every month and at every latitude.
+ *
+ * The provider derives sunshine from direct normal irradiance above 120 W/m²,
+ * a looser test than the Campbell-Stokes definition FAO-56's radiation
+ * coefficients were calibrated against, so it reports MORE sunshine than a
+ * classical recorder would. Both thresholds are therefore set low: the aim is
+ * to identify genuinely dull days, and a lenient sunshine measure means a day
+ * still has to be markedly overcast to fall below them.
+ */
+export const SUNSHINE = {
+  /** Below this the canopy stays wet for hours longer — a dull, overcast day. */
+  OVERCAST_RATIO: 0.3,
+  /** At/above this the day is effectively clear and a wetted canopy dries. */
+  BRIGHT_RATIO: 0.6,
+} as const;
+
+/**
+ * Terrain slope parameters (V1.7 item 10).
+ *
+ * The slope figure these act on comes from a ~90 m DEM sampled over a 300 m
+ * cross, and the backend module documents two measured limits on it: on
+ * genuinely flat ground the DEM's own error can fabricate ~3% slope (verified on
+ * the Punjab plain), and on a genuinely steep hillside the long baseline reads
+ * well below the true grade (verified at Manali). Every threshold below is set
+ * with that error budget in mind, which is why the deadband is wide and the
+ * effect is capped.
+ */
+export const SLOPE = {
+  /**
+   * Below this, slope is ignored entirely and every number matches the
+   * pre-terrain behaviour exactly.
+   *
+   * 3% because that is what the DEM reports on ground that is provably flat, so
+   * anything under it is indistinguishable from measurement error. This is
+   * deliberately far more conservative than the agronomic literature, which
+   * treats runoff as significant from about 1%: acting at 1% here would apply a
+   * runoff penalty to level fields on the strength of DEM noise, and telling a
+   * farmer on a flat plain that their rain is running away is a worse failure
+   * than missing a gentle grade.
+   */
+  DEADBAND_PERCENT: 3,
+  /**
+   * Effective rainfall lost per 1% of slope above the deadband.
+   *
+   * Follows the direction of the SCS curve-number treatment of slope — steeper
+   * ground sheds a larger share of a storm — but the coefficient is a tuned
+   * engineering value, not a published one, because the curve-number method
+   * works from a hydrologic soil group and a land-use class the app does not
+   * ask the farmer for. 5% per 1% slope keeps the adjustment inside the range
+   * the runoff literature reports for cultivated land without pretending to a
+   * precision the input cannot support.
+   */
+  RUNOFF_PER_PERCENT: 0.05,
+  /**
+   * Floor on the runoff multiplier. At most 40% of the effective rain the flat
+   * case would have credited is ever taken away.
+   *
+   * A cap is required, not optional: the slope figure under-reports steep ground
+   * (Manali reads ~5.7% for a hillside past 30%), so an uncapped penalty would
+   * be driven by the least trustworthy readings. Capping means the worst case is
+   * that a steep farm is advised to irrigate somewhat more than it strictly
+   * needs, which is the safe direction for the crop.
+   */
+  RUNOFF_FLOOR: 0.4,
+  /**
+   * Slope above which flood and furrow irrigation earn an ADVISORY.
+   *
+   * Advisory only — it recommends contour furrows or drip and never changes the
+   * farmer's recorded method or the numbers derived from it. The farmer knows
+   * their field; this figure does not.
+   */
+  METHOD_WARNING_PERCENT: 2,
+  /**
+   * Application-rate multiplier per 1% of slope above the deadband.
+   *
+   * Water applied faster than the soil can take it in runs off, and a slope
+   * lowers the rate at which that happens. Slowing the assumed application rate
+   * lengthens the advised run time for the same depth, which is exactly the
+   * advice a farmer on a slope needs: same water, applied gentler.
+   */
+  INTAKE_PER_PERCENT: 0.04,
+  /**
+   * Floor on the application-rate multiplier. The advised run may at most be
+   * stretched to twice its flat-ground length, so an over-read slope cannot
+   * produce a run time long enough that a farmer dismisses the whole figure.
+   */
+  INTAKE_FLOOR: 0.5,
+} as const;
+
+/**
+ * Disease risk scoring parameters (docs/11_Decision_Logic.md §12 / §9;
+ * docs/12_Product_Roadmap_v2.md Version 1.3 Feature 9).
+ *
+ * Only the generic scoring knobs live here. The per-disease temperature bands
+ * and humidity thresholds are agronomic FACTS and live in the knowledge module
+ * (diseaseKnowledge.ts, from docs/10_Knowledge_Base.md §10.4), exactly as Kc
+ * does — this file owns how facts are weighed, never what they are.
+ */
+export const DISEASE_RISK = {
+  /** mm of rain that makes a day count as wet regardless of mean humidity. */
+  WET_DAY_RAIN_MM: 2.0,
+  /** Weight of a favourable day that has already happened. */
+  OBSERVED_DAY_WEIGHT: 1.0,
+  /**
+   * Weight of a favourable forecast day. Lower than an observed day because the
+   * forecast may not verify and infection has not yet had the chance to occur.
+   */
+  FORECAST_DAY_WEIGHT: 0.5,
+  /**
+   * Multiplier applied to a favourable day that is also OVERCAST (item 2).
+   *
+   * Foliar infection needs free water to sit on the leaf long enough for a spore
+   * to germinate and penetrate, so leaf-wetness DURATION — not merely its
+   * presence — is what published infection models integrate. The app has no
+   * wetness sensor, but sunshine is a direct measure of the energy available to
+   * evaporate that water: a dull day keeps the canopy wet for hours longer than
+   * a bright one with identical humidity and rainfall.
+   *
+   * Deliberately a multiplier and not an additive bonus. A bonus would let dull
+   * weather accumulate score independently of how long the favourable spell
+   * actually is, so a single dull day could reach a level that ought to require
+   * a sustained spell. Scaling each day's own weight keeps the run length in
+   * charge of the verdict and lets sunshine only sharpen it.
+   *
+   * 1.3 is set so it cannot manufacture a warning on its own: a lone overcast
+   * favourable day scores 1.3, still Low, and two observed overcast days score
+   * 2.6, still Moderate. It escalates only where a spell was already close to
+   * the boundary — e.g. two observed plus one forecast day, 2.5 → 3.25 — which
+   * is the case where the extra hours of wetness genuinely decide the outcome.
+   */
+  OVERCAST_DAY_MULTIPLIER: 1.3,
+  /** Score at/above which risk is High (three observed favourable days). */
+  SCORE_HIGH: 3.0,
+  /** Score at/above which risk is Moderate (two observed favourable days). */
+  SCORE_MODERATE: 1.5,
+  /** Fraction of the window needing data for High assessment confidence. */
+  COVERAGE_HIGH: 0.85,
+  /** Fraction of the window needing data for Medium assessment confidence. */
+  COVERAGE_MEDIUM: 0.5,
+} as const;
+
 /** Bound a value to an inclusive range. */
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);

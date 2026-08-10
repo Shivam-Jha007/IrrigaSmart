@@ -167,7 +167,56 @@ const BN_VOCAB: SentenceVocab = {
   },
 };
 
-const VOCAB: Record<Language, SentenceVocab> = { en: EN_VOCAB, hi: HI_VOCAB, bn: BN_VOCAB };
+const UR_VOCAB: SentenceVocab = {
+  crops: {
+    Rice: 'چاول',
+    Wheat: 'گندم',
+    Maize: 'مکئی',
+    Cotton: 'کپاس',
+    Sugarcane: 'گنے',
+    Soybean: 'سویا بین',
+    Groundnut: 'مونگ پھلی',
+    Tomato: 'ٹماٹر',
+    Potato: 'آلو',
+    Onion: 'پیاز',
+  },
+  stages: {
+    Initial: 'ابتدائی',
+    Development: 'نشوونما',
+    'Mid Season': 'درمیانی موسم',
+    'Late Season': 'آخری موسم',
+  },
+  soils: {
+    Sandy: 'ریتلی',
+    'Sandy Loam': 'ریتلی دوامی',
+    Loamy: 'دوامی',
+    'Silty Loam': 'گاد والی دوامی',
+    'Clay Loam': 'چکنی دوامی',
+    Clay: 'چکنی',
+  },
+  soilFrequency: {
+    Sandy: 'بار بار',
+    'Sandy Loam': 'بار بار',
+    Loamy: 'درمیانی وقفے سے',
+    'Silty Loam': 'درمیانی وقفے سے',
+    'Clay Loam': 'کم',
+    Clay: 'کم',
+  },
+  methods: {
+    Drip: 'ڈرِپ',
+    Sprinkler: 'اسپرنکلر',
+    Furrow: 'نالیوں',
+    Flood: 'سیلابی',
+  },
+};
+
+const VOCAB: Record<Language, SentenceVocab> = {
+  en: EN_VOCAB,
+  hi: HI_VOCAB,
+  bn: BN_VOCAB,
+  as: EN_VOCAB,
+  ur: UR_VOCAB,
+};
 
 interface SentenceTemplates {
   delay(v: SentenceVocab, parts: ExplanationParts): string;
@@ -217,10 +266,26 @@ const BN_TEMPLATES: SentenceTemplates = {
   },
 };
 
+const UR_TEMPLATES: SentenceTemplates = {
+  delay: (v, p) =>
+    `آج متوقع بارش آپ کی ${v.crops[p.cropName]} کی ضرورت پوری کرنے کے لیے کافی ہے، اس لیے آپ آبپاشی مؤخر کر سکتے ہیں۔ ${v.soils[p.soilName]} مٹی میں یہ نمی زیادہ دیر تک دستیاب رہتی ہے۔`,
+  monitor: (v, p) =>
+    `${v.stages[p.growthStage]} مرحلے میں آپ کی ${v.crops[p.cropName]} کو آج بہت کم پانی درکار ہے، اور آپ کی ${v.soils[p.soilName]} مٹی (${v.soilFrequency[p.soilName]} آبپاشی) اسے سنبھال سکتی ہے۔ کل دوبارہ دیکھیں۔`,
+  irrigate: (v, p) => {
+    const rainClause = p.rainMeaningful
+      ? 'متوقع بارش ضرورت پوری کرنے کے لیے کافی نہیں، اس لیے'
+      : 'بارش کا امکان کم ہے، اس لیے';
+    const heatClause = p.hot ? ' آج گرمی زیادہ ہے، جس سے پانی کی ضرورت بڑھتی ہے۔' : '';
+    return `آپ کی ${v.crops[p.cropName]} ${v.stages[p.growthStage]} مرحلے میں ہے۔${heatClause} ${rainClause} آج صبح اپنے ${v.methods[p.method]} نظام سے آبپاشی کریں۔`;
+  },
+};
+
 const TEMPLATES: Record<Language, SentenceTemplates> = {
   en: EN_TEMPLATES,
   hi: HI_TEMPLATES,
   bn: BN_TEMPLATES,
+  as: EN_TEMPLATES,
+  ur: UR_TEMPLATES,
 };
 
 /** Build the farmer-facing explanation for a recommendation. */

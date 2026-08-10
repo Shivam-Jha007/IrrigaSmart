@@ -1,0 +1,392 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`diseaseRisk > assesses every crop under favourable, unfavourable and mixed weather 1`] = `
+"Rice/favourable -> High riceBlast score=5 obs=3 fc=4 conf=High
+Rice/unfavourable -> None riceBlast score=0 obs=0 fc=0 conf=High
+Rice/forecast-only -> Moderate riceBlast score=2 obs=0 fc=4 conf=High
+Wheat/favourable -> High wheatLeafRust score=5 obs=3 fc=4 conf=High
+Wheat/unfavourable -> None wheatStripeRust score=0 obs=0 fc=0 conf=High
+Wheat/forecast-only -> Moderate wheatLeafRust score=2 obs=0 fc=4 conf=High
+Maize/favourable -> High maizeTurcicumLeafBlight score=5 obs=3 fc=4 conf=High
+Maize/unfavourable -> None maizeTurcicumLeafBlight score=0 obs=0 fc=0 conf=High
+Maize/forecast-only -> Moderate maizeTurcicumLeafBlight score=2 obs=0 fc=4 conf=High
+Cotton/favourable -> None cottonAlternariaLeafSpot score=0 obs=0 fc=0 conf=High
+Cotton/unfavourable -> None cottonAlternariaLeafSpot score=0 obs=0 fc=0 conf=High
+Cotton/forecast-only -> None cottonAlternariaLeafSpot score=0 obs=0 fc=0 conf=High
+Sugarcane/favourable -> High sugarcaneRust score=5 obs=3 fc=4 conf=High
+Sugarcane/unfavourable -> None sugarcaneRedRot score=0 obs=0 fc=0 conf=High
+Sugarcane/forecast-only -> Moderate sugarcaneRust score=2 obs=0 fc=4 conf=High
+Soybean/favourable -> High soybeanRust score=5 obs=3 fc=4 conf=High
+Soybean/unfavourable -> None soybeanRust score=0 obs=0 fc=0 conf=High
+Soybean/forecast-only -> Moderate soybeanRust score=2 obs=0 fc=4 conf=High
+Groundnut/favourable -> High groundnutRust score=5 obs=3 fc=4 conf=High
+Groundnut/unfavourable -> None groundnutLateLeafSpot score=0 obs=0 fc=0 conf=High
+Groundnut/forecast-only -> Moderate groundnutRust score=2 obs=0 fc=4 conf=High
+Tomato/favourable -> High lateBlight score=5 obs=3 fc=4 conf=High
+Tomato/unfavourable -> None lateBlight score=0 obs=0 fc=0 conf=High
+Tomato/forecast-only -> Moderate lateBlight score=2 obs=0 fc=4 conf=High
+Potato/favourable -> High lateBlight score=5 obs=3 fc=4 conf=High
+Potato/unfavourable -> None lateBlight score=0 obs=0 fc=0 conf=High
+Potato/forecast-only -> Moderate lateBlight score=2 obs=0 fc=4 conf=High
+Onion/favourable -> High onionPurpleBlotch score=5 obs=3 fc=4 conf=High
+Onion/unfavourable -> None onionPurpleBlotch score=0 obs=0 fc=0 conf=High
+Onion/forecast-only -> Moderate onionPurpleBlotch score=2 obs=0 fc=4 conf=High"
+`;
+
+exports[`irrigationTiming > chooses a window across seasons, weather and time of day 1`] = `
+"Kharif/mild/dawn/Drip -> 06:00-07:30 nextDay=false (morning-default)
+Kharif/mild/dawn/Sprinkler -> 06:00-07:30 nextDay=false (morning-default)
+Kharif/mild/morning/Drip -> 08:30-10:00 nextDay=false (later-today)
+Kharif/mild/morning/Sprinkler -> 08:30-10:00 nextDay=false (later-today)
+Kharif/mild/afternoon/Drip -> 17:00-18:30 nextDay=false (evening-slot)
+Kharif/mild/afternoon/Sprinkler -> 17:00-18:30 nextDay=false (evening-slot)
+Kharif/mild/night/Drip -> 06:00-07:30 nextDay=true (morning-default)
+Kharif/mild/night/Sprinkler -> 06:00-07:30 nextDay=true (morning-default)
+Kharif/hot/dawn/Drip -> 05:30-07:00 nextDay=false (hot-day)
+Kharif/hot/dawn/Sprinkler -> 05:30-07:00 nextDay=false (hot-day)
+Kharif/hot/morning/Drip -> 08:30-10:00 nextDay=false (later-today)
+Kharif/hot/morning/Sprinkler -> 08:30-10:00 nextDay=false (later-today)
+Kharif/hot/afternoon/Drip -> 17:00-18:30 nextDay=false (evening-slot)
+Kharif/hot/afternoon/Sprinkler -> 17:00-18:30 nextDay=false (evening-slot)
+Kharif/hot/night/Drip -> 05:30-07:00 nextDay=true (hot-day)
+Kharif/hot/night/Sprinkler -> 05:30-07:00 nextDay=true (hot-day)
+Kharif/windy/dawn/Drip -> 06:00-07:30 nextDay=false (morning-default)
+Kharif/windy/dawn/Sprinkler -> 05:00-06:30 nextDay=false (windy)
+Kharif/windy/morning/Drip -> 08:30-10:00 nextDay=false (later-today)
+Kharif/windy/morning/Sprinkler -> 08:30-10:00 nextDay=false (later-today)
+Kharif/windy/afternoon/Drip -> 17:00-18:30 nextDay=false (evening-slot)
+Kharif/windy/afternoon/Sprinkler -> 17:00-18:30 nextDay=false (evening-slot)
+Kharif/windy/night/Drip -> 06:00-07:30 nextDay=true (morning-default)
+Kharif/windy/night/Sprinkler -> 05:00-06:30 nextDay=true (windy)
+Kharif/none/dawn/Drip -> 06:00-07:30 nextDay=false (morning-default)
+Kharif/none/dawn/Sprinkler -> 06:00-07:30 nextDay=false (morning-default)
+Kharif/none/morning/Drip -> 08:30-10:00 nextDay=false (later-today)
+Kharif/none/morning/Sprinkler -> 08:30-10:00 nextDay=false (later-today)
+Kharif/none/afternoon/Drip -> 17:00-18:30 nextDay=false (evening-slot)
+Kharif/none/afternoon/Sprinkler -> 17:00-18:30 nextDay=false (evening-slot)
+Kharif/none/night/Drip -> 06:00-07:30 nextDay=true (morning-default)
+Kharif/none/night/Sprinkler -> 06:00-07:30 nextDay=true (morning-default)
+Rabi/mild/dawn/Drip -> 07:30-09:00 nextDay=false (cool-season)
+Rabi/mild/dawn/Sprinkler -> 07:30-09:00 nextDay=false (cool-season)
+Rabi/mild/morning/Drip -> 08:30-10:00 nextDay=false (later-today)
+Rabi/mild/morning/Sprinkler -> 08:30-10:00 nextDay=false (later-today)
+Rabi/mild/afternoon/Drip -> 17:00-18:30 nextDay=false (evening-slot)
+Rabi/mild/afternoon/Sprinkler -> 17:00-18:30 nextDay=false (evening-slot)
+Rabi/mild/night/Drip -> 07:30-09:00 nextDay=true (cool-season)
+Rabi/mild/night/Sprinkler -> 07:30-09:00 nextDay=true (cool-season)
+Rabi/hot/dawn/Drip -> 07:00-08:30 nextDay=false (hot-day)
+Rabi/hot/dawn/Sprinkler -> 07:00-08:30 nextDay=false (hot-day)
+Rabi/hot/morning/Drip -> 08:30-10:00 nextDay=false (later-today)
+Rabi/hot/morning/Sprinkler -> 08:30-10:00 nextDay=false (later-today)
+Rabi/hot/afternoon/Drip -> 17:00-18:30 nextDay=false (evening-slot)
+Rabi/hot/afternoon/Sprinkler -> 17:00-18:30 nextDay=false (evening-slot)
+Rabi/hot/night/Drip -> 07:00-08:30 nextDay=true (hot-day)
+Rabi/hot/night/Sprinkler -> 07:00-08:30 nextDay=true (hot-day)
+Rabi/windy/dawn/Drip -> 07:30-09:00 nextDay=false (cool-season)
+Rabi/windy/dawn/Sprinkler -> 06:30-08:00 nextDay=false (windy)
+Rabi/windy/morning/Drip -> 08:30-10:00 nextDay=false (later-today)
+Rabi/windy/morning/Sprinkler -> 08:30-10:00 nextDay=false (later-today)
+Rabi/windy/afternoon/Drip -> 17:00-18:30 nextDay=false (evening-slot)
+Rabi/windy/afternoon/Sprinkler -> 17:00-18:30 nextDay=false (evening-slot)
+Rabi/windy/night/Drip -> 07:30-09:00 nextDay=true (cool-season)
+Rabi/windy/night/Sprinkler -> 06:30-08:00 nextDay=true (windy)
+Rabi/none/dawn/Drip -> 07:30-09:00 nextDay=false (cool-season)
+Rabi/none/dawn/Sprinkler -> 07:30-09:00 nextDay=false (cool-season)
+Rabi/none/morning/Drip -> 08:30-10:00 nextDay=false (later-today)
+Rabi/none/morning/Sprinkler -> 08:30-10:00 nextDay=false (later-today)
+Rabi/none/afternoon/Drip -> 17:00-18:30 nextDay=false (evening-slot)
+Rabi/none/afternoon/Sprinkler -> 17:00-18:30 nextDay=false (evening-slot)
+Rabi/none/night/Drip -> 07:30-09:00 nextDay=true (cool-season)
+Rabi/none/night/Sprinkler -> 07:30-09:00 nextDay=true (cool-season)
+Zaid/mild/dawn/Drip -> 05:00-06:30 nextDay=false (hot-season)
+Zaid/mild/dawn/Sprinkler -> 05:00-06:30 nextDay=false (hot-season)
+Zaid/mild/morning/Drip -> 08:30-10:00 nextDay=false (later-today)
+Zaid/mild/morning/Sprinkler -> 08:30-10:00 nextDay=false (later-today)
+Zaid/mild/afternoon/Drip -> 17:00-18:30 nextDay=false (evening-slot)
+Zaid/mild/afternoon/Sprinkler -> 17:00-18:30 nextDay=false (evening-slot)
+Zaid/mild/night/Drip -> 05:00-06:30 nextDay=true (hot-season)
+Zaid/mild/night/Sprinkler -> 05:00-06:30 nextDay=true (hot-season)
+Zaid/hot/dawn/Drip -> 04:30-06:00 nextDay=false (hot-day)
+Zaid/hot/dawn/Sprinkler -> 04:30-06:00 nextDay=false (hot-day)
+Zaid/hot/morning/Drip -> 08:30-10:00 nextDay=false (later-today)
+Zaid/hot/morning/Sprinkler -> 08:30-10:00 nextDay=false (later-today)
+Zaid/hot/afternoon/Drip -> 17:00-18:30 nextDay=false (evening-slot)
+Zaid/hot/afternoon/Sprinkler -> 17:00-18:30 nextDay=false (evening-slot)
+Zaid/hot/night/Drip -> 04:30-06:00 nextDay=true (hot-day)
+Zaid/hot/night/Sprinkler -> 04:30-06:00 nextDay=true (hot-day)
+Zaid/windy/dawn/Drip -> 05:00-06:30 nextDay=false (hot-season)
+Zaid/windy/dawn/Sprinkler -> 04:00-05:30 nextDay=false (windy)
+Zaid/windy/morning/Drip -> 08:30-10:00 nextDay=false (later-today)
+Zaid/windy/morning/Sprinkler -> 08:30-10:00 nextDay=false (later-today)
+Zaid/windy/afternoon/Drip -> 17:00-18:30 nextDay=false (evening-slot)
+Zaid/windy/afternoon/Sprinkler -> 17:00-18:30 nextDay=false (evening-slot)
+Zaid/windy/night/Drip -> 05:00-06:30 nextDay=true (hot-season)
+Zaid/windy/night/Sprinkler -> 04:00-05:30 nextDay=true (windy)
+Zaid/none/dawn/Drip -> 05:00-06:30 nextDay=false (hot-season)
+Zaid/none/dawn/Sprinkler -> 05:00-06:30 nextDay=false (hot-season)
+Zaid/none/morning/Drip -> 08:30-10:00 nextDay=false (later-today)
+Zaid/none/morning/Sprinkler -> 08:30-10:00 nextDay=false (later-today)
+Zaid/none/afternoon/Drip -> 17:00-18:30 nextDay=false (evening-slot)
+Zaid/none/afternoon/Sprinkler -> 17:00-18:30 nextDay=false (evening-slot)
+Zaid/none/night/Drip -> 05:00-06:30 nextDay=true (hot-season)
+Zaid/none/night/Sprinkler -> 05:00-06:30 nextDay=true (hot-season)"
+`;
+
+exports[`irrigationTiming > converts every area unit 1`] = `
+"Square metre x1 -> 1m2
+Acre x1 -> 4046.86m2
+Hectare x1 -> 10000m2"
+`;
+
+exports[`irrigationTiming > run time and flow for every method 1`] = `
+"Drip/1mm -> 20min, flow=202L/min
+Drip/5mm -> 100min, flow=202L/min
+Drip/20mm -> 400min, flow=202L/min
+Drip/60mm -> 1200min, flow=202L/min
+Sprinkler/1mm -> 8min, flow=540L/min
+Sprinkler/5mm -> 38min, flow=540L/min
+Sprinkler/20mm -> 150min, flow=540L/min
+Sprinkler/60mm -> 450min, flow=540L/min
+Furrow/1mm -> 5min, flow=1686L/min
+Furrow/5mm -> 12min, flow=1686L/min
+Furrow/20mm -> 48min, flow=1686L/min
+Furrow/60mm -> 144min, flow=1686L/min
+Flood/1mm -> 5min, flow=2698L/min
+Flood/5mm -> 8min, flow=2698L/min
+Flood/20mm -> 30min, flow=2698L/min
+Flood/60mm -> 90min, flow=2698L/min"
+`;
+
+exports[`knowledgeBase — the tables Phase 1 and Phase 2 revise > Kc for every crop and stage 1`] = `
+"Rice/Initial -> 1.05
+Rice/Development -> 1.125
+Rice/Mid Season -> 1.2
+Rice/Late Season -> 0.9
+Wheat/Initial -> 0.3
+Wheat/Development -> 0.725
+Wheat/Mid Season -> 1.15
+Wheat/Late Season -> 0.25
+Maize/Initial -> 0.3
+Maize/Development -> 0.75
+Maize/Mid Season -> 1.2
+Maize/Late Season -> 0.35
+Cotton/Initial -> 0.35
+Cotton/Development -> 0.75
+Cotton/Mid Season -> 1.15
+Cotton/Late Season -> 0.7
+Sugarcane/Initial -> 0.4
+Sugarcane/Development -> 0.825
+Sugarcane/Mid Season -> 1.25
+Sugarcane/Late Season -> 0.75
+Soybean/Initial -> 0.4
+Soybean/Development -> 0.7749999999999999
+Soybean/Mid Season -> 1.15
+Soybean/Late Season -> 0.5
+Groundnut/Initial -> 0.4
+Groundnut/Development -> 0.7749999999999999
+Groundnut/Mid Season -> 1.15
+Groundnut/Late Season -> 0.6
+Tomato/Initial -> 0.6
+Tomato/Development -> 0.875
+Tomato/Mid Season -> 1.15
+Tomato/Late Season -> 0.8
+Potato/Initial -> 0.5
+Potato/Development -> 0.825
+Potato/Mid Season -> 1.15
+Potato/Late Season -> 0.75
+Onion/Initial -> 0.7
+Onion/Development -> 0.875
+Onion/Mid Season -> 1.05
+Onion/Late Season -> 0.75"
+`;
+
+exports[`knowledgeBase — the tables Phase 1 and Phase 2 revise > root depth and depletion fraction for every crop and stage 1`] = `
+"Rice/Initial -> zr=0.2m
+Rice/Development -> zr=0.25m
+Rice/Mid Season -> zr=0.3m
+Rice/Late Season -> zr=0.3m
+Rice/p@5mm -> 0.2
+Wheat/Initial -> zr=0.3m
+Wheat/Development -> zr=0.65m
+Wheat/Mid Season -> zr=1m
+Wheat/Late Season -> zr=1.1m
+Wheat/p@5mm -> 0.55
+Maize/Initial -> zr=0.3m
+Maize/Development -> zr=0.65m
+Maize/Mid Season -> zr=1m
+Maize/Late Season -> zr=1.1m
+Maize/p@5mm -> 0.55
+Cotton/Initial -> zr=0.4m
+Cotton/Development -> zr=0.8m
+Cotton/Mid Season -> zr=1.2m
+Cotton/Late Season -> zr=1.2m
+Cotton/p@5mm -> 0.65
+Sugarcane/Initial -> zr=0.4m
+Sugarcane/Development -> zr=0.8m
+Sugarcane/Mid Season -> zr=1.2m
+Sugarcane/Late Season -> zr=1.2m
+Sugarcane/p@5mm -> 0.65
+Soybean/Initial -> zr=0.3m
+Soybean/Development -> zr=0.5m
+Soybean/Mid Season -> zr=0.7m
+Soybean/Late Season -> zr=0.7m
+Soybean/p@5mm -> 0.5
+Groundnut/Initial -> zr=0.3m
+Groundnut/Development -> zr=0.44999999999999996m
+Groundnut/Mid Season -> zr=0.6m
+Groundnut/Late Season -> zr=0.6m
+Groundnut/p@5mm -> 0.5
+Tomato/Initial -> zr=0.3m
+Tomato/Development -> zr=0.5m
+Tomato/Mid Season -> zr=0.7m
+Tomato/Late Season -> zr=0.7m
+Tomato/p@5mm -> 0.4
+Potato/Initial -> zr=0.25m
+Potato/Development -> zr=0.375m
+Potato/Mid Season -> zr=0.5m
+Potato/Late Season -> zr=0.5m
+Potato/p@5mm -> 0.35
+Onion/Initial -> zr=0.2m
+Onion/Development -> zr=0.30000000000000004m
+Onion/Mid Season -> zr=0.4m
+Onion/Late Season -> zr=0.4m
+Onion/p@5mm -> 0.3"
+`;
+
+exports[`knowledgeBase — the tables Phase 1 and Phase 2 revise > soil hydraulic properties 1`] = `
+"Sandy -> thetaFC=0.14 thetaPWP=0.042 awc=0.098
+Sandy Loam -> thetaFC=0.208 thetaPWP=0.063 awc=0.145
+Loamy -> thetaFC=0.27 thetaPWP=0.117 awc=0.153
+Silty Loam -> thetaFC=0.33 thetaPWP=0.133 awc=0.197
+Clay Loam -> thetaFC=0.318 thetaPWP=0.197 awc=0.121
+Clay -> thetaFC=0.396 thetaPWP=0.272 awc=0.124"
+`;
+
+exports[`notificationService > plans reminders and rainfall warnings 1`] = `
+[
+  {
+    "context": {
+      "durationMinutes": 240,
+      "farmName": "Test Field",
+      "volumeLiters": 48000,
+    },
+    "createdAt": "2026-06-15T08:30:00+05:30",
+    "deliveredAt": null,
+    "dueAt": "2026-06-16T00:30:00.000Z",
+    "farmId": "farm-1",
+    "id": "notif-1",
+    "kind": "irrigation-reminder",
+    "source": "auto",
+  },
+  {
+    "context": {
+      "dayOffset": 1,
+      "farmName": "Test Field",
+      "rainMm": 18,
+    },
+    "createdAt": "2026-06-15T08:30:00+05:30",
+    "deliveredAt": null,
+    "dueAt": "2026-06-16T00:30:00.000Z",
+    "farmId": "farm-1",
+    "id": "notif-2",
+    "kind": "rainfall-warning",
+    "source": "auto",
+  },
+]
+`;
+
+exports[`notificationService > rolls a past custom reminder time to tomorrow instead of rejecting it 1`] = `
+{
+  "future": {
+    "nextDay": false,
+    "notification": {
+      "context": {
+        "durationMinutes": 30,
+        "farmName": "Test Field",
+        "volumeLiters": 100,
+      },
+      "createdAt": "2026-06-15T08:30:00+05:30",
+      "deliveredAt": null,
+      "dueAt": "2026-06-15T13:00:00.000Z",
+      "farmId": "farm-1",
+      "id": "n2",
+      "kind": "irrigation-reminder",
+      "source": "custom",
+    },
+  },
+  "past": {
+    "nextDay": true,
+    "notification": {
+      "context": {
+        "durationMinutes": 30,
+        "farmName": "Test Field",
+        "volumeLiters": 100,
+      },
+      "createdAt": "2026-06-15T08:30:00+05:30",
+      "deliveredAt": null,
+      "dueAt": "2026-06-16T00:00:00.000Z",
+      "farmId": "farm-1",
+      "id": "n1",
+      "kind": "irrigation-reminder",
+      "source": "custom",
+    },
+  },
+}
+`;
+
+exports[`regionalKnowledge > seasonal guidance for every crop in every season 1`] = `
+"Rice/Kharif -> season=Kharif main=Kharif inMain=true
+Rice/Rabi -> season=Rabi main=Kharif inMain=false
+Rice/Zaid -> season=Zaid main=Kharif inMain=false
+Wheat/Kharif -> season=Kharif main=Rabi inMain=false
+Wheat/Rabi -> season=Rabi main=Rabi inMain=true
+Wheat/Zaid -> season=Zaid main=Rabi inMain=false
+Maize/Kharif -> season=Kharif main=Kharif inMain=true
+Maize/Rabi -> season=Rabi main=Kharif inMain=false
+Maize/Zaid -> season=Zaid main=Kharif inMain=false
+Cotton/Kharif -> season=Kharif main=Kharif inMain=true
+Cotton/Rabi -> season=Rabi main=Kharif inMain=false
+Cotton/Zaid -> season=Zaid main=Kharif inMain=false
+Sugarcane/Kharif -> season=Kharif main=Zaid inMain=false
+Sugarcane/Rabi -> season=Rabi main=Zaid inMain=false
+Sugarcane/Zaid -> season=Zaid main=Zaid inMain=true
+Soybean/Kharif -> season=Kharif main=Kharif inMain=true
+Soybean/Rabi -> season=Rabi main=Kharif inMain=false
+Soybean/Zaid -> season=Zaid main=Kharif inMain=false
+Groundnut/Kharif -> season=Kharif main=Kharif inMain=true
+Groundnut/Rabi -> season=Rabi main=Kharif inMain=false
+Groundnut/Zaid -> season=Zaid main=Kharif inMain=false
+Tomato/Kharif -> season=Kharif main=Rabi inMain=false
+Tomato/Rabi -> season=Rabi main=Rabi inMain=true
+Tomato/Zaid -> season=Zaid main=Rabi inMain=false
+Potato/Kharif -> season=Kharif main=Rabi inMain=false
+Potato/Rabi -> season=Rabi main=Rabi inMain=true
+Potato/Zaid -> season=Zaid main=Rabi inMain=false
+Onion/Kharif -> season=Kharif main=Rabi inMain=false
+Onion/Rabi -> season=Rabi main=Rabi inMain=true
+Onion/Zaid -> season=Zaid main=Rabi inMain=false"
+`;
+
+exports[`waterSavings — current baseline (Phase 4 will change these numbers) > across every method, with and without rain 1`] = `
+"Drip/rain=0mm -> today=21511L rain=0L method=21511L baseline=48400L
+Drip/rain=2mm -> today=30504L rain=8993L method=21511L baseline=48400L
+Drip/rain=6mm -> today=48400L rain=26889L method=21511L baseline=48400L
+Sprinkler/rain=0mm -> today=16133L rain=0L method=16133L baseline=48400L
+Sprinkler/rain=2mm -> today=26925L rain=10792L method=16133L baseline=48400L
+Sprinkler/rain=6mm -> today=48400L rain=32267L method=16133L baseline=48400L
+Furrow/rain=0mm -> today=8067L rain=0L method=8067L baseline=48400L
+Furrow/rain=2mm -> today=21556L rain=13490L method=8067L baseline=48400L
+Furrow/rain=6mm -> today=48400L rain=40334L method=8067L baseline=48400L
+Flood/rain=0mm -> today=0L rain=0L method=0L baseline=48400L
+Flood/rain=2mm -> today=16187L rain=16187L method=0L baseline=48400L
+Flood/rain=6mm -> today=48400L rain=48400L method=0L baseline=48400L"
+`;
+
+exports[`waterSavings — current baseline (Phase 4 will change these numbers) > credits savings in proportion to what the farmer actually logged 1`] = `
+"nothing advised -> 0L
+no irrigation needed, full credit -> 1000L
+half the advised run logged -> 500L
+full run logged -> 1000L
+over-applied, capped at full -> 1000L
+negative applied, floored at zero -> 0L"
+`;

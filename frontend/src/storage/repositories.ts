@@ -15,6 +15,7 @@ export const recommendationRepository = createRepository('recommendations');
 export const historyRepository = createRepository('history');
 export const notificationRepository = createRepository('notifications');
 export const waterLedgerRepository = createRepository('waterLedger');
+export const depletionStateRepository = createRepository('depletionState');
 
 /** Farms belonging to a given farmer (uses the `byFarmer` index). */
 export function getFarmsByFarmer(farmerId: string) {

@@ -1,9 +1,12 @@
 import type {
   ConfidenceLevel,
   Crop,
+  CropName,
   DailyWeather,
+  DepletionState,
   EstimatedWaterAmount,
   Farm,
+  IrrigationMethod,
   IrrigationWindow,
   Language,
   Recommendation,
@@ -11,16 +14,20 @@ import type {
   RecommendationStatus,
   Soil,
   WeatherData,
+  WaterLedgerEntry,
 } from '../types';
-import { getKc } from './knowledgeBase';
+import { getKc, getZr, getDepletionFraction } from './knowledgeBase';
+import { rootZoneWater, type RootZoneWater } from './soilProfile';
 import { buildExplanation } from './explanationText';
+import { estimateEto } from './evapotranspiration';
 import { getSeasonForDate } from './regionalKnowledge';
-import { localDayString } from './dateUtils';
+import { localDayString, previousDayString } from './dateUtils';
 import { chooseIrrigationWindow, flowLitersPerMinute, runMinutes } from './irrigationTiming';
+import { dryingPotential } from './sunshine';
+import { intakeFactor, runoffFactor } from './slopeAdjustment';
 import { computeWaterSavings } from './waterSavings';
 import {
   AREA_TO_M2,
-  CARRYOVER_DAYS,
   clamp,
   ETO_REF,
   FRESH_MAX_HOURS,
@@ -64,10 +71,22 @@ export interface DecisionInput {
   weather: WeatherData | null;
   /**
    * Past + forecast daily series (Decision Logic §11), or null when
-   * unavailable. Past days feed the carryover deficit; future days feed the
-   * irrigation plan.
+   * unavailable. Past days feed the root-zone water balance; future days feed
+   * the irrigation plan.
    */
   daily: DailyWeather[] | null;
+  /**
+   * Persisted root-zone depletion state (Decision Logic §4b, V1.6), or null
+   * when unavailable (new farm, first run after V1.6 upgrade). When provided,
+   * the engine rolls it forward to today using the daily series.
+   */
+  depletionState: DepletionState | null;
+  /**
+   * Water ledger entries for this farm (Decision Logic §4b, V1.6), used to
+   * determine the net irrigation actually applied on past days when rolling the
+   * depletion ledger forward. May be null or empty.
+   */
+  waterLedger: WaterLedgerEntry[] | null;
   /** Current time as an ISO-8601 string, injected for determinism. */
   now: string;
   /** Language for the farmer-facing explanation (roadmap Feature 2). */
@@ -102,11 +121,48 @@ export interface IrrigationPlan {
   nextRainCoveredDate: string | null;
 }
 
+/**
+ * Root-zone water balance for this run (Decision Logic §4b, V1.6).
+ *
+ * Present only when the balance path actually ran (a daily series was
+ * available). Two audiences: the storage layer persists `carryDepletionMm` /
+ * `carryValidAsOfDate` as the next run's starting point, and the UI reads
+ * `depletionMm` against `tawMm`/`rawMm` to show how much water the root zone is
+ * holding.
+ */
+export interface WaterBalanceState {
+  /** Total available water between field capacity and wilting point, mm. */
+  tawMm: number;
+  /** Readily available water — the depletion at which stress begins, mm. */
+  rawMm: number;
+  /** Root-zone depletion at the end of today, mm. */
+  depletionMm: number;
+  /** Effective rooting depth used for TAW, metres. */
+  rootDepthM: number;
+  /** Depletion to persist, valid as of `carryValidAsOfDate` (not today). */
+  carryDepletionMm: number;
+  carryValidAsOfDate: string;
+  /**
+   * Where the θFC/θPWP behind `tawMm` came from (V1.7, item 1). The moisture
+   * gauge shows this so a farmer can tell advice built on their own field's
+   * measurements from advice built on a six-row textbook table — the difference
+   * between the two is exactly what item 1 set out to close.
+   */
+  thetaSource: 'measured' | 'table';
+  /** Fraction of the root zone covered by measured layers, 0-1. */
+  thetaCoverage: number;
+}
+
 export interface DecisionSuccess {
   ok: true;
   recommendation: Recommendation;
   /** Multi-day plan (Decision Logic §11), or null without daily data. */
   plan: IrrigationPlan | null;
+  /**
+   * Water balance for this run (Decision Logic §4b), or null when the engine
+   * fell back to the V1.2 carryover deficit because no daily series existed.
+   */
+  waterBalance: WaterBalanceState | null;
 }
 
 export type DecisionResult = ValidationFailure | DecisionSuccess;
@@ -131,6 +187,43 @@ interface WeatherSignals {
   windSpeed: number;
 }
 
+/**
+ * Where the farm is, for the equations that need it (V1.7).
+ *
+ * Latitude drives extraterrestrial radiation, and elevation drives atmospheric
+ * pressure — both are required by FAO-56 and neither is weather. They travel
+ * together so the ETo fallback can be called from anywhere in the engine.
+ */
+interface SiteContext {
+  latitude: number;
+  elevationM?: number;
+  /**
+   * Slope runoff multiplier on effective rainfall, in (0, 1]. Exactly 1 for a
+   * farm with no terrain record or a slope inside the deadband, which is what
+   * keeps every pre-V1.7 farm byte-identical (item 0). See `slopeAdjustment`.
+   *
+   * It lives on the site rather than being passed separately because there are
+   * FOUR places that compute effective rainfall — today's decision, the ledger
+   * replay, and both plan branches — and a farm whose plan credited more rain
+   * than its decision did would be visibly self-contradictory. Travelling with
+   * the context that already reaches all four is what stops them drifting.
+   */
+  runoff?: number;
+}
+
+/**
+ * Effective rainfall reaching the root zone, mm (Decision Logic §3).
+ *
+ * Two independent losses, multiplied: the soil's infiltration fraction decides
+ * how much of the rain that lands actually soaks in, and the slope runoff factor
+ * decides how much lands rather than running off. THE SINGLE PLACE this is
+ * computed — every caller goes through here so today's decision, the replayed
+ * ledger and both plan branches can never disagree about the same day's rain.
+ */
+function effectiveRain(rainfallMm: number, soil: Soil, site: SiteContext): number {
+  return rainfallMm * RAIN_EFF_FACTOR[soil.name] * (site.runoff ?? 1);
+}
+
 /** Stage 3 helper — bounded weather multiplier (Decision Logic §2). */
 function weatherMultiplier(weather: WeatherSignals): number {
   const adjTemp = clamp(
@@ -151,14 +244,62 @@ function weatherMultiplier(weather: WeatherSignals): number {
   return clamp(adjTemp * adjHum * adjWind, WEATHER.WMULT_MIN, WEATHER.WMULT_MAX);
 }
 
-/** Crop water demand for one daily-series day in mm (Decision Logic §2, §11). */
-function dailyDemand(kc: number, day: DailyWeather): number {
-  const multiplier = weatherMultiplier({
-    temperature: day.temperatureMax,
-    humidity: day.humidityMean,
-    windSpeed: day.windSpeedMax,
+/**
+ * Reference ETo for a day from a real source, mm (Decision Logic §2, §2a).
+ *
+ * Two tiers, best first, and null when neither is possible:
+ *  1. `et0FaoMm` — the provider's own FAO-56 Penman-Monteith value, computed
+ *     hourly from full data. Always preferred; never overridden.
+ *  2. A local FAO-56 estimate from whatever the day actually carries (V1.7).
+ *     Measured against tier 1 at 0.20 mm/day mean absolute error with the
+ *     provider's radiation, 0.39 without it, and 0.51 on temperature alone
+ *     (see `evapotranspiration.test.ts`).
+ *
+ * Null means the day is too thin even for Hargreaves-Samani — no minimum
+ * temperature, i.e. a cache written before V1.7. The caller then chooses its own
+ * last resort, because what that should be depends on where it is called from.
+ */
+function sourcedEto(day: DailyWeather, site: SiteContext): number | null {
+  if (day.et0FaoMm != null) return day.et0FaoMm;
+
+  const estimated = estimateEto({
+    date: day.date,
+    latitude: site.latitude,
+    temperatureMax: day.temperatureMax,
+    ...(day.temperatureMin != null ? { temperatureMin: day.temperatureMin } : {}),
+    humidityMean: day.humidityMean,
+    windSpeedMax: day.windSpeedMax,
+    ...(day.radiationMj != null ? { radiationMj: day.radiationMj } : {}),
+    ...(site.elevationM != null ? { elevationM: site.elevationM } : {}),
   });
-  return kc * ETO_REF * SEASONAL_ETO_FACTOR[getSeasonForDate(day.date)] * multiplier;
+  return estimated ? estimated.etoMm : null;
+}
+
+/**
+ * Last-resort ETo, mm — the pre-V1.7 `ETO_REF × season × multiplier` guess.
+ *
+ * Kept ONLY for caches too old to carry a minimum temperature, because a farmer
+ * offline with such a cache must still receive advice (item 0). The constant has
+ * no published source; it is an engineering guess, and it is precisely why the
+ * two tiers above it exist. Nothing new should be routed here.
+ */
+function fallbackEto(signals: WeatherSignals | null, dateForSeason: string): number {
+  const multiplier = signals ? weatherMultiplier(signals) : 1;
+  return ETO_REF * SEASONAL_ETO_FACTOR[getSeasonForDate(dateForSeason)] * multiplier;
+}
+
+/** Crop water demand for one daily-series day in mm (Decision Logic §2, §11). */
+function dailyDemand(kc: number, day: DailyWeather, site: SiteContext): number {
+  // ETc = Kc × ETo. The weather multiplier lives inside `fallbackEto` alone —
+  // applying it to a real ETo would double-count, since ETo already accounts for
+  // temperature, humidity, wind and radiation.
+  const eto =
+    sourcedEto(day, site) ??
+    fallbackEto(
+      { temperature: day.temperatureMax, humidity: day.humidityMean, windSpeed: day.windSpeedMax },
+      day.date,
+    );
+  return kc * eto;
 }
 
 /** Ascending date comparator for DailyWeather entries. */
@@ -167,22 +308,129 @@ function byDate(a: DailyWeather, b: DailyWeather): number {
 }
 
 /**
- * Soil-moisture carryover deficit in mm (Decision Logic §11 Step 4b).
- * Chains each past day's deficit: deficit grows by the day's demand and
- * shrinks by its effective rainfall, floored at zero.
+ * Compute total available water (TAW) for the root zone (Decision Logic §4b.1, V1.6).
+ * TAW = 1000 × (θ_FC − θ_PWP) × Zr, in millimetres.
+ *
+ * V1.7 (item 1): θ comes from the farm's own measured SoilGrids profile when it
+ * has one, weighted over this crop's actual root depth by `rootZoneWater`, and
+ * from the six-row Knowledge Base table otherwise. The table is not legacy — it
+ * is the offline and provider-failure path, and `rootZoneWater` returns it
+ * unasked whenever the measurement cannot be trusted for this root zone.
  */
-function carryoverDeficit(kc: number, soil: Soil, daily: DailyWeather[], todayDate: string): number {
-  const pastDays = daily
-    .filter((d) => d.date < todayDate)
-    .sort(byDate)
-    .slice(-CARRYOVER_DAYS);
-  let deficit = 0;
-  for (const day of pastDays) {
-    const demand = dailyDemand(kc, day);
-    const pe = day.precipitationSum * RAIN_EFF_FACTOR[soil.name];
-    deficit = Math.max(0, deficit + demand - pe);
+function computeTAW(soil: Soil, zr: number): { tawMm: number; water: RootZoneWater } {
+  const water = rootZoneWater(soil.name, soil.measured, zr);
+  return { tawMm: 1000 * (water.thetaFC - water.thetaPWP) * zr, water };
+}
+
+/**
+ * Compute readily available water (RAW) for the root zone (Decision Logic §4b.2, V1.6).
+ * RAW = p × TAW, in millimetres. This is the irrigation trigger threshold.
+ *
+ * `p` is adjusted for the day's evaporative demand per FAO-56 Chapter 8 (V1.7)
+ * rather than taken as a constant — see `getDepletionFraction`. Passing the
+ * day's own ETc is what makes the trigger tighten in a heatwave and relax in
+ * cool weather instead of assuming 5 mm/day all year.
+ */
+function computeRAW(crop: CropName, taw: number, etcMm: number): number {
+  return getDepletionFraction(crop, etcMm) * taw;
+}
+
+/** Inputs for rolling the depletion ledger forward (Decision Logic §4b.4). */
+interface RollForwardInput {
+  kc: number;
+  soil: Soil;
+  taw: number;
+  method: IrrigationMethod;
+  areaM2: number;
+  /** Farm position, for the ETo fallback when a day lacks the provider's value. */
+  site: SiteContext;
+  /** Gross litres the farmer logged as applied, keyed by date. */
+  appliedByDate: ReadonlyMap<string, number>;
+}
+
+/**
+ * Advance the root-zone depletion by one day (Decision Logic §4b.3, V1.6).
+ *
+ * `Dr_after = clamp( Dr_before + ETc − Pe − I_net , 0 , TAW )`
+ *
+ * The lower clamp discards water beyond field capacity as percolation/runoff;
+ * the upper clamp reflects that a root zone cannot deplete past wilting point.
+ * Irrigation enters as NET depth: what the farmer logged is gross volume, and
+ * only `efficiency(method)` of it reaches the root zone.
+ */
+function stepDepletion(dr: number, day: DailyWeather, input: RollForwardInput): number {
+  const etc = dailyDemand(input.kc, day, input.site);
+  const pe = effectiveRain(day.precipitationSum, input.soil, input.site);
+  const grossMm = (input.appliedByDate.get(day.date) ?? 0) / input.areaM2;
+  const netMm = grossMm * METHOD_EFFICIENCY[input.method];
+  return clamp(dr + etc - pe - netMm, 0, input.taw);
+}
+
+/** Result of rolling the depletion ledger forward (Decision Logic §4b.4). */
+interface RolledDepletion {
+  /** Depletion in mm at the end of today — what today's decision reads. */
+  todayMm: number;
+  /**
+   * Depletion in mm at the end of the last day before today that was accounted
+   * for, and that day's date. This pair — never today's own value — is what gets
+   * persisted: the farmer may log irrigation for today *after* this
+   * recommendation is generated, so today must stay replayable rather than
+   * frozen. Each run recomputes today from this carry point.
+   */
+  carryMm: number;
+  carryDate: string;
+}
+
+/**
+ * Bring the persisted depletion ledger up to today (Decision Logic §4b.4, V1.6).
+ *
+ * The stored value is valid for its own date; every day after it up to and
+ * including today is replayed from that day's own weather record. Days absent
+ * from the series are skipped rather than guessed — skipping under-states
+ * depletion, which errs towards advising *less* water, the safer direction. The
+ * carry date advances only over days actually replayed, so a gap that a later
+ * fetch fills in is still picked up instead of being lost.
+ *
+ * `state` may be null (new farm, or first run after the V1.6 upgrade), in which
+ * case the ledger is seeded at `RAW` per §4b.5 and rolled forward from the
+ * oldest day available.
+ */
+function bringDepletionToToday(
+  state: DepletionState | null,
+  raw: number,
+  daily: DailyWeather[],
+  todayDate: string,
+  input: RollForwardInput,
+): RolledDepletion {
+  // §4b.5 — no history: seed at the stress threshold and replay the whole
+  // series. Seeding at RAW avoids telling a farmer whose field is genuinely dry
+  // to wait, without inventing a soil-moisture profile the engine cannot know.
+  const startDate = state?.validAsOfDate ?? '';
+  let dr = state ? clamp(state.depletionMm, 0, input.taw) : clamp(raw, 0, input.taw);
+
+  // A ledger dated today or later can only come from a clock change or legacy
+  // data; replaying nothing and leaving the carry point alone is the safe
+  // response.
+  if (state && startDate >= todayDate) {
+    return { todayMm: dr, carryMm: dr, carryDate: startDate };
   }
-  return deficit;
+
+  const pastDays = daily.filter((d) => d.date > startDate && d.date < todayDate).sort(byDate);
+  for (const day of pastDays) {
+    dr = stepDepletion(dr, day, input);
+  }
+
+  const carryMm = dr;
+  const lastReplayed = pastDays[pastDays.length - 1];
+  // No day replayed: hold the stored carry date, or — with no stored state at
+  // all (empty startDate) — anchor the freshly seeded ledger to yesterday.
+  const carryDate = lastReplayed?.date ?? (startDate || previousDayString(todayDate));
+
+  // Today is stepped separately so its value never becomes the carry point.
+  const todayRecord = daily.find((d) => d.date === todayDate);
+  const todayMm = todayRecord ? stepDepletion(dr, todayRecord, input) : dr;
+
+  return { todayMm, carryMm, carryDate };
 }
 
 /** Stage 8 — Confidence from data freshness and completeness (Decision Logic §8). */
@@ -306,15 +554,25 @@ function buildFactors(
 
 /**
  * Multi-day irrigation plan (Decision Logic §11; roadmap Feature 5).
- * Seeded with today's recommendation, then chains a simulated deficit over the
- * forecast days, assuming advised irrigation is performed (deficit resets).
+ * Seeded with today's recommendation, then chains a simulated deficit (or
+ * depletion for V1.6) over the forecast days, assuming advised irrigation is
+ * performed.
  */
 function buildPlan(
   kc: number,
+  crop: CropName,
   soil: Soil,
+  site: SiteContext,
   daily: DailyWeather[],
   todayDate: string,
-  today: { status: RecommendationStatus; confidence: ConfidenceLevel; pe: number; etcAdj: number; nir: number },
+  today: {
+    status: RecommendationStatus;
+    confidence: ConfidenceLevel;
+    pe: number;
+    etcAdj: number;
+    nir: number;
+  },
+  waterBalanceParams: { taw: number; useWaterBalance: boolean } | null,
 ): IrrigationPlan {
   const days: IrrigationPlanDay[] = [
     {
@@ -327,39 +585,77 @@ function buildPlan(
     },
   ];
 
-  // NIR already includes the past carryover deficit, so it is the deficit
-  // carried forward when today is not irrigated; advised irrigation resets it.
-  let runningDeficit = today.status === 'Irrigate Today' ? 0 : today.nir;
   const futureDays = daily
     .filter((d) => d.date > todayDate)
     .sort(byDate)
     .slice(0, PLAN_DAYS_AHEAD);
 
-  futureDays.forEach((day, index) => {
-    const demand = dailyDemand(kc, day);
-    const pe = day.precipitationSum * RAIN_EFF_FACTOR[soil.name];
-    runningDeficit = Math.max(0, runningDeficit + demand - pe);
+  if (waterBalanceParams && waterBalanceParams.useWaterBalance) {
+    // V1.6 primary path: chain Dr over forecast days.
+    const { taw } = waterBalanceParams;
+    let dr = today.status === 'Irrigate Today' ? 0 : today.nir;
 
-    let action: RecommendationStatus;
-    if (pe >= demand) {
-      action = 'Delay Irrigation';
-    } else if (runningDeficit < SKIP_THRESHOLD_MM[soil.name]) {
-      action = 'Monitor Tomorrow';
-    } else {
-      action = 'Irrigate Today';
-    }
-    if (action === 'Irrigate Today') runningDeficit = 0;
+    futureDays.forEach((day, index) => {
+      const demand = dailyDemand(kc, day, site);
+      const pe = effectiveRain(day.precipitationSum, soil, site);
+      dr = clamp(dr + demand - pe, 0, taw);
+      // V1.7: each forecast day gets its OWN trigger, from its own demand.
+      // Carrying today's RAW forward would apply today's weather to day+4 —
+      // exactly the constant-p error `getDepletionFraction` exists to remove,
+      // reintroduced through the back door. A cool forecast day may safely run
+      // drier than today; a hotter one may not.
+      const dayRaw = computeRAW(crop, taw, demand);
 
-    const offsetDays = index + 1;
-    days.push({
-      date: day.date,
-      offsetDays,
-      rainfallMm: round(pe, 2),
-      demandMm: round(demand, 2),
-      action,
-      confidence: offsetDays <= PLAN_MEDIUM_MAX_OFFSET ? 'Medium' : 'Low',
+      let action: RecommendationStatus;
+      if (pe >= demand) {
+        action = 'Delay Irrigation';
+      } else if (dr < dayRaw) {
+        action = 'Monitor Tomorrow';
+      } else {
+        action = 'Irrigate Today';
+      }
+      if (action === 'Irrigate Today') dr = 0;
+
+      const offsetDays = index + 1;
+      days.push({
+        date: day.date,
+        offsetDays,
+        rainfallMm: round(pe, 2),
+        demandMm: round(demand, 2),
+        action,
+        confidence: offsetDays <= PLAN_MEDIUM_MAX_OFFSET ? 'Medium' : 'Low',
+      });
     });
-  });
+  } else {
+    // Fallback path: V1.2 carryover deficit.
+    let runningDeficit = today.status === 'Irrigate Today' ? 0 : today.nir;
+
+    futureDays.forEach((day, index) => {
+      const demand = dailyDemand(kc, day, site);
+      const pe = effectiveRain(day.precipitationSum, soil, site);
+      runningDeficit = Math.max(0, runningDeficit + demand - pe);
+
+      let action: RecommendationStatus;
+      if (pe >= demand) {
+        action = 'Delay Irrigation';
+      } else if (runningDeficit < SKIP_THRESHOLD_MM[soil.name]) {
+        action = 'Monitor Tomorrow';
+      } else {
+        action = 'Irrigate Today';
+      }
+      if (action === 'Irrigate Today') runningDeficit = 0;
+
+      const offsetDays = index + 1;
+      days.push({
+        date: day.date,
+        offsetDays,
+        rainfallMm: round(pe, 2),
+        demandMm: round(demand, 2),
+        action,
+        confidence: offsetDays <= PLAN_MEDIUM_MAX_OFFSET ? 'Medium' : 'Low',
+      });
+    });
+  }
 
   return {
     days,
@@ -379,44 +675,113 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
     return { ok: false, missingFields };
   }
 
-  const { farm, crop, soil, weather, daily, now, language } = input;
+  const { farm, crop, soil, weather, daily, depletionState, waterLedger, now, language } = input;
   const todayDate = localDayString(now);
   const season = getSeasonForDate(now);
 
   // Stage 2 — Knowledge retrieval
   const kc = getKc(crop.name, crop.growthStage);
+  const zr = getZr(crop.name, crop.growthStage);
 
-  // Stage 3/4 — Weather analysis + crop demand.
-  // With no weather, assume a neutral multiplier so a recommendation still exists
-  // offline; confidence will reflect the missing data. The seasonal ETo factor
-  // (Decision Logic §2, roadmap Feature 8) shifts the baseline by season.
-  const multiplier = weather ? weatherMultiplier(weather) : 1;
-  const etcAdj = kc * ETO_REF * SEASONAL_ETO_FACTOR[season] * multiplier;
+  // Stage 3/4 — Weather analysis + crop demand (Decision Logic §2, §2a).
+  // Today is located by DATE rather than by index so a stale cache — whose
+  // entries may all predate today — cannot silently supply another day's ETo.
+  //
+  // Primary (V1.5): the provider's own FAO-56 ETo for today.
+  // Secondary (V1.7): a local FAO-56 estimate from whatever today's record
+  //   carries. This is what replaced the invented ETO_REF constant.
+  // Last resort: ETO_REF × season × multiplier, reached only when there is no
+  //   daily record for today at all, or one too old to carry a minimum
+  //   temperature. With no weather whatsoever the multiplier is neutral, so a
+  //   recommendation still exists offline; confidence reflects the missing data.
+  // Terrain (V1.7 item 10) supplies two of the three site fields. Both spreads
+  // are conditional because `exactOptionalPropertyTypes` distinguishes an absent
+  // key from a present `undefined`, and because an absent terrain record must
+  // leave the context exactly as it was before terrain existed — elevation
+  // unknown, runoff neutral.
+  const runoff = runoffFactor(farm.terrain);
+  const site: SiteContext = {
+    latitude: farm.location.latitude,
+    // Elevation was declared on SiteContext and threaded into the ETo fallback
+    // from the start but never populated, so FAO-56 Eq. 7 has been assuming sea
+    // level. The terrain fetch returns it anyway, so this costs nothing.
+    ...(farm.terrain ? { elevationM: farm.terrain.elevationM } : {}),
+    ...(runoff !== 1 ? { runoff } : {}),
+  };
+  const todayRecordForEto = daily?.find((d) => d.date === todayDate);
+  const todayEto = todayRecordForEto ? sourcedEto(todayRecordForEto, site) : null;
+  const etcAdj = kc * (todayEto ?? fallbackEto(weather, now));
 
   // Effective rainfall (Decision Logic §3)
   const rainfall = weather?.rainfallForecast ?? 0;
-  const pe = rainfall * RAIN_EFF_FACTOR[soil.name];
+  const pe = effectiveRain(rainfall, soil, site);
 
-  // Carryover deficit from recent days (Decision Logic §11 Step 4b)
-  const deficitPast = daily ? carryoverDeficit(kc, soil, daily, todayDate) : 0;
+  // Stage 4b — Root-zone water balance (Decision Logic V1.6).
+  // Primary path: compute TAW, RAW, and roll the depletion ledger forward to
+  // today using the daily series. Fallback: use the V1.2 carryover deficit.
+  const areaM2 = farm.area * AREA_TO_M2[farm.areaUnit];
+  const { tawMm: taw, water: rootZone } = computeTAW(soil, zr);
+  const raw = computeRAW(crop.name, taw, etcAdj);
 
-  // Net irrigation need (Decision Logic §4)
-  const nir = Math.max(0, etcAdj - pe + deficitPast);
+  let nir: number;
+  let waterBalance: WaterBalanceState | null = null;
+
+  if (daily && daily.length > 0) {
+    // Net irrigation actually applied per day comes from the water ledger, which
+    // records the gross litres the farmer logged.
+    const appliedByDate = new Map<string, number>();
+    if (waterLedger) {
+      for (const entry of waterLedger) {
+        appliedByDate.set(entry.date, entry.appliedLiters);
+      }
+    }
+
+    const rolled = bringDepletionToToday(depletionState, raw, daily, todayDate, {
+      kc,
+      soil,
+      taw,
+      method: farm.irrigationMethod,
+      areaM2,
+      site,
+      appliedByDate,
+    });
+
+    // §4 primary path: the net irrigation requirement is simply the depletion —
+    // the depth needed to bring the root zone back to field capacity.
+    nir = rolled.todayMm;
+    waterBalance = {
+      tawMm: round(taw, 2),
+      rawMm: round(raw, 2),
+      depletionMm: round(rolled.todayMm, 2),
+      rootDepthM: zr,
+      carryDepletionMm: round(rolled.carryMm, 3),
+      carryValidAsOfDate: rolled.carryDate,
+      thetaSource: rootZone.source,
+      thetaCoverage: round(rootZone.coverage, 3),
+    };
+  } else {
+    // Fallback: V1.2 single-day requirement when no daily series exists at all
+    // (offline with a pre-V1.2 cache). carryoverDeficit needs the series too, so
+    // there is nothing to carry over here.
+    nir = Math.max(0, etcAdj - pe);
+  }
+  const useWaterBalance = waterBalance !== null;
 
   // Stage 5 — Decision outcome (Decision Logic §5)
   let status: RecommendationStatus;
   if (pe >= etcAdj) {
     status = 'Delay Irrigation';
-  } else if (nir < SKIP_THRESHOLD_MM[soil.name]) {
-    status = 'Monitor Tomorrow';
+  } else if (useWaterBalance) {
+    // V1.6 primary path: trigger on Dr >= RAW.
+    status = nir >= raw ? 'Irrigate Today' : 'Monitor Tomorrow';
   } else {
-    status = 'Irrigate Today';
+    // Fallback path: trigger on skipThreshold.
+    status = nir < SKIP_THRESHOLD_MM[soil.name] ? 'Monitor Tomorrow' : 'Irrigate Today';
   }
 
   // Stage 6 — Water estimation (only meaningful when irrigating).
   // Depth and volume answer "how much"; run time and flow answer "for how
   // long", which is what a farmer standing at a valve actually needs.
-  const areaM2 = farm.area * AREA_TO_M2[farm.areaUnit];
   let water: EstimatedWaterAmount = {
     depthMm: 0,
     volumeLiters: 0,
@@ -425,16 +790,21 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
   };
   if (status === 'Irrigate Today') {
     const grossDepth = nir / METHOD_EFFICIENCY[farm.irrigationMethod];
+    // Slope slows how fast the soil can take water in, so the same depth is
+    // applied over a longer run at a lower flow (item 10). Depth and volume are
+    // untouched: the crop needs what it needs whatever the ground's tilt.
+    const intake = intakeFactor(farm.terrain);
     water = {
       depthMm: round(grossDepth, 2),
       volumeLiters: Math.round(grossDepth * areaM2),
-      durationMinutes: runMinutes(grossDepth, farm.irrigationMethod),
-      flowLitersPerMinute: flowLitersPerMinute(farm.irrigationMethod, areaM2),
+      durationMinutes: runMinutes(grossDepth, farm.irrigationMethod, intake),
+      flowLitersPerMinute: flowLitersPerMinute(farm.irrigationMethod, areaM2, intake),
     };
   }
 
   // Stage 7 — Irrigation window (Decision Logic §7). Chosen from season, heat,
-  // wind, run length and the current time — not a fixed hour.
+  // wind, run length, the current time and — for methods that wet the canopy —
+  // whether today has the sunshine to dry the leaves before nightfall.
   const irrigationWindow: IrrigationWindow | null =
     status === 'Irrigate Today'
       ? chooseIrrigationWindow({
@@ -443,6 +813,7 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
           method: farm.irrigationMethod,
           durationMinutes: water.durationMinutes ?? 0,
           now,
+          drying: todayRecordForEto ? dryingPotential(todayRecordForEto, site.latitude) : null,
         })
       : null;
   const recommendedTime = irrigationWindow?.start ?? null;
@@ -479,7 +850,7 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
 
   // Stage 11 — Multi-day plan (roadmap Feature 5), only with daily data
   const plan = daily
-    ? buildPlan(kc, soil, daily, todayDate, { status, confidence, pe, etcAdj, nir })
+    ? buildPlan(kc, crop.name, soil, site, daily, todayDate, { status, confidence, pe, etcAdj, nir }, { taw, useWaterBalance })
     : null;
 
   return {
@@ -498,6 +869,7 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
       factors,
     },
     plan,
+    waterBalance,
   };
 }
 
