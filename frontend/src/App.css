@@ -55,19 +55,15 @@
   box-shadow: var(--shadow);
 }
 .app-header__logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 34px;
   height: 34px;
   border-radius: 11px;
-  background: rgba(255, 255, 255, 0.16);
+  /* The mark is drawn on white, so the chip behind it is opaque white. The
+     translucent tile the old flat SVG used would let the header's green
+     gradient show through the artwork's own background. */
+  background: #ffffff;
+  object-fit: contain;
   flex-shrink: 0;
-}
-.app-header__logo svg {
-  width: 20px;
-  height: 20px;
-  display: block;
 }
 .app-header__brand {
   font-weight: 700;
@@ -99,6 +95,15 @@
 }
 .app-header__help:hover {
   background: rgba(255, 255, 255, 0.18);
+}
+[dir='rtl'] .app-header__help {
+  margin-left: 0;
+  margin-right: auto;
+}
+[dir='rtl'] input,
+[dir='rtl'] select,
+[dir='rtl'] textarea {
+  text-align: right;
 }
 
 /* --- Offline banner --- */
@@ -904,6 +909,194 @@
   color: var(--color-text);
 }
 
+/* --- Disease watch (roadmap Version 1.3 Feature 9) ---
+   Advisory, so it is styled as calm supporting context rather than a hero:
+   the amber/red badge carries the urgency, the body stays quiet. */
+.disease {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.disease__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.disease__title {
+  font-size: 1rem;
+  margin: 0;
+}
+.disease__subtitle {
+  font-size: 0.85rem;
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.disease__badge {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 3px 12px;
+  border-radius: var(--radius-pill);
+}
+.disease__badge--none {
+  background: #d8efe1;
+  color: #14633c;
+}
+.disease__badge--low {
+  background: #e4eef8;
+  color: #245d99;
+}
+.disease__badge--moderate {
+  background: #fdeecb;
+  color: #8a6400;
+}
+.disease__badge--high {
+  background: #f6dede;
+  color: #8f2f2f;
+}
+.disease__none {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+.disease__headline {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.disease__run,
+.disease__inspect {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+.disease__trigger {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+.disease__tip {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+}
+/* The "not a diagnosis, see your extension officer" line is a product
+   boundary, not decoration — it must stay legible (docs/11 §12f). */
+.disease__advice {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+}
+.disease__confidence {
+  align-self: flex-start;
+}
+
+/* --- Soil moisture (root-zone water balance, docs/11 §4b) ---
+   Blue throughout: this card is entirely about water in the soil, which is
+   exactly what the palette reserves blue for. */
+.moisture {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.moisture__title {
+  font-size: 1rem;
+  margin: 0;
+}
+.moisture__unavailable {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+/* The gauge reads left-to-right as "how full the root zone is". The fill is
+   available water; the marker is the point below which the crop is stressed. */
+.moisture__gauge {
+  position: relative;
+  height: 14px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  margin-top: var(--space-1);
+}
+.moisture__gauge-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width 320ms var(--ease-out);
+}
+.moisture__gauge--ok .moisture__gauge-fill {
+  background: var(--color-blue);
+}
+.moisture__gauge--stress .moisture__gauge-fill {
+  background: var(--color-monitor);
+}
+.moisture__gauge-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-text);
+  opacity: 0.45;
+}
+.moisture__status {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.moisture__gauge--stress ~ .moisture__status {
+  color: var(--color-monitor);
+}
+.moisture__stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-3);
+}
+.moisture__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.moisture__stat dt {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+.moisture__stat dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.moisture__help {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+}
+
 /* --- Onboarding (roadmap Feature 6.5) — the "website" front door --- */
 .onboarding {
   min-height: 100vh;
@@ -1000,8 +1193,9 @@
   padding-top: var(--space-6);
 }
 .onboarding__logo {
-  font-size: 3.5rem;
-  line-height: 1;
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
 }
 .onboarding__brand--home {
   font-size: 2rem;
@@ -1398,5 +1592,371 @@
   }
   .onboarding__card--home {
     max-width: 640px;
+  }
+}
+
+/* ======================================================================
+   Farmer assistant (item 17) — floating "ask" circle + chat panel.
+
+   The circle sits above the bottom nav, not over it: a farmer must never
+   have to choose between reaching the assistant and reaching Reminders.
+   On phones the panel is a bottom sheet (thumb-reachable, the shape every
+   chat app on the device already uses); from 900px it becomes a docked
+   card so it never covers the decision it is explaining.
+   ====================================================================== */
+.assistant-fab {
+  position: fixed;
+  right: var(--space-4);
+  bottom: calc(var(--nav-height) + var(--space-4));
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--grad-brand);
+  color: var(--color-primary-contrast);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-primary);
+  transition: transform 160ms var(--ease-out), box-shadow 160ms var(--ease);
+}
+.assistant-fab:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+.assistant-fab:active {
+  transform: translateY(0);
+}
+.assistant-fab__icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.assistant-fab__label {
+  letter-spacing: 0.01em;
+}
+
+.assistant-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  background: rgba(16, 40, 28, 0.42);
+  backdrop-filter: blur(2px);
+  animation: assistant-fade 160ms var(--ease) both;
+}
+
+.assistant {
+  position: fixed;
+  z-index: 50;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  /* Caps the sheet so the farmer can still see part of the dashboard behind
+     it — context they may want to read while typing the question. */
+  max-height: min(78vh, 640px);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-lg);
+  animation: assistant-rise 220ms var(--ease-out) both;
+  overflow: hidden;
+}
+
+.assistant__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--grad-brand);
+  color: var(--color-primary-contrast);
+  flex-shrink: 0;
+}
+.assistant__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.assistant__close {
+  border: none;
+  background: rgba(255, 255, 255, 0.18);
+  color: inherit;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.assistant__close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.assistant__log {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--color-surface-alt);
+  -webkit-overflow-scrolling: touch;
+}
+
+.assistant__intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.assistant__introText {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+.assistant__suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.assistant__suggestion {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: start;
+  transition: background 140ms var(--ease), border-color 140ms var(--ease);
+}
+.assistant__suggestion:hover {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
+}
+
+.assistant__msg {
+  max-width: 88%;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.assistant__msg--user {
+  align-self: flex-end;
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  border-bottom-right-radius: var(--space-1);
+}
+.assistant__msg--assistant {
+  align-self: flex-start;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-bottom-left-radius: var(--space-1);
+}
+.assistant__msgText {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.assistant__msgFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* The source badge tells a farmer WHY an answer did or did not arrive:
+   green = their own phone answered (works with no signal), blue = the
+   network answered, amber = it needs internet they do not have. */
+.assistant__source {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+}
+.assistant__source--rules {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+}
+.assistant__source--claude {
+  background: var(--color-blue-soft);
+  color: var(--color-blue-dark);
+}
+.assistant__source--unavailable {
+  background: #fbf1de;
+  color: var(--color-monitor);
+}
+.assistant__speak {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.assistant__speak:hover {
+  background: var(--color-surface-alt);
+}
+
+.assistant__thinking {
+  align-self: flex-start;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.assistant__voiceError {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  background: #fdecea;
+  color: var(--color-danger);
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.assistant__composer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  flex-shrink: 0;
+}
+.assistant__input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.95rem;
+}
+.assistant__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  background: var(--color-surface);
+}
+.assistant__mic,
+.assistant__send {
+  /* 44px: the minimum comfortable touch target for a hand that has been
+     working in a field, which is the hand this app is designed for. */
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.assistant__mic {
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+.assistant__mic--on {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #ffffff;
+  animation: assistant-pulse 1.4s ease-in-out infinite;
+}
+.assistant__send {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+.assistant__send:disabled {
+  background: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.assistant__note {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+@keyframes assistant-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes assistant-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes assistant-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(192, 57, 43, 0);
+  }
+}
+
+/* A pulsing mic and a rising sheet are decoration; motion sensitivity is not. */
+@media (prefers-reduced-motion: reduce) {
+  .assistant-fab,
+  .assistant-scrim,
+  .assistant,
+  .assistant__mic--on {
+    animation: none;
+    transition: none;
+  }
+}
+
+@media (min-width: 900px) {
+  .assistant-fab {
+    right: var(--space-6);
+    bottom: var(--space-6);
+  }
+  /* Docked card, not a full-width sheet: on a desktop the recommendation
+     stays readable beside the conversation about it. */
+  .assistant {
+    left: auto;
+    right: var(--space-6);
+    bottom: var(--space-6);
+    width: 400px;
+    max-height: min(70vh, 620px);
+    border-radius: var(--radius-lg);
+  }
+  .assistant-scrim {
+    /* Nothing is hidden behind it on a wide screen, so the scrim only needs
+       to catch the click-outside — it should not dim the dashboard. */
+    background: transparent;
+    backdrop-filter: none;
   }
 }

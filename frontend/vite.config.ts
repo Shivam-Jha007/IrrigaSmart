@@ -11,7 +11,10 @@ export default defineConfig({
       registerType: 'autoUpdate',
       // Enable the PWA in `vite dev` so offline behavior can be verified during development.
       devOptions: { enabled: true },
-      includeAssets: ['favicon.svg'],
+      // Precached alongside the app shell: the tab icon, the iOS home-screen
+      // icon (which Safari reads from the <link>, not the manifest), and the
+      // in-app brand mark rendered in the header and on onboarding.
+      includeAssets: ['favicon.png', 'apple-touch-icon.png', 'logo.png'],
       manifest: {
         name: 'IrrigaSmart',
         short_name: 'IrrigaSmart',
@@ -25,14 +28,20 @@ export default defineConfig({
             src: 'pwa-192x192.png',
             sizes: '192x192',
             type: 'image/png',
+            purpose: 'any',
           },
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
+            purpose: 'any',
           },
           {
-            src: 'pwa-512x512.png',
+            // A separate, more generously padded render. Android crops maskable
+            // icons to whatever shape the launcher uses, so the mark has to sit
+            // inside the 80% safe zone — reusing the tightly framed icon above
+            // would clip the leaf and the wifi arc.
+            src: 'pwa-maskable-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',

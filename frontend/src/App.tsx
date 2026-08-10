@@ -26,10 +26,11 @@ function App() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const { t } = store;
+  const isRtl = store.settings.preferredLanguage === 'ur';
 
   if (store.loading) {
     return (
-      <div className="app-loading">
+      <div className="app-loading" dir={isRtl ? 'rtl' : 'ltr'}>
         <h1 className="app-loading__brand">IrrigaSmart</h1>
         <p>{t('app.loading')}</p>
       </div>
@@ -38,7 +39,7 @@ function App() {
 
   if (store.initError) {
     return (
-      <div className="app-loading">
+      <div className="app-loading" dir={isRtl ? 'rtl' : 'ltr'}>
         <h1 className="app-loading__brand">IrrigaSmart</h1>
         <h2 className="app-loading__error-title">{t('app.initErrorTitle')}</h2>
         <p className="app-loading__error-body">{t('app.initErrorBody')}</p>
@@ -50,26 +51,24 @@ function App() {
   }
 
   if (showOnboarding || !store.settings.onboardingCompleted) {
-    return <Onboarding store={store} onDone={() => setShowOnboarding(false)} />;
+    return (
+      <div dir={isRtl ? 'rtl' : 'ltr'}>
+        <Onboarding store={store} onDone={() => setShowOnboarding(false)} />
+      </div>
+    );
   }
 
   return (
-    <div className="app">
+    <div className="app" dir={isRtl ? 'rtl' : 'ltr'}>
       <header className="app-header">
-        <span className="app-header__logo" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* Water drop cradling a leaf — the brand mark. */}
-            <path
-              d="M12 2.5c3.6 4.3 6 7.6 6 10.6a6 6 0 1 1-12 0c0-3 2.4-6.3 6-10.6Z"
-              fill="#ffffff"
-              fillOpacity="0.9"
-            />
-            <path
-              d="M12 16.5c0-2.6 1.6-4.4 3.8-5-.2 2.7-1.7 4.5-3.8 5Zm0 0c0-2.2-1.3-3.8-3.2-4.4.1 2.4 1.4 3.9 3.2 4.4Z"
-              fill="#16814c"
-            />
-          </svg>
-        </span>
+        <img
+          className="app-header__logo"
+          src="/logo.png"
+          alt=""
+          aria-hidden="true"
+          width={34}
+          height={34}
+        />
         <span className="app-header__brand">IrrigaSmart</span>
         {!online && <span className="app-header__offline-dot" aria-label="Offline" />}
         <button
