@@ -13,7 +13,7 @@ import type {
   SoilType,
   TimingReason,
 } from '../types';
-import type { DiseaseId } from '../services';
+import type { DiseaseId, VisionErrorCode, VisionLabelId, VisionPlant } from '../services';
 import { TRANSLATIONS, type TranslationKey } from './translations';
 
 /**
@@ -135,6 +135,28 @@ export function diseaseWhereKey(disease: DiseaseId): TranslationKey {
 /** What the signs look like (docs/10 §10.5). */
 export function diseaseWhatKey(disease: DiseaseId): TranslationKey {
   return `disease.what.${disease}`;
+}
+
+// --- V1.7 mappers (photo model, item 16) ---
+
+/**
+ * The name of a condition only the photo model knows.
+ *
+ * Separate from `diseaseNameKey` because these have no weather infection window
+ * and therefore no `DiseaseId` — see the note at the top of diseaseVisionMap.ts.
+ */
+export function visionLabelNameKey(label: VisionLabelId): TranslationKey {
+  return `vision.name.${label}`;
+}
+
+/** The plant a photo class belongs to, for the cross-plant warning. */
+export function visionPlantKey(plant: VisionPlant): TranslationKey {
+  return `vision.plant.${plant}`;
+}
+
+/** Farmer-readable text for a failure of the photo path. */
+export function visionErrorKey(code: VisionErrorCode): TranslationKey {
+  return `vision.error.${code}`;
 }
 
 /** BCP-47 locale for date formatting in the farmer's language. */

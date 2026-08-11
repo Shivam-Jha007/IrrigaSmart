@@ -372,6 +372,73 @@ const en = {
     'Small white sunken spots enlarging into purple-brown zoned patches.',
   'disease.what.onionDownyMildew': 'Pale oval patches with a violet-grey furry growth.',
 
+  // Photo check (V1.7 item 16). Every string here obeys docs/12 §Product
+  // Boundaries: no chemical, no dose, no claim that a disease is PRESENT. The
+  // model compares a photo to its training photos, and that is exactly what the
+  // wording says — "looks similar to", never "you have". The referral to the
+  // extension officer appears in every outcome, healthy included.
+  'vision.title': 'Check a leaf photo',
+  'vision.onDevice': 'Works offline',
+  'vision.lede':
+    'Take a photo of a single affected leaf. The check runs on your phone, so the photo is never uploaded.',
+  'vision.choose': 'Choose or take a photo',
+  // ~9 MB is the COMPRESSED figure actually transferred: the model (5.5 MB
+  // gzipped) plus the ONNX runtime (3.3 MB gzipped), measured from the build
+  // output. Quoting the 6 MB model alone would understate the real cost of a
+  // first check by threefold, which on a metered rural connection is the kind
+  // of surprise that gets an app deleted.
+  'vision.firstUseHint':
+    'The first check downloads about 9 MB, so use Wi-Fi if you can. After that it works without a network.',
+  'vision.working': 'Looking at the photo…',
+  'vision.again': 'Check another photo',
+  'vision.previewAlt': 'The leaf photo you chose',
+  'vision.healthyName': 'a healthy leaf',
+  // "Similar to", with the percentage described as visual similarity rather
+  // than as a probability that the farmer has the disease.
+  'vision.similarTo': 'This leaf looks similar to photos of {name} ({percent}% similar).',
+  'vision.healthy': 'This leaf looks similar to healthy leaves ({percent}% similar).',
+  'vision.healthyCaveat':
+    'That covers this one leaf only. Keep checking other plants, especially lower and inner leaves.',
+  'vision.unsure':
+    'The photo could not be matched confidently, so no result is shown. A wrong name here could cost you a crop.',
+  'vision.retakeTips':
+    'Try again with one leaf filling the frame, in daylight, against a plain background, with the camera steady.',
+  'vision.unknownClass': 'This photo returned a result the app does not recognise.',
+  'vision.otherPlant':
+    'This looks like a {plant} leaf, but this field is {crop}. If you did photograph {crop}, treat the result below as unreliable.',
+  'vision.cropNotCovered':
+    'The photo check has not been trained on {crop}. It only knows {covered}, so a result for another crop cannot be trusted. Disease watch above still works for {crop}.',
+  'vision.coveredCrops': 'maize, potato and tomato',
+  'vision.caveat':
+    'This compares your photo with training photographs. It is not a diagnosis, and it is far less reliable on real field photos than in a laboratory.',
+  'vision.advice':
+    'Before treating anything, show a sample to your local agricultural extension officer or Krishi Vigyan Kendra.',
+
+  'vision.plant.Apple': 'apple',
+  'vision.plant.Maize': 'maize',
+  'vision.plant.PepperBell': 'bell pepper',
+  'vision.plant.Potato': 'potato',
+  'vision.plant.Tomato': 'tomato',
+
+  'vision.name.appleScab': 'apple scab',
+  'vision.name.appleBlackRot': 'black rot',
+  'vision.name.cedarAppleRust': 'cedar apple rust',
+  'vision.name.grayLeafSpot': 'grey leaf spot',
+  'vision.name.pepperBacterialSpot': 'bacterial spot',
+  'vision.name.tomatoBacterialSpot': 'bacterial spot',
+  'vision.name.tomatoLeafMould': 'leaf mould',
+  'vision.name.septoriaLeafSpot': 'septoria leaf spot',
+  'vision.name.spiderMites': 'two-spotted spider mite damage',
+  'vision.name.targetSpot': 'target spot',
+  'vision.name.tomatoYellowLeafCurlVirus': 'yellow leaf curl virus',
+  'vision.name.tomatoMosaicVirus': 'mosaic virus',
+
+  'vision.error.modelUnavailable':
+    'The photo check could not be downloaded. Connect to a network once and try again.',
+  'vision.error.runtimeUnavailable': 'This browser cannot run the photo check on this device.',
+  'vision.error.imageUnreadable': 'That file could not be read as a photo. Try another one.',
+  'vision.error.inferenceFailed': 'The photo check failed on this device.',
+
   'settings.notifDenied':
     'Notifications are blocked by the browser. Allow them in your browser settings to get reminders.',
   'settings.notifUnsupported': 'This device does not support notifications.',
@@ -838,6 +905,62 @@ const hi: Record<TranslationKey, string> = {
   'disease.what.onionPurpleBlotch': 'छोटे सफ़ेद धँसे धब्बे, जो बढ़कर बैंगनी-भूरे घेरेदार हो जाते हैं।',
   'disease.what.onionDownyMildew': 'हल्के अंडाकार धब्बे, उन पर बैंगनी-सलेटी रोएँदार परत।',
 
+  // फ़ोटो जाँच (item 16) — कोई दवा, कोई मात्रा, कोई निदान नहीं (docs/12 §Product Boundaries)।
+  'vision.title': 'पत्ती की फ़ोटो जाँचें',
+  'vision.onDevice': 'बिना नेटवर्क चलता है',
+  'vision.lede':
+    'प्रभावित एक पत्ती की फ़ोटो लें। जाँच आपके फ़ोन पर ही होती है, फ़ोटो कहीं नहीं भेजी जाती।',
+  'vision.choose': 'फ़ोटो चुनें या लें',
+  'vision.firstUseHint':
+    'पहली जाँच में लगभग 9 MB डाउनलोड होता है, इसलिए हो सके तो वाई-फ़ाई पर करें। उसके बाद यह बिना नेटवर्क काम करती है।',
+  'vision.working': 'फ़ोटो देखी जा रही है…',
+  'vision.again': 'दूसरी फ़ोटो जाँचें',
+  'vision.previewAlt': 'आपकी चुनी हुई पत्ती की फ़ोटो',
+  'vision.healthyName': 'स्वस्थ पत्ती',
+  'vision.similarTo': 'यह पत्ती {name} की फ़ोटो जैसी दिखती है ({percent}% समानता)।',
+  'vision.healthy': 'यह पत्ती स्वस्थ पत्तियों जैसी दिखती है ({percent}% समानता)।',
+  'vision.healthyCaveat':
+    'यह केवल इसी एक पत्ती के बारे में है। दूसरे पौधे भी देखते रहें, खासकर नीचे और भीतर की पत्तियाँ।',
+  'vision.unsure':
+    'फ़ोटो का मिलान भरोसे से नहीं हो सका, इसलिए कोई परिणाम नहीं दिखाया गया। यहाँ गलत नाम आपकी फ़सल पर भारी पड़ सकता है।',
+  'vision.retakeTips':
+    'फिर कोशिश करें — एक ही पत्ती पूरे फ़्रेम में हो, दिन के उजाले में, सादे पीछे के साथ, कैमरा स्थिर रखें।',
+  'vision.unknownClass': 'इस फ़ोटो से ऐसा परिणाम आया जिसे ऐप पहचानता नहीं।',
+  'vision.otherPlant':
+    'यह {plant} की पत्ती लगती है, पर यह खेत {crop} का है। यदि आपने {crop} की ही फ़ोटो ली है, तो नीचे का परिणाम भरोसेमंद न मानें।',
+  'vision.cropNotCovered':
+    'फ़ोटो जाँच {crop} पर प्रशिक्षित नहीं है। यह केवल {covered} जानती है, इसलिए दूसरी फ़सल का परिणाम भरोसेमंद नहीं। ऊपर दी गई रोग निगरानी {crop} के लिए काम करती रहती है।',
+  'vision.coveredCrops': 'मक्का, आलू और टमाटर',
+  'vision.caveat':
+    'यह आपकी फ़ोटो की तुलना प्रशिक्षण की फ़ोटो से करती है। यह निदान नहीं है, और खेत की असली फ़ोटो पर यह प्रयोगशाला की तुलना में कहीं कम भरोसेमंद है।',
+  'vision.advice':
+    'कुछ भी इलाज करने से पहले नमूना अपने कृषि विस्तार अधिकारी या कृषि विज्ञान केंद्र को दिखाएँ।',
+
+  'vision.plant.Apple': 'सेब',
+  'vision.plant.Maize': 'मक्का',
+  'vision.plant.PepperBell': 'शिमला मिर्च',
+  'vision.plant.Potato': 'आलू',
+  'vision.plant.Tomato': 'टमाटर',
+
+  'vision.name.appleScab': 'सेब का स्कैब',
+  'vision.name.appleBlackRot': 'काला सड़न',
+  'vision.name.cedarAppleRust': 'सीडर एप्पल रस्ट',
+  'vision.name.grayLeafSpot': 'धूसर पर्ण धब्बा',
+  'vision.name.pepperBacterialSpot': 'जीवाणु धब्बा',
+  'vision.name.tomatoBacterialSpot': 'जीवाणु धब्बा',
+  'vision.name.tomatoLeafMould': 'पर्ण फफूँद',
+  'vision.name.septoriaLeafSpot': 'सेप्टोरिया पर्ण धब्बा',
+  'vision.name.spiderMites': 'दो-धब्बेदार मकड़ी माइट का नुकसान',
+  'vision.name.targetSpot': 'टार्गेट स्पॉट',
+  'vision.name.tomatoYellowLeafCurlVirus': 'पीला पत्ती मरोड़ विषाणु',
+  'vision.name.tomatoMosaicVirus': 'मोज़ेक विषाणु',
+
+  'vision.error.modelUnavailable':
+    'फ़ोटो जाँच डाउनलोड नहीं हो सकी। एक बार नेटवर्क से जुड़कर फिर कोशिश करें।',
+  'vision.error.runtimeUnavailable': 'यह ब्राउज़र इस डिवाइस पर फ़ोटो जाँच नहीं चला सकता।',
+  'vision.error.imageUnreadable': 'वह फ़ाइल फ़ोटो के रूप में नहीं पढ़ी जा सकी। दूसरी आज़माएँ।',
+  'vision.error.inferenceFailed': 'इस डिवाइस पर फ़ोटो जाँच विफल रही।',
+
   'settings.notifDenied': 'ब्राउज़र ने सूचनाएँ रोकी हैं। अनुस्मारक पाने के लिए ब्राउज़र सेटिंग्स में अनुमति दें।',
   'settings.notifUnsupported': 'यह डिवाइस सूचनाओं का समर्थन नहीं करता।',
 
@@ -1290,6 +1413,62 @@ const bn: Record<TranslationKey, string> = {
   'disease.what.onionPurpleBlotch': 'ছোট সাদা বসা দাগ, বেড়ে বেগুনি-বাদামি বলয়যুক্ত ছোপ হয়।',
   'disease.what.onionDownyMildew': 'ফ্যাকাশে ডিম্বাকৃতি ছোপ, তার উপর বেগুনি-ধূসর নরম আস্তরণ।',
 
+  // ফটো পরীক্ষা (item 16) — কোনো ওষুধ নয়, কোনো মাত্রা নয়, কোনো রোগ নির্ণয় নয় (docs/12 §Product Boundaries)।
+  'vision.title': 'পাতার ফটো পরীক্ষা করুন',
+  'vision.onDevice': 'নেটওয়ার্ক ছাড়াই চলে',
+  'vision.lede':
+    'আক্রান্ত একটি মাত্র পাতার ফটো তুলুন। পরীক্ষা আপনার ফোনেই হয়, ফটো কোথাও পাঠানো হয় না।',
+  'vision.choose': 'ফটো বেছে নিন বা তুলুন',
+  'vision.firstUseHint':
+    'প্রথম পরীক্ষায় প্রায় ৯ MB ডাউনলোড হয়, তাই সম্ভব হলে ওয়াই-ফাই ব্যবহার করুন। তারপর এটি নেটওয়ার্ক ছাড়াই কাজ করে।',
+  'vision.working': 'ফটো দেখা হচ্ছে…',
+  'vision.again': 'আরেকটি ফটো পরীক্ষা করুন',
+  'vision.previewAlt': 'আপনার বেছে নেওয়া পাতার ফটো',
+  'vision.healthyName': 'স্বাস্থ্যকর পাতা',
+  'vision.similarTo': 'এই পাতাটি {name}-এর ফটোর মতো দেখতে ({percent}% মিল)।',
+  'vision.healthy': 'এই পাতাটি স্বাস্থ্যকর পাতার মতো দেখতে ({percent}% মিল)।',
+  'vision.healthyCaveat':
+    'এটি কেবল এই একটি পাতার বিষয়ে। অন্য গাছপালাও দেখতে থাকুন, বিশেষ করে নিচের ও ভিতরের পাতাগুলো।',
+  'vision.unsure':
+    'ফটোটির মিল আত্মবিশ্বাসের সঙ্গে করা গেল না, তাই কোনো ফলাফল দেখানো হলো না। এখানে ভুল নাম আপনার ফসলের বড় ক্ষতি করতে পারে।',
+  'vision.retakeTips':
+    'আবার চেষ্টা করুন — একটি পাতা পুরো ফ্রেমে, দিনের আলোয়, সাধারণ পটভূমিতে, ক্যামেরা স্থির রেখে।',
+  'vision.unknownClass': 'এই ফটো থেকে এমন ফলাফল এসেছে যা অ্যাপ চেনে না।',
+  'vision.otherPlant':
+    'এটি {plant}-এর পাতা মনে হচ্ছে, কিন্তু এই জমি {crop}-এর। যদি আপনি সত্যিই {crop}-এর ছবি তুলে থাকেন, নিচের ফলাফল নির্ভরযোগ্য নয়।',
+  'vision.cropNotCovered':
+    'ফটো পরীক্ষাটি {crop}-এর উপর প্রশিক্ষিত নয়। এটি কেবল {covered} জানে, তাই অন্য ফসলের ফলাফল বিশ্বাস করা যাবে না। উপরের রোগ পর্যবেক্ষণ {crop}-এর জন্য কাজ করতে থাকে।',
+  'vision.coveredCrops': 'ভুট্টা, আলু ও টমেটো',
+  'vision.caveat':
+    'এটি আপনার ফটোর তুলনা প্রশিক্ষণের ছবির সঙ্গে করে। এটি রোগ নির্ণয় নয়, আর খেতের সত্যিকারের ছবিতে এটি পরীক্ষাগারের তুলনায় অনেক কম নির্ভরযোগ্য।',
+  'vision.advice':
+    'কিছু চিকিৎসা করার আগে নমুনা স্থানীয় কৃষি সম্প্রসারণ কর্মকর্তা বা কৃষি বিজ্ঞান কেন্দ্রকে দেখান।',
+
+  'vision.plant.Apple': 'আপেল',
+  'vision.plant.Maize': 'ভুট্টা',
+  'vision.plant.PepperBell': 'ক্যাপসিকাম',
+  'vision.plant.Potato': 'আলু',
+  'vision.plant.Tomato': 'টমেটো',
+
+  'vision.name.appleScab': 'আপেল স্ক্যাব',
+  'vision.name.appleBlackRot': 'কালো পচা',
+  'vision.name.cedarAppleRust': 'সিডার আপেল রাস্ট',
+  'vision.name.grayLeafSpot': 'ধূসর পাতা-দাগ',
+  'vision.name.pepperBacterialSpot': 'জীবাণু দাগ',
+  'vision.name.tomatoBacterialSpot': 'জীবাণু দাগ',
+  'vision.name.tomatoLeafMould': 'পাতার ছত্রাক',
+  'vision.name.septoriaLeafSpot': 'সেপ্টোরিয়া পাতা-দাগ',
+  'vision.name.spiderMites': 'দুই-দাগি মাকড়সা মাইটের ক্ষতি',
+  'vision.name.targetSpot': 'টার্গেট স্পট',
+  'vision.name.tomatoYellowLeafCurlVirus': 'হলুদ পাতা কুঁকড়ানো ভাইরাস',
+  'vision.name.tomatoMosaicVirus': 'মোজাইক ভাইরাস',
+
+  'vision.error.modelUnavailable':
+    'ফটো পরীক্ষাটি ডাউনলোড করা গেল না। একবার নেটওয়ার্কে যুক্ত হয়ে আবার চেষ্টা করুন।',
+  'vision.error.runtimeUnavailable': 'এই ব্রাউজার এই ডিভাইসে ফটো পরীক্ষা চালাতে পারে না।',
+  'vision.error.imageUnreadable': 'সেই ফাইলটি ফটো হিসেবে পড়া গেল না। অন্যটি চেষ্টা করুন।',
+  'vision.error.inferenceFailed': 'এই ডিভাইসে ফটো পরীক্ষা ব্যর্থ হয়েছে।',
+
   'settings.notifDenied':
     'ব্রাউজার বিজ্ঞপ্তি ব্লক করেছে। মনে করিয়ে দেওয়ার জন্য ব্রাউজার সেটিংসে অনুমতি দিন।',
   'settings.notifUnsupported': 'এই ডিভাইসে বিজ্ঞপ্তি সমর্থিত নয়।',
@@ -1731,6 +1910,62 @@ const as: Record<TranslationKey, string> = {
   'disease.what.onionPurpleBlotch': 'সৰু বগা বহি যোৱা দাগ, বাঢ়ি বেঙুনীয়া-মটীয়া বলয়যুক্ত হয়।',
   'disease.what.onionDownyMildew': 'পাতল ডিম্বাকৃতিৰ দাগ, তাৰ ওপৰত বেঙুনীয়া-ধোঁৱাবৰণীয়া নোম।',
 
+  // ফটো পৰীক্ষা (item 16) — কোনো ঔষধ নহয়, কোনো মাত্ৰা নহয়, কোনো ৰোগ নিৰ্ণয় নহয় (docs/12 §Product Boundaries)।
+  'vision.title': 'পাতৰ ফটো পৰীক্ষা কৰক',
+  'vision.onDevice': 'নেটৱৰ্ক নোহোৱাকৈ চলে',
+  'vision.lede':
+    'আক্ৰান্ত এখন পাতৰ ফটো লওক। পৰীক্ষা আপোনাৰ ফোনতে হয়, ফটো ক\'তো পঠোৱা নহয়।',
+  'vision.choose': 'ফটো বাছনি কৰক বা লওক',
+  'vision.firstUseHint':
+    'প্ৰথম পৰীক্ষাত প্ৰায় ৯ MB ডাউনলোড হয়, গতিকে সম্ভৱ হ’লে ৱাই-ফাই ব্যৱহাৰ কৰক। তাৰ পিছত ই নেটৱৰ্ক নোহোৱাকৈ কাম কৰে।',
+  'vision.working': 'ফটোখন চোৱা হৈ আছে…',
+  'vision.again': 'আন এখন ফটো পৰীক্ষা কৰক',
+  'vision.previewAlt': 'আপুনি বাছনি কৰা পাতৰ ফটো',
+  'vision.healthyName': 'সুস্থ পাত',
+  'vision.similarTo': 'এই পাতখন {name}-ৰ ফটোৰ দৰে দেখা যায় ({percent}% মিল)।',
+  'vision.healthy': 'এই পাতখন সুস্থ পাতৰ দৰে দেখা যায় ({percent}% মিল)।',
+  'vision.healthyCaveat':
+    'ই কেৱল এই এখন পাতৰ বিষয়ে। আন গছবোৰো চাই থাকক, বিশেষকৈ তলৰ আৰু ভিতৰৰ পাতবোৰ।',
+  'vision.unsure':
+    'ফটোখনৰ মিল নিশ্চিতভাৱে কৰিব পৰা নগ\'ল, সেয়েহে কোনো ফলাফল দেখুওৱা হোৱা নাই। ইয়াত ভুল নামে আপোনাৰ শস্যৰ ক্ষতি কৰিব পাৰে।',
+  'vision.retakeTips':
+    'পুনৰ চেষ্টা কৰক — এখন পাত গোটেই ফ্ৰেমত, দিনৰ পোহৰত, সাধাৰণ পটভূমিত, কেমেৰা স্থিৰ ৰাখি।',
+  'vision.unknownClass': 'এই ফটোৰ পৰা এনে ফলাফল আহিল যিটো এপে চিনি নাপায়।',
+  'vision.otherPlant':
+    'এইখন {plant}-ৰ পাত যেন লাগে, কিন্তু এই পথাৰখন {crop}-ৰ। যদি আপুনি সঁচাকৈ {crop}-ৰ ফটো লৈছে, তলৰ ফলাফল নিৰ্ভৰযোগ্য বুলি নাভাবিব।',
+  'vision.cropNotCovered':
+    'ফটো পৰীক্ষাটো {crop}-ৰ ওপৰত প্ৰশিক্ষিত নহয়। ই কেৱল {covered} জানে, সেয়েহে আন শস্যৰ ফলাফল বিশ্বাস কৰিব নোৱাৰি। ওপৰৰ ৰোগ নিৰীক্ষণ {crop}-ৰ বাবে কাম কৰি থাকে।',
+  'vision.coveredCrops': 'মাকৈ, আলু আৰু বিলাহী',
+  'vision.caveat':
+    'ই আপোনাৰ ফটোখন প্ৰশিক্ষণৰ ফটোৰ সৈতে তুলনা কৰে। ই ৰোগ নিৰ্ণয় নহয়, আৰু পথাৰৰ প্ৰকৃত ফটোত ই পৰীক্ষাগাৰতকৈ বহু কম নিৰ্ভৰযোগ্য।',
+  'vision.advice':
+    'যিকোনো চিকিৎসা কৰাৰ আগতে নমুনা স্থানীয় কৃষি সম্প্ৰসাৰণ বিষয়া বা কৃষি বিজ্ঞান কেন্দ্ৰক দেখুৱাওক।',
+
+  'vision.plant.Apple': 'আপেল',
+  'vision.plant.Maize': 'মাকৈ',
+  'vision.plant.PepperBell': 'কেপচিকাম',
+  'vision.plant.Potato': 'আলু',
+  'vision.plant.Tomato': 'বিলাহী',
+
+  'vision.name.appleScab': 'আপেল স্কেব',
+  'vision.name.appleBlackRot': 'ক\'লা পচন',
+  'vision.name.cedarAppleRust': 'চিডাৰ আপেল ৰাষ্ট',
+  'vision.name.grayLeafSpot': 'ধোঁৱাবৰণীয়া পাত-দাগ',
+  'vision.name.pepperBacterialSpot': 'বেক্টেৰিয়া দাগ',
+  'vision.name.tomatoBacterialSpot': 'বেক্টেৰিয়া দাগ',
+  'vision.name.tomatoLeafMould': 'পাতৰ ছত্ৰাক',
+  'vision.name.septoriaLeafSpot': 'চেপ্টʼৰিয়া পাত-দাগ',
+  'vision.name.spiderMites': 'দুই-দাগী মকৰা মাইটৰ ক্ষতি',
+  'vision.name.targetSpot': 'টাৰ্গেট স্পট',
+  'vision.name.tomatoYellowLeafCurlVirus': 'হালধীয়া পাত মেৰ খোৱা ভাইৰাছ',
+  'vision.name.tomatoMosaicVirus': 'মʼজেইক ভাইৰাছ',
+
+  'vision.error.modelUnavailable':
+    'ফটো পৰীক্ষাটো ডাউনলোড কৰিব পৰা নগ\'ল। এবাৰ নেটৱৰ্কৰ সৈতে সংযোগ কৰি পুনৰ চেষ্টা কৰক।',
+  'vision.error.runtimeUnavailable': 'এই ব্ৰাউজাৰে এই ডিভাইচত ফটো পৰীক্ষা চলাব নোৱাৰে।',
+  'vision.error.imageUnreadable': 'সেই ফাইলটো ফটো হিচাপে পঢ়িব পৰা নগ\'ল। আনটো চেষ্টা কৰক।',
+  'vision.error.inferenceFailed': 'এই ডিভাইচত ফটো পৰীক্ষা বিফল হ\'ল।',
+
   'settings.notifDenied': 'ব্ৰাউজাৰে জাননী বন্ধ কৰি ৰাখিছে। সোঁৱৰণী পাবলৈ ব্ৰাউজাৰৰ ছেটিংছত অনুমতি দিয়ক।',
   'settings.notifUnsupported': 'এই ডিভাইচত জাননী সমৰ্থিত নহয়।',
 
@@ -2085,6 +2320,62 @@ const ur: Record<TranslationKey, string> = {
   'disease.what.onionPurpleBlotch':
     'سفید مرکز والے چھوٹے دھبے جو بڑھ کر جامنی ہو جاتے ہیں۔',
   'disease.what.onionDownyMildew': 'ہلکے بیضوی دھبے جن پر بنفشی سرمئی روئیں دار نشوونما۔',
+
+  // تصویری جانچ (item 16) — کوئی دوا نہیں، کوئی مقدار نہیں، کوئی تشخیص نہیں (docs/12 §Product Boundaries)۔
+  'vision.title': 'پتے کی تصویر جانچیں',
+  'vision.onDevice': 'نیٹ ورک کے بغیر چلتا ہے',
+  'vision.lede':
+    'متاثرہ ایک پتے کی تصویر لیں۔ جانچ آپ کے فون پر ہی ہوتی ہے، تصویر کہیں نہیں بھیجی جاتی۔',
+  'vision.choose': 'تصویر چنیں یا لیں',
+  'vision.firstUseHint':
+    'پہلی جانچ میں تقریباً 9 MB ڈاؤن لوڈ ہوتا ہے، اس لیے ہو سکے تو وائی فائی استعمال کریں۔ اس کے بعد یہ نیٹ ورک کے بغیر کام کرتی ہے۔',
+  'vision.working': 'تصویر دیکھی جا رہی ہے…',
+  'vision.again': 'دوسری تصویر جانچیں',
+  'vision.previewAlt': 'آپ کی چنی ہوئی پتے کی تصویر',
+  'vision.healthyName': 'صحت مند پتہ',
+  'vision.similarTo': 'یہ پتہ {name} کی تصویروں جیسا لگتا ہے ({percent}% مشابہت)۔',
+  'vision.healthy': 'یہ پتہ صحت مند پتوں جیسا لگتا ہے ({percent}% مشابہت)۔',
+  'vision.healthyCaveat':
+    'یہ صرف اسی ایک پتے کے بارے میں ہے۔ دوسرے پودے بھی دیکھتے رہیں، خاص طور پر نیچے اور اندر کے پتے۔',
+  'vision.unsure':
+    'تصویر کا اعتماد کے ساتھ ملان نہ ہو سکا، اس لیے کوئی نتیجہ نہیں دکھایا گیا۔ یہاں غلط نام آپ کی فصل کو مہنگا پڑ سکتا ہے۔',
+  'vision.retakeTips':
+    'دوبارہ کوشش کریں — ایک پتہ پورے فریم میں، دن کی روشنی میں، سادہ پس منظر کے ساتھ، کیمرہ مستحکم رکھیں۔',
+  'vision.unknownClass': 'اس تصویر سے ایسا نتیجہ آیا جسے ایپ نہیں پہچانتی۔',
+  'vision.otherPlant':
+    'یہ {plant} کا پتہ لگتا ہے، مگر یہ کھیت {crop} کا ہے۔ اگر آپ نے واقعی {crop} کی تصویر لی ہے تو نیچے کے نتیجے کو قابلِ بھروسہ نہ سمجھیں۔',
+  'vision.cropNotCovered':
+    'تصویری جانچ {crop} پر تربیت یافتہ نہیں ہے۔ یہ صرف {covered} جانتی ہے، اس لیے کسی اور فصل کا نتیجہ قابلِ بھروسہ نہیں۔ اوپر دی گئی بیماری کی نگرانی {crop} کے لیے کام کرتی رہتی ہے۔',
+  'vision.coveredCrops': 'مکئی، آلو اور ٹماٹر',
+  'vision.caveat':
+    'یہ آپ کی تصویر کا موازنہ تربیتی تصویروں سے کرتی ہے۔ یہ تشخیص نہیں ہے، اور کھیت کی اصل تصویروں پر یہ تجربہ گاہ کے مقابلے میں کہیں کم قابلِ بھروسہ ہے۔',
+  'vision.advice':
+    'کچھ بھی علاج کرنے سے پہلے نمونہ اپنے مقامی زرعی توسیعی افسر یا کرشی وگیان کیندر کو دکھائیں۔',
+
+  'vision.plant.Apple': 'سیب',
+  'vision.plant.Maize': 'مکئی',
+  'vision.plant.PepperBell': 'شملہ مرچ',
+  'vision.plant.Potato': 'آلو',
+  'vision.plant.Tomato': 'ٹماٹر',
+
+  'vision.name.appleScab': 'سیب کا اسکیب',
+  'vision.name.appleBlackRot': 'کالا گلاؤ',
+  'vision.name.cedarAppleRust': 'سیڈر ایپل رسٹ',
+  'vision.name.grayLeafSpot': 'سرمئی پتہ دھبہ',
+  'vision.name.pepperBacterialSpot': 'جراثیمی دھبہ',
+  'vision.name.tomatoBacterialSpot': 'جراثیمی دھبہ',
+  'vision.name.tomatoLeafMould': 'پتے کی پھپھوند',
+  'vision.name.septoriaLeafSpot': 'سیپٹوریا پتہ دھبہ',
+  'vision.name.spiderMites': 'دو دھبوں والے مکڑی مائٹ کا نقصان',
+  'vision.name.targetSpot': 'ٹارگٹ اسپاٹ',
+  'vision.name.tomatoYellowLeafCurlVirus': 'زرد پتہ مروڑ وائرس',
+  'vision.name.tomatoMosaicVirus': 'موزیک وائرس',
+
+  'vision.error.modelUnavailable':
+    'تصویری جانچ ڈاؤن لوڈ نہ ہو سکی۔ ایک بار نیٹ ورک سے جڑ کر دوبارہ کوشش کریں۔',
+  'vision.error.runtimeUnavailable': 'یہ براؤزر اس ڈیوائس پر تصویری جانچ نہیں چلا سکتا۔',
+  'vision.error.imageUnreadable': 'وہ فائل تصویر کے طور پر پڑھی نہ جا سکی۔ دوسری آزمائیں۔',
+  'vision.error.inferenceFailed': 'اس ڈیوائس پر تصویری جانچ ناکام رہی۔',
 
   // --- Farmer assistant (item 17) ---
   'assistant.open': 'سوال پوچھیں',

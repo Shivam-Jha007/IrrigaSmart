@@ -1007,6 +1007,186 @@
   align-self: flex-start;
 }
 
+/* --- Photo leaf check (V1.7 item 16) ---
+   Deliberately a sibling of .disease, not a variant of it: the two cards sit
+   next to each other and must not be mistaken for one another. Same surface and
+   rhythm so it belongs, but no amber/red risk badge — this card never states a
+   risk level, only what a leaf resembles. The caveat and referral lines are
+   product boundaries (docs/12 §Product Boundaries) and are styled to stay
+   legible, never as fine print. */
+.photo-card {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.photo-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.photo-card__title {
+  font-size: 1rem;
+  margin: 0;
+}
+/* "Runs on your phone" — a reassurance about privacy and offline use, so it is
+   informational blue-grey rather than a status colour. */
+.photo-card__badge {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-blue-soft);
+  color: var(--color-blue-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.photo-card__lede,
+.photo-card__blocked {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+/* An untrained crop is an honest limitation, not an error: neutral surface,
+   no warning colour, because nothing has gone wrong. */
+.photo-card__blocked {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+/* The real <input type="file"> is hidden and the label is the button, because
+   the native control cannot be styled and its default text is untranslatable —
+   it would render in the device language, not the farmer's. */
+.photo-card__pick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  font-size: 0.95rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-primary);
+  cursor: pointer;
+  transition:
+    transform 0.12s var(--ease),
+    filter 0.18s var(--ease);
+}
+.photo-card__pick:hover {
+  filter: brightness(1.06);
+}
+.photo-card__pick:active {
+  transform: translateY(1px) scale(0.99);
+}
+/* Not display:none — that removes the input from the tab order and some
+   browsers refuse to open the picker for it. Clipped instead, so keyboard
+   focus still lands on it and the label's focus ring follows. */
+.photo-card__pick input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.photo-card__pick:focus-within {
+  outline: 2px solid var(--color-primary-dark);
+  outline-offset: 2px;
+}
+.photo-card__hint,
+.photo-card__tips,
+.photo-card__trigger {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+/* Capped height so a 12-megapixel phone photo cannot push the caveat and the
+   referral below the fold — those two lines must be visible with the result. */
+.photo-card__preview {
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  display: block;
+}
+.photo-card__busy {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+.photo-card__error {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: #f6dede;
+  color: #8f2f2f;
+}
+.photo-card__outcome {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+}
+/* Below the confidence threshold, or a class the app does not know: quiet grey,
+   because the honest answer is "I cannot tell" and it must not look like a
+   finding. */
+.photo-card__outcome--unsure {
+  background: var(--color-surface-alt);
+}
+.photo-card__outcome p {
+  margin: 0;
+}
+.photo-card__reading {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--color-primary-dark);
+}
+/* The leaf is a different plant from the farm's crop — worth noticing before
+   reading the name below it, so it gets the amber the rest of the card avoids. */
+.photo-card__mismatch {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: #fdeecb;
+  color: #8a6400;
+}
+/* "Not a diagnosis" and "see your extension officer" are the same product
+   boundary the disease card carries, styled the same way for the same reason
+   (docs/11 §12f): quiet, but never fine print, and never omitted. */
+.photo-card__caveat,
+.photo-card__advice {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+.photo-card__caveat {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+}
+
 /* --- Soil moisture (root-zone water balance, docs/11 §4b) ---
    Blue throughout: this card is entirely about water in the soil, which is
    exactly what the palette reserves blue for. */
