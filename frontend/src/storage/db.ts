@@ -3,6 +3,7 @@ import type {
   AppNotification,
   Crop,
   DailyWeather,
+  DepletionState,
   Farm,
   Farmer,
   HistoryRecord,
@@ -22,11 +23,14 @@ import type {
  * (docs/07_Engineering_Rules.md: Storage Rules).
  *
  * Migrations: v1 → MVP stores; v2 → + notifications store (roadmap Feature 7);
- * v3 → + waterLedger store (per-day advised/applied/saved water tracking).
+ * v3 → + waterLedger store (per-day advised/applied/saved water tracking);
+ * v4 → no new stores; forces the idempotent upgrade below to run once on every
+ * existing client, repairing any schema drift (see `upgrade`);
+ * v5 → + depletionState store (root-zone water balance, Decision Logic §4b).
  */
 
 export const DB_NAME = 'irrigasmart';
-export const DB_VERSION = 3;
+export const DB_VERSION = 5;
 
 /** Key for the single application settings record. */
 export const SETTINGS_KEY = 'app';
@@ -94,6 +98,10 @@ export interface IrrigaSmartDB extends DBSchema {
     value: WaterLedgerEntry;
     indexes: { byFarm: string };
   };
+  depletionState: {
+    key: string;
+    value: DepletionState;
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<IrrigaSmartDB>> | null = null;
@@ -121,40 +129,90 @@ export function getDb(): Promise<IDBPDatabase<IrrigaSmartDB>> {
   if (!dbPromise) {
     let blockedByOtherTab = false;
     const open = openDB<IrrigaSmartDB>(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion) {
-        if (oldVersion < 1) {
+      /**
+       * Idempotent and version-independent: every store and index is created
+       * only if it is absent, rather than inside an `oldVersion < N` branch.
+       *
+       * Branching on the version number assumes the version is a reliable
+       * statement about what a client actually holds. It is not. If a store is
+       * added to version N's branch after some client has already opened the
+       * database at version N, that client is stranded: it reports version N,
+       * so the branch never runs again, and the missing store throws
+       * NotFoundError on every access for the life of the installation. That
+       * happened here with `waterLedger` at v3. Ensuring instead of branching
+       * converges any drifted client on the next version bump, and costs
+       * nothing on a healthy one.
+       */
+      upgrade(db, _oldVersion, _newVersion, tx) {
+        if (!db.objectStoreNames.contains('farmers')) {
           db.createObjectStore('farmers', { keyPath: 'id' });
+        }
 
-          const farms = db.createObjectStore('farms', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('farms')) {
+          db.createObjectStore('farms', { keyPath: 'id' });
+        }
+        const farms = tx.objectStore('farms');
+        if (!farms.indexNames.contains('byFarmer')) {
           farms.createIndex('byFarmer', 'farmerId');
+        }
 
+        if (!db.objectStoreNames.contains('crops')) {
           db.createObjectStore('crops', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('soils')) {
           db.createObjectStore('soils', { keyPath: 'id' });
+        }
 
-          const recommendations = db.createObjectStore('recommendations', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('recommendations')) {
+          db.createObjectStore('recommendations', { keyPath: 'id' });
+        }
+        const recommendations = tx.objectStore('recommendations');
+        if (!recommendations.indexNames.contains('byFarm')) {
           recommendations.createIndex('byFarm', 'farmId');
+        }
 
-          const history = db.createObjectStore('history', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('history')) {
+          db.createObjectStore('history', { keyPath: 'id' });
+        }
+        const history = tx.objectStore('history');
+        if (!history.indexNames.contains('byFarm')) {
           history.createIndex('byFarm', 'farmId');
+        }
+        if (!history.indexNames.contains('byDate')) {
           history.createIndex('byDate', 'generatedDate');
+        }
 
-          // Weather cache is keyed explicitly by farmId (out-of-line key).
+        // Weather cache is keyed explicitly by farmId (out-of-line key).
+        if (!db.objectStoreNames.contains('weatherCache')) {
           db.createObjectStore('weatherCache', { keyPath: 'farmId' });
+        }
 
-          // Settings is a singleton keyed by a constant.
+        // Settings is a singleton keyed by a constant.
+        if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings');
         }
 
-        if (oldVersion < 2) {
-          // V2.0 — Smart Notifications (roadmap Feature 7).
-          const notifications = db.createObjectStore('notifications', { keyPath: 'id' });
+        // V2.0 — Smart Notifications (roadmap Feature 7).
+        if (!db.objectStoreNames.contains('notifications')) {
+          db.createObjectStore('notifications', { keyPath: 'id' });
+        }
+        const notifications = tx.objectStore('notifications');
+        if (!notifications.indexNames.contains('byFarm')) {
           notifications.createIndex('byFarm', 'farmId');
         }
 
-        if (oldVersion < 3) {
-          // Per-day water tracking: advised vs applied vs saved.
-          const ledger = db.createObjectStore('waterLedger', { keyPath: 'id' });
+        // Per-day water tracking: advised vs applied vs saved.
+        if (!db.objectStoreNames.contains('waterLedger')) {
+          db.createObjectStore('waterLedger', { keyPath: 'id' });
+        }
+        const ledger = tx.objectStore('waterLedger');
+        if (!ledger.indexNames.contains('byFarm')) {
           ledger.createIndex('byFarm', 'farmId');
+        }
+
+        // V1.6 — Root-zone depletion state per farm.
+        if (!db.objectStoreNames.contains('depletionState')) {
+          db.createObjectStore('depletionState', { keyPath: 'farmId' });
         }
       },
       blocked() {

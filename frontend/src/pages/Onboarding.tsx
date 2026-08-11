@@ -80,9 +80,14 @@ export function Onboarding({ store, onDone }: Props) {
       <div className="onboarding">
         <div className="onboarding__card onboarding__card--home">
           {skipButton}
-          <span className="onboarding__logo" aria-hidden>
-            💧
-          </span>
+          <img
+            className="onboarding__logo"
+            src="/logo.png"
+            alt=""
+            aria-hidden
+            width={96}
+            height={96}
+          />
           <h1 className="onboarding__brand onboarding__brand--home">IrrigaSmart</h1>
           <p className="onboarding__tagline">{t('onb.welcome.tagline')}</p>
 

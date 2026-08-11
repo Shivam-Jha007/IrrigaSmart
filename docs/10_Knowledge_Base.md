@@ -146,11 +146,34 @@ Notes:
 - They are interpolated between Initial and Mid Season when required.
 - These values represent standard, well-managed crops under non-stressed conditions.
 - Local climatic adjustment is outside the MVP scope.
-- **ETo is not computed scientifically in the MVP.** The MVP weather data model lacks the inputs (Tmin/Tmax, solar radiation) required by FAO-56 ETo. A documented reference baseline is used instead; see `11_Decision_Logic.md` §2 and §9. Computed ETo is a future enhancement.
+- **ETo is obtained from the weather provider (V1.5).** The provider computes daily reference evapotranspiration by the FAO-56 Penman-Monteith method from its own gridded inputs (Tmin/Tmax, solar radiation, humidity, wind), which the application never had to collect itself. The engine multiplies that ETo by Kc directly. A documented reference baseline remains as a per-day fallback for days with no provider ETo; see `11_Decision_Logic.md` §2 and §9.
+
+## 3.3 Root Depths and Depletion Fractions (V1.6)
+
+The FAO-56 soil water balance requires effective root depth (Zr) and the depletion fraction (p) — the portion of Total Available Water a crop can use without stress.
+
+| Crop | Initial Zr (m) | Mid Zr (m) | Late Zr (m) | p (fraction) | Notes |
+|------|----------------|------------|-------------|--------------|-------|
+| Rice | 0.20 | 0.30 | 0.30 | 0.20 | Shallow roots; flooded cultivation tolerates low p |
+| Wheat | 0.30 | 1.00 | 1.10 | 0.55 | Deep rooting by mid-season |
+| Maize | 0.30 | 1.00 | 1.10 | 0.55 | Deep rooting; sensitive to mid-season stress |
+| Cotton | 0.40 | 1.20 | 1.20 | 0.65 | Very deep roots; moderately tolerant |
+| Sugarcane | 0.40 | 1.00 | 1.00 | 0.65 | Deep permanent crop |
+| Soybean | 0.30 | 0.70 | 0.70 | 0.50 | Moderate depth |
+| Groundnut | 0.30 | 0.60 | 0.60 | 0.50 | Moderate depth |
+| Tomato | 0.30 | 0.70 | 0.70 | 0.40 | Vegetable; more stress-sensitive |
+| Potato | 0.25 | 0.50 | 0.50 | 0.35 | Shallow tuber crop; very stress-sensitive |
+| Onion | 0.20 | 0.40 | 0.40 | 0.30 | Very shallow; frequent irrigation needed |
+
+**Reference:** FAO-56 Tables 22 (p values) and typical root depth progressions from agronomic literature.
+
+**Interpolation:** Development-stage root depth is interpolated linearly between Initial and Mid, just as Kc is.
+
+**What p means:** At p = 0.55, the crop uses 55% of TAW comfortably. The remaining 45% is still in the soil but harder to extract, so irrigation is advised when depletion reaches RAW = 0.55 × TAW.
 
 ---
 
-## 3.3 Agronomic Characteristics
+## 3.4 Agronomic Characteristics
 
 ### Rice
 
@@ -172,7 +195,7 @@ Notes:
 
 ---
 
-## 3.4 Engineering Notes
+## 3.5 Engineering Notes
 
 The Decision Engine shall use the following crop properties:
 
@@ -252,22 +275,24 @@ Implications:
 
 ---
 
-## 4.3 Engineering Notes
+## 4.3 Soil Hydraulic Properties (V1.6)
 
-The Decision Engine shall use soil type to influence:
+The FAO-56 soil water balance (Version 1.6) models root-zone depletion and requires field capacity (θ_FC) and permanent wilting point (θ_PWP) for each soil type. These cannot be measured from a farmer's phone, so the engine derives them from soil texture using the **Saxton & Rawls (2006) pedotransfer functions**.
 
-- Estimated irrigation frequency
-- Water retention assumptions
-- Recommendation explanations
+| Soil Type | Sand % | Silt % | Clay % | θ_FC (vol %) | θ_PWP (vol %) | AWC (vol %) |
+|-----------|--------|--------|--------|--------------|---------------|-------------|
+| Sandy | 85 | 10 | 5 | 14.0 | 4.2 | 9.8 |
+| Sandy Loam | 65 | 25 | 10 | 20.8 | 6.3 | 14.5 |
+| Loamy | 40 | 40 | 20 | 27.0 | 11.7 | 15.3 |
+| Silty Loam | 20 | 65 | 15 | 33.0 | 13.3 | 19.7 |
+| Clay Loam | 30 | 35 | 35 | 31.8 | 19.7 | 12.1 |
+| Clay | 20 | 20 | 60 | 39.6 | 27.2 | 12.4 |
 
-The MVP shall **not** estimate:
+**Reference:** Saxton, K. E., & Rawls, W. J. (2006). *Soil Water Characteristic Estimates by Texture and Organic Matter for Hydrologic Solutions.* Soil Science Society of America Journal, 70(5), 1569–1578.
 
-- Field capacity
-- Soil moisture percentage
-- Permanent wilting point
-- Available Water Capacity (AWC)
+**Texture assumptions:** representative midpoints for each USDA class. Sand/silt/clay sum to 100%; organic matter is not modelled in the MVP.
 
-Those features are reserved for future scientific enhancements.
+**Available Water Capacity (AWC)** = θ_FC − θ_PWP. This is the water a crop can actually extract from one metre of soil depth. A 60 cm root zone in Clay holds `0.124 × 600 = 74.4 mm` of available water.
 
 
 # 5. Supported Irrigation Methods
@@ -655,13 +680,179 @@ Windows vary by region and cultivar; they are guidance, not rules.
 - **Rabi:** crops need regular irrigation, but demand is lower than in summer.
 - **Zaid:** water demand is highest; irrigate early morning to reduce evaporation.
 
-## 9.4 Seasonal ETo Adjustment
+## 9.4 Seasonal ETo Adjustment (fallback only, V1.5)
 
-A coarse seasonal factor shifts the ETo baseline used by the Decision Engine (monsoon and winter lower, hot summer higher). The numeric values are tunable engineering parameters owned by `11_Decision_Logic.md` §9 — this document owns only the agronomic rationale:
+A coarse seasonal factor shifts the ETo *baseline* used by the Decision Engine (monsoon and winter lower, hot summer higher). Since V1.5 this applies **only on days with no provider-computed ETo** — a measured FAO-56 ETo already reflects the season through its own temperature, humidity and radiation inputs, so the factor must not be applied on top of it. The numeric values are tunable engineering parameters owned by `11_Decision_Logic.md` §9 — this document owns only the agronomic rationale:
 
 - **Kharif (< 1.0):** high humidity and cloud cover suppress evapotranspiration.
 - **Rabi (< 1.0):** low temperatures suppress evapotranspiration.
 - **Zaid (> 1.0):** heat and dry air raise evapotranspiration.
+
+---
+
+# 10. Crop Disease Risk Knowledge (V1.3)
+
+Added for `12_Product_Roadmap_v2.md` Version 1.3 Feature 9. As in §9 the dataset is bundled with the application and requires no network access.
+
+This section owns the **agronomic facts**: which diseases matter for each supported crop, the weather conditions under which they infect, and what the farmer should look for. It does not own the scoring rules or the tuning thresholds — those are engineering parameters owned by `11_Decision_Logic.md` §9.
+
+## 10.1 Why Weather Predicts Disease
+
+Fungal and bacterial crop diseases share one requirement: the pathogen needs a **temperature band** and **sustained surface wetness at the same time**. Spores germinate only when the leaf stays wet long enough, and only inside a temperature range specific to that pathogen. Neither condition alone is sufficient.
+
+This is why weather data alone supports a useful statement about *risk* — and why it can never support a *diagnosis*. Favourable weather means infection is possible, not that it happened.
+
+## 10.2 What This Knowledge Can and Cannot Do
+
+It can:
+
+- State that recent and forecast weather fall inside a documented infection window.
+- Name the disease whose window is being met.
+- Tell the farmer where on the plant to look.
+
+It cannot:
+
+- Confirm a disease is present.
+- Rule a disease out.
+- Recommend treatment.
+
+### Restriction — No Chemical Advice
+
+This Knowledge Base deliberately records **no** fungicide, pesticide, chemical name, dose, or spray interval, and no future version may add one.
+
+Chemical choice depends on local product registration, resistance status, pre-harvest interval, and observed severity — none of which the application can see. Treatment decisions belong to a qualified agricultural extension officer. This restriction is an application of Principle 7 — Scientific Integrity and Principle 8 — Decision Support, and it also binds any future image-based feature.
+
+## 10.3 Measurement Caveat
+
+The published infection conditions in §10.4 are stated in the literature as **hourly or instantaneous** values: hours of leaf wetness, hours above a relative-humidity threshold, air temperature near the leaf.
+
+The application holds **daily aggregates only** — daily maximum temperature, daily mean relative humidity, and daily rainfall total. That is what the weather provider supplies (`04_System_Interfaces.md`) and what is cached for offline use.
+
+Each profile in §10.4 therefore records two distinct things:
+
+1. The **published condition** and its source — the agronomic fact.
+2. The **daily-aggregate band** used in its place — a documented approximation.
+
+The approximation follows two rules, applied consistently across every profile:
+
+- **Temperature.** Bands are expressed as *daily maximum* temperature and therefore sit above the published optimum air temperature, because a day's maximum exceeds its mean. A disease with a published optimum of 15–20 °C is matched against a daily maximum band of roughly 16–26 °C.
+- **Humidity.** Thresholds are expressed as *daily mean* relative humidity and therefore sit below the published instantaneous threshold, because a day whose mean RH is 80% typically spends much of the night near saturation. A published requirement of "RH ≥ 90% for 11 hours" is matched against a daily mean RH of about 80%.
+
+A day also counts as wet when measurable rain fell, whatever the mean humidity — rainfall wets the canopy directly.
+
+These are **approximations, not measurements.** They are deliberately biased towards warning early: a false warning costs the farmer one inspection, while a missed warning can cost part of a crop. This bias is the reason the output is labelled *risk* and never *detection*.
+
+## 10.4 Disease Profiles by Crop
+
+Two profiles per crop, chosen as the economically significant weather-driven diseases of that crop in Indian conditions. `Max °C` is the daily-maximum temperature band; `Mean RH` is the daily-mean relative-humidity threshold.
+
+### Rice
+
+| Disease | Max °C | Mean RH | Published infection conditions |
+|---------|--------|---------|--------------------------------|
+| Blast (*Magnaporthe oryzae*) | 25–33 | ≥ 80% | 24–28 °C with RH > 90% and long dew periods; cool nights favour sporulation |
+| Bacterial leaf blight (*Xanthomonas oryzae* pv. *oryzae*) | 28–38 | ≥ 75% | 25–34 °C with high humidity; spread by rain, wind and standing water |
+
+### Wheat
+
+| Disease | Max °C | Mean RH | Published infection conditions |
+|---------|--------|---------|--------------------------------|
+| Stripe (yellow) rust (*Puccinia striiformis*) | 12–24 | ≥ 75% | Sporulation optimum 10–15 °C; requires dew or free moisture on the leaf |
+| Leaf (brown) rust (*Puccinia triticina*) | 18–30 | ≥ 70% | 15–22 °C with dew; warmer than stripe rust |
+
+### Maize
+
+| Disease | Max °C | Mean RH | Published infection conditions |
+|---------|--------|---------|--------------------------------|
+| Turcicum leaf blight (*Exserohilum turcicum*) | 22–32 | ≥ 80% | 18–27 °C with 6–18 h leaf wetness and RH > 90% |
+| Common rust (*Puccinia sorghi*) | 20–30 | ≥ 80% | 16–25 °C with RH near saturation |
+
+### Cotton
+
+| Disease | Max °C | Mean RH | Published infection conditions |
+|---------|--------|---------|--------------------------------|
+| Alternaria leaf spot (*Alternaria macrospora*) | 28–36 | ≥ 75% | 25–30 °C with RH > 80% |
+| Bacterial blight (*Xanthomonas citri* pv. *malvacearum*) | 32–40 | ≥ 75% | 30–36 °C with high humidity; rain-splash spread |
+
+### Sugarcane
+
+| Disease | Max °C | Mean RH | Published infection conditions |
+|---------|--------|---------|--------------------------------|
+| Red rot (*Colletotrichum falcatum*) | 28–36 | ≥ 75% | 25–30 °C with high humidity; waterlogging aggravates |
+| Rust (*Puccinia melanocephala*) | 24–32 | ≥ 80% | 20–25 °C with RH > 90% and long dew periods |
+
+### Soybean
+
+| Disease | Max °C | Mean RH | Published infection conditions |
+|---------|--------|---------|--------------------------------|
+| Rust (*Phakopsora pachyrhizi*) | 22–30 | ≥ 80% | 20–25 °C with at least 6 h leaf wetness |
+| Anthracnose (*Colletotrichum truncatum*) | 28–35 | ≥ 80% | 25–30 °C with prolonged wet weather |
+
+### Groundnut
+
+| Disease | Max °C | Mean RH | Published infection conditions |
+|---------|--------|---------|--------------------------------|
+| Late leaf spot (*Nothopassalora personata*) | 27–35 | ≥ 80% | 25–30 °C with RH > 90% and extended leaf wetness |
+| Rust (*Puccinia arachidis*) | 24–34 | ≥ 75% | 20–30 °C with RH > 85% |
+
+### Tomato
+
+| Disease | Max °C | Mean RH | Published infection conditions |
+|---------|--------|---------|--------------------------------|
+| Late blight (*Phytophthora infestans*) | 16–26 | ≥ 80% | Smith period: two consecutive days with minimum temperature ≥ 10 °C and RH ≥ 90% for ≥ 11 h; optimum 15–20 °C |
+| Early blight (*Alternaria linariae*) | 26–34 | ≥ 75% | 24–29 °C with RH > 85%, favoured by alternating wet and dry spells |
+
+### Potato
+
+| Disease | Max °C | Mean RH | Published infection conditions |
+|---------|--------|---------|--------------------------------|
+| Late blight (*Phytophthora infestans*) | 16–26 | ≥ 80% | Smith period, as for tomato; the classic weather-driven epidemic disease |
+| Early blight (*Alternaria solani*) | 26–34 | ≥ 75% | 24–29 °C with RH > 85%, favoured by alternating wet and dry spells |
+
+### Onion
+
+| Disease | Max °C | Mean RH | Published infection conditions |
+|---------|--------|---------|--------------------------------|
+| Purple blotch (*Alternaria porri*) | 25–34 | ≥ 75% | 21–30 °C with RH > 80% |
+| Downy mildew (*Peronospora destructor*) | 14–24 | ≥ 80% | 10–22 °C with RH near saturation and cool wet nights |
+
+## 10.5 Inspection Guidance
+
+What the farmer should look at when a disease's window is being met. These are **observation prompts**, not diagnoses, and contain no treatment advice.
+
+| Disease | Where to look | What it looks like |
+|---------|---------------|--------------------|
+| Rice blast | Leaves, then nodes and neck of the panicle | Spindle-shaped spots with grey centres and brown borders |
+| Rice bacterial leaf blight | Leaf tips and margins, upper leaves first | Water-soaked yellow streaks from the tip, drying to straw colour |
+| Wheat stripe rust | Upper leaf surface, lower leaves first | Yellow-orange powdery pustules in stripes between the veins |
+| Wheat leaf rust | Both leaf surfaces | Scattered orange-brown round pustules, not in stripes |
+| Maize turcicum leaf blight | Lower leaves first, moving upward | Long grey-green cigar-shaped lesions |
+| Maize common rust | Both leaf surfaces | Small cinnamon-brown pustules scattered over the blade |
+| Cotton alternaria leaf spot | Older leaves at the base | Brown spots with concentric rings and a pale halo |
+| Cotton bacterial blight | Leaves, stems and bolls | Angular water-soaked spots turning black; blackened veins |
+| Sugarcane red rot | Split a suspect cane lengthwise | Reddened internal tissue with white cross-bands; sour smell |
+| Sugarcane rust | Underside of leaves | Elongated orange-brown pustules |
+| Soybean rust | Underside of lower leaves | Small raised tan pustules that shed powder when rubbed |
+| Soybean anthracnose | Stems and pods | Dark irregular blotches with tiny black spines |
+| Groundnut late leaf spot | Underside of older leaves | Dark spots without a yellow halo; pustules beneath |
+| Groundnut rust | Underside of leaves | Orange pustules that rupture and release powder |
+| Potato / tomato late blight | Lower leaves, then stems and tubers or fruit | Dark water-soaked patches with a white mould ring underneath in the morning |
+| Potato / tomato early blight | Oldest, lowest leaves first | Dark spots with concentric rings, like a target |
+| Onion purple blotch | Older leaves, tips downward | Small white sunken spots enlarging to purple-brown zoned patches |
+| Onion downy mildew | Older leaves, early morning | Pale oval patches with a violet-grey furry growth |
+
+In every case the guidance ends the same way: if the symptoms are found, consult the local agricultural extension officer. The application does not advise treatment (§10.2).
+
+## 10.6 Additional References
+
+Extending §8. These support the disease conditions in §10.4.
+
+4. Smith, L. P. (1956). *Potato blight forecasting by 90 per cent humidity criteria.* Plant Pathology 5(3), 83–87. — the Smith period.
+5. Ou, S. H. (1985). *Rice Diseases*, 2nd edition. Commonwealth Mycological Institute, Kew.
+6. Roelfs, A. P., Singh, R. P. & Saari, E. E. (1992). *Rust Diseases of Wheat: Concepts and Methods of Disease Management.* CIMMYT, Mexico.
+7. Indian Council of Agricultural Research — crop protection advisories for the crops listed in §2.
+
+Where a value in §10.4 is an approximation of a published condition rather than the condition itself, §10.3 states the rule used. No value in §10.4 may be changed without a source.
 
 ---
 

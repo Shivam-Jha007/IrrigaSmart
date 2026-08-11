@@ -1,4 +1,4 @@
-import type { Crop, Soil } from '../types';
+import type { Crop, MeasuredSoilProfile, Soil } from '../types';
 import type { CropCategory, CropName, SoilType } from '../types';
 import { SOIL_PROFILES } from '../services';
 
@@ -35,14 +35,24 @@ const CROP_WATER_REQUIREMENT: Record<CropName, Crop['typicalWaterRequirement']> 
   Onion: 'Moderate',
 };
 
-/** Build a Soil entity from just the soil type, using Knowledge Base profiles. */
-export function buildSoil(id: string, soilType: SoilType): Soil {
+/**
+ * Build a Soil entity from just the soil type, using Knowledge Base profiles.
+ *
+ * `measured` is optional and threaded through rather than fetched here: this
+ * factory is pure and synchronous, and the profile arrives from the backend on
+ * its own schedule (~15 s for the 7-property query). A farm saved before the
+ * profile lands simply has none, and `rootZoneWater` uses the table until it
+ * does — which is the same path a farm created offline takes.
+ */
+export function buildSoil(id: string, soilType: SoilType, measured?: MeasuredSoilProfile): Soil {
   const profile = SOIL_PROFILES[soilType];
   return {
     id,
     name: soilType,
     waterRetention: profile.waterHolding,
     drainage: profile.drainage,
+    // exactOptionalPropertyTypes: the key must be absent, not present-undefined.
+    ...(measured ? { measured } : {}),
   };
 }
 

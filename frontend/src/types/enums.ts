@@ -62,10 +62,10 @@ export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
 
 /**
  * Supported interface languages (docs/12_Product_Roadmap_v2.md Feature 2 —
- * Multi-language Support): English, Hindi, Bengali. The preference is stored
+ * Multi-language Support): English, Hindi, Bengali, Assamese, and Urdu. The preference is stored
  * in Settings and applied to all screens.
  */
-export const LANGUAGES = ['en', 'hi', 'bn'] as const;
+export const LANGUAGES = ['en', 'hi', 'bn', 'as', 'ur'] as const;
 export type Language = (typeof LANGUAGES)[number];
 
 /**
@@ -82,3 +82,15 @@ export type UnitSystem = (typeof UNIT_SYSTEMS)[number];
  */
 export const SEASONS = ['Kharif', 'Rabi', 'Zaid'] as const;
 export type Season = (typeof SEASONS)[number];
+
+/**
+ * Weather-based disease risk levels (docs/11_Decision_Logic.md §12c;
+ * docs/12_Product_Roadmap_v2.md Version 1.3 Feature 9).
+ *
+ * "None" means the weather does NOT currently favour any disease of the crop.
+ * It is not the same as "cannot assess" — when no daily weather series exists
+ * the assessment is absent entirely rather than reported as None, so the farmer
+ * can tell an all-clear from a gap in the data.
+ */
+export const DISEASE_RISK_LEVELS = ['None', 'Low', 'Moderate', 'High'] as const;
+export type DiseaseRiskLevel = (typeof DISEASE_RISK_LEVELS)[number];

@@ -6,6 +6,7 @@ import type {
   TimingReason,
   WeatherData,
 } from '../types';
+import type { DryingPotential } from './sunshine';
 import {
   AREA_TO_M2,
   clamp,
@@ -32,20 +33,58 @@ import {
  * reports which of those considerations decided it.
  */
 
-/** Estimated run time in minutes to apply a gross depth with a given method. */
-export function runMinutes(grossDepthMm: number, method: IrrigationMethod): number {
+/**
+ * Estimated run time in minutes to apply a gross depth with a given method.
+ *
+ * `intake` is the slope intake multiplier in (0, 1] from `slopeAdjustment`:
+ * sloped ground takes water in more slowly, so the same depth has to be applied
+ * over a longer, gentler run or the surplus runs downhill. It DIVIDES the rate
+ * rather than scaling the depth, because the crop's requirement does not change
+ * with the ground's tilt — only the pace at which it can be delivered does.
+ *
+ * Optional, and 1 means "no adjustment": every caller that omits it gets
+ * byte-identical run times to the pre-terrain behaviour, which is what keeps
+ * farms with no terrain record — every farm created before V1.7, and every farm
+ * created while the provider was unreachable — working exactly as before.
+ */
+export function runMinutes(
+  grossDepthMm: number,
+  method: IrrigationMethod,
+  intake = 1,
+): number {
   if (grossDepthMm <= 0) return 0;
-  const hours = grossDepthMm / METHOD_APPLICATION_RATE_MM_H[method];
+  const hours = grossDepthMm / effectiveRateMmH(method, intake);
   return Math.max(MIN_RUN_MINUTES, Math.round(hours * 60));
+}
+
+/**
+ * The method's application rate after the slope intake multiplier, mm/hour.
+ *
+ * A non-finite or non-positive `intake` would make the rate zero or negative
+ * and the run time Infinity or negative, so it is treated as no adjustment —
+ * a bad terrain reading must not be able to produce an absurd run time.
+ */
+function effectiveRateMmH(method: IrrigationMethod, intake: number): number {
+  const rate = METHOD_APPLICATION_RATE_MM_H[method];
+  if (!Number.isFinite(intake) || intake <= 0 || intake > 1) return rate;
+  return rate * intake;
 }
 
 /**
  * Estimated delivery in litres per minute across `areaM2` at the method's
  * application rate. One millimetre over one square metre is one litre, so
  * mm/hour × m² is litres/hour.
+ *
+ * Takes the same `intake` multiplier as `runMinutes` and must be passed the same
+ * value: flow and duration are shown side by side, and their product has to come
+ * back to the advised volume or the card contradicts itself.
  */
-export function flowLitersPerMinute(method: IrrigationMethod, areaM2: number): number {
-  return Math.round((METHOD_APPLICATION_RATE_MM_H[method] * areaM2) / 60);
+export function flowLitersPerMinute(
+  method: IrrigationMethod,
+  areaM2: number,
+  intake = 1,
+): number {
+  return Math.round((effectiveRateMmH(method, intake) * areaM2) / 60);
 }
 
 /** A farm's area in square metres, whatever unit the farmer entered it in. */
@@ -62,7 +101,31 @@ export interface TimingInput {
   durationMinutes: number;
   /** Current time as an ISO-8601 string, injected for determinism. */
   now: string;
+  /**
+   * Today's canopy drying potential from sunshine hours (item 2), or null when
+   * the day carries no sunshine figure.
+   *
+   * Optional on purpose. Every caller that omits it gets byte-identical timing
+   * to the pre-V1.7 behaviour, which is what keeps a farmer on an old offline
+   * cache — where no sunshine was ever stored — working exactly as before.
+   */
+  drying?: DryingPotential | null;
 }
+
+/**
+ * Methods that throw water over the canopy rather than delivering it at or
+ * below the soil surface.
+ *
+ * Only these care about drying potential: leaf wetness is what fungal spores
+ * need to germinate, and furrow, flood and drip leave the leaves dry, so the
+ * sky's drying power is irrelevant to them.
+ */
+const WETS_CANOPY: Record<IrrigationMethod, boolean> = {
+  Drip: false,
+  Sprinkler: true,
+  Furrow: false,
+  Flood: false,
+};
 
 /** Local hour-of-day as a fraction (e.g. 06:30 → 6.5). */
 function hourOfDay(iso: string): number {
@@ -95,6 +158,11 @@ function formatHour(hours: number): string {
 export function chooseIrrigationWindow(input: TimingInput): IrrigationWindow {
   const { season, weather, method, durationMinutes, now } = input;
   const runHours = durationMinutes / 60;
+  // A sprinkler run finishing at dusk on a dull day leaves free water on the
+  // leaves all night, which is precisely the condition foliar pathogens need.
+  // Both halves must hold: a dull day matters only for a method that wets the
+  // canopy, and a canopy-wetting method is fine on a day with drying power.
+  const wetCanopyOvernightRisk = input.drying === 'poor' && WETS_CANOPY[method];
 
   let start: number = TIMING.BASE_HOUR;
   let reason: TimingReason = 'morning-default';
@@ -142,12 +210,17 @@ export function chooseIrrigationWindow(input: TimingInput): IrrigationWindow {
       reason = 'later-today';
     } else {
       const evening = Math.max(TIMING.EVENING_HOUR, soonest);
-      if (evening + runHours <= TIMING.EVENING_DEADLINE_HOUR) {
+      if (evening + runHours <= TIMING.EVENING_DEADLINE_HOUR && !wetCanopyOvernightRisk) {
         start = evening;
         reason = 'evening-slot';
       } else {
-        // Too late for both slots — keep the computed morning window, tomorrow.
+        // Either too late for both slots, or the evening slot was given up to
+        // avoid soaking the canopy on a dull evening. Both keep the computed
+        // morning window and move it to tomorrow, when the leaves will have a
+        // full day to dry — half a day's delay against an infection window that
+        // lasts the whole season.
         nextDay = true;
+        if (wetCanopyOvernightRisk) reason = 'drying-window';
       }
     }
   }

@@ -9,6 +9,7 @@ import type {
 } from '../types';
 import {
   cropRepository,
+  depletionStateRepository,
   farmRepository,
   farmerRepository,
   getCachedWeather,
@@ -26,21 +27,26 @@ import {
   waterLedgerRepository,
 } from '../storage';
 import {
+  assessDiseaseRisk,
   buildCustomReminder,
   creditedSaving,
   dueNotifications,
   farmAreaM2,
+  fetchMeasuredSoil,
+  fetchTerrain,
   fireBrowserNotification,
   flowLitersPerMinute,
   generateRecommendation,
   getWeatherForFarm,
   historyToPrune,
+  intakeFactor,
   isSameLocalDay,
   localDayString,
   notificationText,
   orphanedRecommendationIds,
   planNotifications,
   remindersToPrune,
+  sameCoordinate,
 } from '../services';
 import { translate, type TranslateFn } from '../i18n';
 import type { Settings } from '../types';
@@ -280,7 +286,24 @@ export function useAppStore(): AppStore {
       const farmId = draft.id ?? newId('farm');
 
       const crop = buildCrop(cropId, draft.cropName, draft.growthStage);
-      const soil = buildSoil(soilId, draft.soilType);
+      // Carry a profile already measured for this same coordinate. Soil does not
+      // change, so re-editing a farm's name or area must not discard it — nor
+      // refetch it. A moved pin does invalidate it: a 250 m cell from the old
+      // location would be quietly wrong.
+      const reusable =
+        existing?.soil.measured &&
+        sameCoordinate(existing.soil.measured, draft.latitude, draft.longitude)
+          ? existing.soil.measured
+          : undefined;
+      const soil = buildSoil(soilId, draft.soilType, reusable);
+      // Terrain is reused on the same terms and for the same reason: the ground
+      // does not tilt because a farmer renamed their field, but a moved pin puts
+      // the farm on a different hillside.
+      const reusableTerrain =
+        existing?.farm.terrain &&
+        sameCoordinate(existing.farm.terrain, draft.latitude, draft.longitude)
+          ? existing.farm.terrain
+          : undefined;
       const farm: Farm = {
         id: farmId,
         farmerId: farmer.id,
@@ -291,12 +314,49 @@ export function useAppStore(): AppStore {
         soilType: draft.soilType,
         irrigationMethod: draft.irrigationMethod,
         primaryCropId: cropId,
+        ...(reusableTerrain ? { terrain: reusableTerrain } : {}),
       };
 
       await cropRepository.save(crop);
       await soilRepository.save(soil);
       await farmRepository.save(farm);
       await refresh();
+
+      // The measured profile is fetched AFTER the farm is saved and shown, never
+      // before. The SoilGrids 7-property query takes ~15 s, and making farm
+      // creation wait on a provider the farmer may not even be able to reach
+      // would trade a working feature for a better one — item 0. The farm works
+      // on the Knowledge Base table meanwhile; when this lands, the soil record
+      // is updated in place and the next recommendation picks it up.
+      if (!reusable) {
+        void fetchMeasuredSoil(draft.latitude, draft.longitude).then(async (measured) => {
+          if (!measured) return;
+          // Re-read rather than reusing `soil`: the farmer may have edited or
+          // deleted the farm during those 15 seconds.
+          const current = await soilRepository.getById(soilId);
+          if (!current) return;
+          await soilRepository.save({ ...current, measured });
+          await refresh();
+        });
+      }
+
+      // Terrain follows the same background pattern, in a SEPARATE request that
+      // is deliberately not awaited alongside the soil one. The elevation
+      // endpoint answers in ~1.5 s against SoilGrids' ~15 s, so chaining them
+      // would make the fast one wait on the slow one for no reason, and a
+      // SoilGrids timeout would take the slope down with it.
+      if (!reusableTerrain) {
+        void fetchTerrain(draft.latitude, draft.longitude).then(async (terrain) => {
+          if (!terrain) return;
+          // Re-read for the same reason as the soil path: the farm may have been
+          // edited or deleted while this was in flight. Writing `farm` back
+          // wholesale would silently revert whatever the farmer just changed.
+          const current = await farmRepository.getById(farmId);
+          if (!current) return;
+          await farmRepository.save({ ...current, terrain });
+          await refresh();
+        });
+      }
     },
     [farmer, profiles, refresh],
   );
@@ -360,7 +420,17 @@ export function useAppStore(): AppStore {
 
       // Minutes are what a farmer actually knows ("the pump ran half an hour");
       // litres are derived from the method's delivery rate over the field.
-      const flow = flowLitersPerMinute(profile.farm.irrigationMethod, farmAreaM2(profile.farm));
+      //
+      // The slope intake factor MUST be the same one the recommendation used
+      // (item 10). The engine advises a longer run at a lower flow on a slope, so
+      // converting the logged minutes at the flat-ground rate would credit more
+      // litres than were actually delivered and show the farmer over-applying a
+      // run they performed exactly as advised.
+      const flow = flowLitersPerMinute(
+        profile.farm.irrigationMethod,
+        farmAreaM2(profile.farm),
+        intakeFactor(profile.farm.terrain),
+      );
       const appliedLiters = (row?.appliedLiters ?? 0) + Math.round(minutes * flow);
       const advisedSavingLiters = row?.advisedSavingLiters ?? 0;
       const targetLiters = row?.targetLiters ?? 0;
@@ -410,12 +480,23 @@ export function useAppStore(): AppStore {
       const weatherResult = await getWeatherForFarm(profile.farm, now);
       const weather = weatherResult?.weather ?? null;
 
+      // Root-zone water balance inputs (Decision Logic §4b). The persisted
+      // depletion is the ledger's starting point; the water ledger supplies the
+      // irrigation actually applied on the days being replayed. Either being
+      // absent is normal — the engine seeds and falls back accordingly.
+      const [depletionState, waterLedger] = await Promise.all([
+        depletionStateRepository.getById(farmId),
+        getLedgerByFarm(farmId),
+      ]);
+
       const result = generateRecommendation({
         farm: profile.farm,
         crop: profile.crop,
         soil: profile.soil,
         weather,
         daily: weatherResult?.daily ?? null,
+        depletionState: depletionState ?? null,
+        waterLedger,
         now,
         language: settings.preferredLanguage,
       });
@@ -446,51 +527,96 @@ export function useAppStore(): AppStore {
         await recommendationRepository.remove(priorToday.recommendationId);
       }
 
-      // Water ledger: keep today's advised figures current without disturbing
-      // anything the farmer has already logged (deterministic id, so no
-      // double-counting however often this runs).
-      const water = result.recommendation.estimatedWaterAmount;
-      const ledgerId = `${farmId}:${day}`;
-      const priorLedger = await waterLedgerRepository.getById(ledgerId);
-      const appliedLiters = priorLedger?.appliedLiters ?? 0;
-      const advisedSavingLiters = result.recommendation.waterSavings?.todayLiters ?? 0;
-      await waterLedgerRepository.save({
-        id: ledgerId,
-        farmId,
-        date: day,
-        targetLiters: water.volumeLiters,
-        targetMinutes: water.durationMinutes ?? 0,
-        appliedLiters,
-        appliedMinutes: priorLedger?.appliedMinutes ?? 0,
-        advisedSavingLiters,
-        savedLiters: creditedSaving(advisedSavingLiters, water.volumeLiters, appliedLiters),
-        updatedAt: now,
-      });
+      // Water ledger and reminders are bookkeeping ATOP the advice, not part of
+      // it. The recommendation and its history entry are already saved by this
+      // point, so a failure here must not discard advice the farmer can act on
+      // — it degrades the checklist and reminders, and nothing else. Each block
+      // logs rather than swallowing, so a real fault is still diagnosable.
+      try {
+        // Keep today's advised figures current without disturbing anything the
+        // farmer has already logged (deterministic id, so no double-counting
+        // however often this runs).
+        const water = result.recommendation.estimatedWaterAmount;
+        const ledgerId = `${farmId}:${day}`;
+        const priorLedger = await waterLedgerRepository.getById(ledgerId);
+        const appliedLiters = priorLedger?.appliedLiters ?? 0;
+        const advisedSavingLiters = result.recommendation.waterSavings?.todayLiters ?? 0;
+        await waterLedgerRepository.save({
+          id: ledgerId,
+          farmId,
+          date: day,
+          targetLiters: water.volumeLiters,
+          targetMinutes: water.durationMinutes ?? 0,
+          appliedLiters,
+          appliedMinutes: priorLedger?.appliedMinutes ?? 0,
+          advisedSavingLiters,
+          savedLiters: creditedSaving(advisedSavingLiters, water.volumeLiters, appliedLiters),
+          updatedAt: now,
+        });
+      } catch (err) {
+        console.error('[IrrigaSmart] water ledger update failed', err);
+      }
 
-      // Schedule reminders from the recommendation (roadmap Feature 7).
-      // Pending AUTO reminders are replaced so a fresh plan supersedes them;
-      // farmer-added custom reminders are preserved.
-      const planned = planNotifications({
-        farm: profile.farm,
-        recommendation: result.recommendation,
-        plan: result.plan,
-        now,
-        newId,
-      });
-      const existing = await getNotificationsByFarm(farmId);
-      await Promise.all(
-        existing
-          .filter((n) => n.deliveredAt === null && n.source !== 'custom')
-          .map((n) => notificationRepository.remove(n.id)),
+      try {
+        // Advance the depletion ledger (Decision Logic §4b.4). Only the carry
+        // point is stored, never today's depletion: the farmer may still log
+        // irrigation for today, so today has to stay replayable from the last
+        // completed day. Written only when it moves the ledger forward, so a
+        // stale weather cache cannot rewind a farm that is already further along.
+        const wb = result.waterBalance;
+        if (wb && (!depletionState || wb.carryValidAsOfDate >= depletionState.validAsOfDate)) {
+          await depletionStateRepository.save({
+            farmId,
+            depletionMm: wb.carryDepletionMm,
+            validAsOfDate: wb.carryValidAsOfDate,
+            updatedAt: now,
+          });
+        }
+      } catch (err) {
+        console.error('[IrrigaSmart] depletion ledger update failed', err);
+      }
+
+      try {
+        // Schedule reminders from the recommendation (roadmap Feature 7).
+        // Pending AUTO reminders are replaced so a fresh plan supersedes them;
+        // farmer-added custom reminders are preserved.
+        const planned = planNotifications({
+          farm: profile.farm,
+          recommendation: result.recommendation,
+          plan: result.plan,
+          now,
+          newId,
+        });
+        const existing = await getNotificationsByFarm(farmId);
+        await Promise.all(
+          existing
+            .filter((n) => n.deliveredAt === null && n.source !== 'custom')
+            .map((n) => notificationRepository.remove(n.id)),
+        );
+        await Promise.all(planned.map((n) => notificationRepository.save(n)));
+        await deliverDueReminders();
+      } catch (err) {
+        console.error('[IrrigaSmart] reminder scheduling failed', err);
+      }
+
+      // Disease risk (roadmap Version 1.3 Feature 9) is computed from the same
+      // cached daily series but is deliberately NOT part of the recommendation:
+      // it is read-only, never persisted, and cannot alter the advice above
+      // (docs/11 §12). Returns null when there is no daily series to assess.
+      const diseaseRisk = assessDiseaseRisk(
+        profile.crop.name,
+        weatherResult?.daily ?? null,
+        day,
+        profile.farm.location.latitude,
       );
-      await Promise.all(planned.map((n) => notificationRepository.save(n)));
-      await deliverDueReminders();
 
       return {
         recommendation: result.recommendation,
         fromCache: weatherResult?.fromCache ?? false,
         weatherMissing: weather === null,
         plan: result.plan,
+        diseaseRisk,
+        waterBalance: result.waterBalance,
       };
     },
     [profiles, settings.preferredLanguage, deliverDueReminders],

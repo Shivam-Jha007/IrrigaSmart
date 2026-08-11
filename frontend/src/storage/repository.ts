@@ -12,7 +12,12 @@ import { getDb, type IrrigaSmartDB } from './db';
  * cache) have their own dedicated modules.
  */
 
-/** Store names whose value is an object with a string `id` primary key. */
+/**
+ * Store names whose value carries its own in-line string primary key, so the
+ * generic factory can address them uniformly. Most use `id`; `depletionState`
+ * is keyed by `farmId` (one record per farm), which the same generic handles
+ * because the key path is declared in db.ts, not here.
+ */
 export type EntityStoreName = Extract<
   StoreNames<IrrigaSmartDB>,
   | 'farmers'
@@ -23,6 +28,7 @@ export type EntityStoreName = Extract<
   | 'history'
   | 'notifications'
   | 'waterLedger'
+  | 'depletionState'
 >;
 
 type EntityValue<Name extends EntityStoreName> = IrrigaSmartDB[Name]['value'];

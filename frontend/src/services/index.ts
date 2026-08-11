@@ -14,6 +14,7 @@ export {
   type IrrigationPlan,
   type IrrigationPlanDay,
   type ValidationFailure,
+  type WaterBalanceState,
 } from './decisionEngine';
 export {
   getKc,
@@ -23,8 +24,15 @@ export {
   SUPPORTED_SOILS,
   SUPPORTED_METHODS,
 } from './knowledgeBase';
-export { ApiError, apiGet } from './apiClient';
+export { ApiError, apiGet, apiPost } from './apiClient';
 export { fetchWeather, getWeatherForFarm } from './weatherService';
+export { fetchMeasuredSoil, fetchSoilSuggestion } from './soilService';
+export {
+  rootZoneWater,
+  sameCoordinate,
+  textureDisagreement,
+  type RootZoneWater,
+} from './soilProfile';
 export {
   detectCurrentPosition,
   fetchLocationInfo,
@@ -55,6 +63,53 @@ export {
   type CropCalendarEntry,
   type SeasonalGuidance,
 } from './regionalKnowledge';
+export { CROP_DISEASES, type DiseaseId, type DiseaseProfile } from './diseaseKnowledge';
+export {
+  assessDiseaseRisk,
+  type DiseaseRiskAssessment,
+  type FavourableDay,
+} from './diseaseRisk';
+
+// --- Photo disease model (item 16) ---
+export {
+  COVERED_CROPS,
+  MIN_CONFIDENCE,
+  VISION_CLASSES,
+  lookupVisionClass,
+  verdictFor,
+  visionCoversCrop,
+  type VisionClass,
+  type VisionFinding,
+  type VisionLabelId,
+  type VisionPlant,
+  type VisionVerdict,
+} from './diseaseVisionMap';
+export {
+  argmax,
+  centreCrop,
+  classifyPhoto,
+  decodeToRgba,
+  loadModel,
+  modelIsLoaded,
+  PLANT_DISEASE_MODEL,
+  preprocess,
+  resetModelCache,
+  VisionError,
+  type ModelManifest,
+  type ModelSpec,
+  type Reading,
+  type VisionErrorCode,
+  type VisionResult,
+} from './diseaseVision';
+export {
+  dayFor,
+  dryingPotential,
+  isOvercast,
+  sunshineRatio,
+  type DryingPotential,
+} from './sunshine';
+export { fetchTerrain } from './terrainService';
+export { intakeFactor, runoffFactor, warnsSurfaceMethod } from './slopeAdjustment';
 export { DAY_MS, localDayString } from './dateUtils';
 export {
   chooseIrrigationWindow,
@@ -69,3 +124,31 @@ export {
   orphanedRecommendationIds,
   remindersToPrune,
 } from './storageMaintenance';
+
+// --- Farmer assistant (item 17) ---
+export {
+  answerFromRules,
+  classify,
+  normalise,
+  type AssistantContext,
+  type AssistantIntent,
+  type RuleAnswer,
+} from './assistantRules';
+export {
+  askAssistant,
+  MAX_QUESTION_CHARS,
+  type AssistantAnswer,
+  type AssistantSource,
+  type AssistantTurn,
+  type AskOptions,
+} from './assistantService';
+export { buildAssistantContext, type ContextInput } from './assistantContext';
+export {
+  speak,
+  speechInputSupported,
+  speechOutputSupported,
+  startListening,
+  stopSpeaking,
+  type ListenHandlers,
+  type ListenSession,
+} from './speech';

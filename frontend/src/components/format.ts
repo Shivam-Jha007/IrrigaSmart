@@ -62,3 +62,9 @@ export function formatWeekday(dateStr: string, locale: string): string {
 export function formatWeekdayIso(iso: string, locale: string): string {
   return new Date(iso).toLocaleDateString(locale, { weekday: 'short' });
 }
+
+/** Format a YYYY-MM-DD date as a day and short month (e.g. "3 Aug") in the given locale. */
+export function formatDayMonth(dateStr: string, locale: string): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  return d.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+}

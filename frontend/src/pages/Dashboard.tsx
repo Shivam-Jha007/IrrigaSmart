@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { AppStore } from '../app/useAppStore';
 import type { FarmSummary, RecommendationView, WaterProgress } from '../app/appTypes';
-import type { AppNotification, WeatherData } from '../types';
-import { getCachedWeather } from '../storage';
+import type { AppNotification, DailyWeather, WeatherData } from '../types';
+import { DbBlockedError, getCachedWeather } from '../storage';
+import { buildAssistantContext, localDayString } from '../services';
+import { FarmerAssistant } from '../components/FarmerAssistant';
 import { RecommendationCard } from '../components/RecommendationCard';
 import { WeatherSummary } from '../components/WeatherSummary';
 import { FarmCard } from '../components/FarmCard';
 import { PlanOutlook } from '../components/PlanOutlook';
 import { RemindersCard } from '../components/RemindersCard';
 import { SeasonalGuidance } from '../components/SeasonalGuidance';
+import { DiseaseRiskCard } from '../components/DiseaseRiskCard';
+import { DiseasePhotoCard } from '../components/DiseasePhotoCard';
+import { SoilMoistureCard } from '../components/SoilMoistureCard';
 import { ReminderPlanner } from '../components/ReminderPlanner';
 import { WaterChecklist } from '../components/WaterChecklist';
 
@@ -41,6 +46,9 @@ export function Dashboard({ store, onGoToFarms }: Props) {
   const [selectedFarmId, setSelectedFarmId] = useState<string>('');
   const [view, setView] = useState<RecommendationView | null>(null);
   const [weather, setWeather] = useState<WeatherData | null>(null);
+  // Today's daily record, held beside the weather because the sunshine figure
+  // lives only in the daily series — WeatherData carries the current snapshot.
+  const [today, setToday] = useState<DailyWeather | null>(null);
   const [summaries, setSummaries] = useState<FarmSummary[]>([]);
   const [pendingReminders, setPendingReminders] = useState<AppNotification[]>([]);
   const [waterProgress, setWaterProgress] = useState<WaterProgress | null>(null);
@@ -94,21 +102,42 @@ export function Dashboard({ store, onGoToFarms }: Props) {
           setError(t('dashboard.errorMissing'));
           setView(null);
           setWeather(null);
+          setToday(null);
           return;
         }
         setView(result);
         // Surface the weather that backed the recommendation for the summary.
+        // Today's daily record comes from the same cache entry so the sunshine
+        // figure shown is the one the engine and the disease assessment used —
+        // reading it from anywhere else could show a farmer a number that
+        // disagrees with the advice above it.
         const cached = await getCachedWeather(farmId);
         setWeather(cached?.weather ?? null);
-        // Reflect the fresh recommendation/weather on the farm cards.
+        const day = localDayString(new Date().toISOString());
+        setToday(cached?.daily?.find((d) => d.date === day) ?? null);
+      } catch (err) {
+        // Never swallow the cause: without this the farmer sees a dead end and
+        // nobody can tell whether the database, the engine or a repository
+        // failed.
+        console.error('[IrrigaSmart] recommendation generation failed', err);
+        setError(
+          err instanceof DbBlockedError ? t('dashboard.errorTabs') : t('dashboard.errorGeneric'),
+        );
+        return;
+      } finally {
+        setLoading(false);
+      }
+
+      // Secondary panels: the advice is already on screen, so a failure while
+      // refreshing the cards, reminders or checklist must not replace it with a
+      // generic error. Those panels simply keep their previous contents.
+      try {
         await loadSummaries();
         await loadPending(farmId);
         // Read the ledger AFTER generating: today's target is written there.
         await loadWater(farmId);
-      } catch {
-        setError(t('dashboard.errorGeneric'));
-      } finally {
-        setLoading(false);
+      } catch (err) {
+        console.error('[IrrigaSmart] dashboard panel refresh failed', err);
       }
     },
     [generateForFarm, t, loadSummaries, loadPending, loadWater],
@@ -139,6 +168,14 @@ export function Dashboard({ store, onGoToFarms }: Props) {
             {t('dashboard.addFarm')}
           </button>
         </div>
+        {/* Offered before the first farm exists too: "what can you do?" and
+            "which spray should I use?" are both answerable with no farm data,
+            and the second one especially should never wait for onboarding. */}
+        <FarmerAssistant
+          context={undefined}
+          language={store.settings.preferredLanguage}
+          t={t}
+        />
       </div>
     );
   }
@@ -225,18 +262,63 @@ export function Dashboard({ store, onGoToFarms }: Props) {
 
           {/* Aside zone: supporting context */}
           <div className="dashboard__aside">
-            {weather && (
-              <WeatherSummary weather={weather} fromCache={view?.fromCache ?? false} t={t} />
+            {weather && selectedProfile && (
+              <WeatherSummary
+                weather={weather}
+                today={today}
+                latitude={selectedProfile.farm.location.latitude}
+                fromCache={view?.fromCache ?? false}
+                t={t}
+              />
             )}
+            {view && <SoilMoistureCard balance={view.waterBalance} t={t} />}
             {view?.plan && (
               <PlanOutlook plan={view.plan} language={store.settings.preferredLanguage} t={t} />
             )}
             {selectedProfile && (
               <SeasonalGuidance crop={selectedProfile.crop} language={store.settings.preferredLanguage} t={t} />
             )}
+            {selectedProfile && view && (
+              <DiseaseRiskCard
+                risk={view.diseaseRisk}
+                crop={selectedProfile.crop}
+                language={store.settings.preferredLanguage}
+                t={t}
+              />
+            )}
+            {/* Beside the weather-based watch, not instead of it: the two
+                answer different questions. Disease watch says the weather
+                favours something; this says what a leaf in front of you looks
+                like. It needs no weather series, so it renders whenever a farm
+                is selected — including for the seven crops the model was never
+                trained on, which it says plainly rather than hiding. */}
+            {selectedProfile && (
+              <DiseasePhotoCard
+                crop={selectedProfile.crop.name}
+                language={store.settings.preferredLanguage}
+                t={t}
+              />
+            )}
           </div>
         </div>
       )}
+
+      {/* The assistant knows what this farm is doing: its context is the same
+          engine output the cards above render. It floats because a farmer must
+          be able to ask without losing their place in the decision. */}
+      <FarmerAssistant
+        context={buildAssistantContext({
+          profile: selectedProfile,
+          view,
+          weather,
+          today,
+          waterProgress,
+          language: store.settings.preferredLanguage,
+          t,
+        })}
+        language={store.settings.preferredLanguage}
+        t={t}
+      />
     </div>
   );
 }

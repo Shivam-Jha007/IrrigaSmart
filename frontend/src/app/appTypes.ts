@@ -1,5 +1,5 @@
 import type { Crop, Farm, Farmer, Recommendation, Settings, Soil } from '../types';
-import type { IrrigationPlan } from '../services';
+import type { DiseaseRiskAssessment, IrrigationPlan, WaterBalanceState } from '../services';
 
 /**
  * A farm together with its resolved crop and soil — the complete profile the
@@ -40,6 +40,18 @@ export interface RecommendationView {
   weatherMissing: boolean;
   /** Multi-day irrigation plan (roadmap Feature 5), or null without daily data. */
   plan: IrrigationPlan | null;
+  /**
+   * Weather-based disease risk (roadmap Version 1.3 Feature 9), or null when no
+   * daily series was available to assess. Advisory only — it is derived from the
+   * same weather but never influences `recommendation` (docs/11 §12).
+   */
+  diseaseRisk: DiseaseRiskAssessment | null;
+  /**
+   * Root-zone water balance behind this advice (Decision Logic §4b), or null
+   * when the engine had no daily series and fell back to the single-day
+   * requirement.
+   */
+  waterBalance: WaterBalanceState | null;
 }
 
 /**
