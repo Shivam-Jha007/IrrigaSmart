@@ -69,6 +69,38 @@ export {
   type DiseaseRiskAssessment,
   type FavourableDay,
 } from './diseaseRisk';
+
+// --- Photo disease model (item 16) ---
+export {
+  COVERED_CROPS,
+  MIN_CONFIDENCE,
+  VISION_CLASSES,
+  lookupVisionClass,
+  verdictFor,
+  visionCoversCrop,
+  type VisionClass,
+  type VisionFinding,
+  type VisionLabelId,
+  type VisionPlant,
+  type VisionVerdict,
+} from './diseaseVisionMap';
+export {
+  argmax,
+  centreCrop,
+  classifyPhoto,
+  decodeToRgba,
+  loadModel,
+  modelIsLoaded,
+  PLANT_DISEASE_MODEL,
+  preprocess,
+  resetModelCache,
+  VisionError,
+  type ModelManifest,
+  type ModelSpec,
+  type Reading,
+  type VisionErrorCode,
+  type VisionResult,
+} from './diseaseVision';
 export {
   dayFor,
   dryingPotential,

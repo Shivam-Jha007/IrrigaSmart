@@ -12,6 +12,7 @@ import { PlanOutlook } from '../components/PlanOutlook';
 import { RemindersCard } from '../components/RemindersCard';
 import { SeasonalGuidance } from '../components/SeasonalGuidance';
 import { DiseaseRiskCard } from '../components/DiseaseRiskCard';
+import { DiseasePhotoCard } from '../components/DiseasePhotoCard';
 import { SoilMoistureCard } from '../components/SoilMoistureCard';
 import { ReminderPlanner } from '../components/ReminderPlanner';
 import { WaterChecklist } from '../components/WaterChecklist';
@@ -281,6 +282,19 @@ export function Dashboard({ store, onGoToFarms }: Props) {
               <DiseaseRiskCard
                 risk={view.diseaseRisk}
                 crop={selectedProfile.crop}
+                language={store.settings.preferredLanguage}
+                t={t}
+              />
+            )}
+            {/* Beside the weather-based watch, not instead of it: the two
+                answer different questions. Disease watch says the weather
+                favours something; this says what a leaf in front of you looks
+                like. It needs no weather series, so it renders whenever a farm
+                is selected — including for the seven crops the model was never
+                trained on, which it says plainly rather than hiding. */}
+            {selectedProfile && (
+              <DiseasePhotoCard
+                crop={selectedProfile.crop.name}
                 language={store.settings.preferredLanguage}
                 t={t}
               />
