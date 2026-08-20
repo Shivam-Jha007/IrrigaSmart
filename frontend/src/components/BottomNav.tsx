@@ -1,5 +1,5 @@
 /** Application tabs (docs/05_UI_UX_Spec.md Navigation). */
-export type Tab = 'dashboard' | 'farms' | 'history' | 'settings';
+export type Tab = 'dashboard' | 'farms' | 'history' | 'fertilizer' | 'settings';
 
 interface Props {
   active: Tab;
@@ -12,6 +12,7 @@ const TABS: Array<{ id: Tab; icon: string }> = [
   { id: 'dashboard', icon: '💧' },
   { id: 'farms', icon: '🌱' },
   { id: 'history', icon: '📋' },
+  { id: 'fertilizer', icon: '🧪' },
   { id: 'settings', icon: '⚙️' },
 ];
 

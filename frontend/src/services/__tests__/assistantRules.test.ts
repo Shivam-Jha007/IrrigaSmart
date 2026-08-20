@@ -136,8 +136,11 @@ describe('classify — intent routing', () => {
     expect(classify('tomato leaf spot — which medicine?')).toBe('referral');
   });
 
-  it('routes fertiliser and price questions to referral', () => {
-    expect(classify('how much urea should I apply?')).toBe('referral');
+  it('routes a fertiliser question to fertility, and a price question to referral', () => {
+    // A fertiliser question has an estimate the app can offer (pH, organic
+    // carbon); a price question has nothing the app knows at all, so it stays
+    // a hard referral.
+    expect(classify('how much urea should I apply?')).toBe('fertility');
     expect(classify('what is the mandi price of paddy?')).toBe('referral');
   });
 
@@ -280,5 +283,269 @@ describe('answerFromRules — figures are quoted, never invented', () => {
     const answer = answerFromRules('how much water today?', fullContext(), bn);
     expect(answer?.answer).toContain('মিমি');
     expect(answer?.answer).toContain('লিটার');
+  });
+});
+
+/**
+ * pH and soil-character questions (PRD §7, §28 Guardrail 1, §33).
+ *
+ * These exist to make one promise mechanically true: the app cannot state a soil
+ * pH without saying, in the same reply, that it is an area estimate rather than
+ * a test of this field. The rule path is where that is enforceable — the answer
+ * is assembled from fixed keys, so the caveat cannot be dropped by a model
+ * choosing a shorter phrasing. Routing the question here BEFORE the network is
+ * therefore the guarantee, not an optimisation.
+ */
+describe('classify — pH and soil questions never reach the model', () => {
+  it('classifies a pH question in every supported language', () => {
+    // "pH" is written in Latin script in all five languages, including inside a
+    // Devanagari or Bengali sentence, because that is how it is printed on a
+    // Soil Health Card. That is why the Latin token does most of the work here.
+    expect(classify('What is my exact soil pH?')).toBe('ph');
+    expect(classify('meri mitti ka pH kya hai?')).toBe('ph');
+    expect(classify('मेरी मिट्टी का pH क्या है?')).toBe('ph');
+    expect(classify('আমার মাটির pH কত?')).toBe('ph');
+    expect(classify('মোৰ মাটিৰ pH কিমান?')).toBe('ph');
+    expect(classify('میری مٹی کا pH کیا ہے؟')).toBe('ph');
+  });
+
+  it('classifies acidity questions asked without the letters pH', () => {
+    expect(classify('Is my soil acidic?')).toBe('ph');
+    expect(classify('मेरी मिट्टी अम्लीय है?')).toBe('ph');
+    expect(classify('আমার মাটি কি অম্লীয়?')).toBe('ph');
+    expect(classify('کیا میری مٹی تیزابی ہے؟')).toBe('ph');
+  });
+
+  it('does not match "ph" inside an ordinary word', () => {
+    // ' ph ' is matched with its surrounding spaces, which `normalise` guarantees
+    // by padding the question. A bare 'ph' substring would capture "phone",
+    // "photo", "graph" and dozens of everyday words in five languages.
+    expect(classify('my phone is not working')).toBeNull();
+    expect(classify('should I send a photo')).toBeNull();
+  });
+
+  it('routes a nutrient question to fertility, not to pH, amount or referral', () => {
+    // Before `fertility` existed, "how much phosphorus does my soil need?" was
+    // classified as `amount` and answered with today's irrigation depth — a
+    // water figure offered as a fertiliser answer (PRD §28 Guardrail 2). It now
+    // has its own intent, which answers with the app's pH/carbon estimate
+    // first and refuses only the exact quantity — see the `fertility` describe
+    // block below.
+    expect(classify('how much phosphorus does my soil need?')).toBe('fertility');
+    expect(classify('what is the nitrogen level in my soil?')).toBe('fertility');
+  });
+
+  it('routes an amendment question to fertility rather than a hard referral', () => {
+    // The next question after "your soil is acidic" is "how much lime?". The
+    // app still cannot give an exact rate, but it can state the pH reading that
+    // prompted the question before saying so.
+    expect(classify('how much lime should I add to my soil?')).toBe('fertility');
+    expect(classify('should I use gypsum on this field?')).toBe('fertility');
+    expect(classify('कितना चूना डालना चाहिए?')).toBe('fertility');
+  });
+
+  it('classifies a soil-character question', () => {
+    expect(classify('what soil type do I have?')).toBe('soil');
+    expect(classify('how much organic carbon is in my soil?')).toBe('soil');
+    expect(classify('मेरे खेत की मिट्टी का प्रकार क्या है?')).toBe('soil');
+    expect(classify('আমার জমির মাটির ধরন কী?')).toBe('soil');
+    expect(classify('মোৰ খেতিৰ মাটিৰ প্ৰকাৰ কি?')).toBe('soil');
+    expect(classify('میری مٹی کی قسم کیا ہے؟')).toBe('soil');
+  });
+
+  it('still routes moisture questions to moisture, not soil', () => {
+    // `MOISTURE_TERMS` owns the bare word for soil in every language because
+    // "how dry is my soil" is the commoner question. The soil-character table is
+    // checked first and must therefore contain only specific phrases — if it
+    // ever gains a bare soil word, these assertions fail.
+    expect(classify('How dry is my soil?')).toBe('moisture');
+    expect(classify('meri mitti kitni sukhi hai?')).toBe('moisture');
+    expect(classify('মাটিৰ আৰ্দ্ৰতা কেনে?')).toBe('moisture');
+  });
+});
+
+describe('answerFromRules — a pH figure is never spoken without its source', () => {
+  /** A context carrying the soil-chemistry fields, as the app produces them. */
+  function withSoil(): AssistantContext {
+    return {
+      ...fullContext(),
+      soilPh: 6.3,
+      soilPhProvenance: 'REGIONAL_ESTIMATE',
+      soilPhOrigin: 'a 250 m soil map prediction (ISRIC SoilGrids v2.0)',
+      phSuitability: 'Suitable',
+      phOptimalMin: 5.5,
+      phOptimalMax: 6.5,
+      organicCarbonPct: 1.8,
+    };
+  }
+
+  it('answers the PRD §33 question without a farm at all', () => {
+    // "What is my exact soil pH?" with no farm selected. The model path is never
+    // reached, so there is nothing that could answer it with a bare number.
+    const answer = answerFromRules('What is my exact soil pH?', undefined, t);
+    expect(answer?.intent).toBe('ph');
+    expect(answer?.answer).toContain('estimate for your area');
+    expect(answer?.answer).toContain('a test of your field');
+    expect(answer?.answer).toContain('Soil Health Card');
+    // No pH-shaped number may appear, because there is no farm to have one.
+    expect(answer?.answer).not.toMatch(/\d\.\d/);
+  });
+
+  it('answers the same way for a farm with no stored soil profile', () => {
+    // Reachable: farms created offline, or before the pH property existed.
+    const answer = answerFromRules('what is my soil pH?', fullContext(), t);
+    expect(answer?.intent).toBe('ph');
+    expect(answer?.answer).toContain('Soil Health Card');
+  });
+
+  it('states the estimate caveat in the same reply as the figure', () => {
+    const answer = answerFromRules('what is my soil pH?', withSoil(), t);
+    expect(answer?.answer).toContain('6.3');
+    expect(answer?.answer).toContain('not a test of your field');
+    expect(answer?.answer).toContain('Soil Health Card');
+  });
+
+  it('never calls the estimate a field test', () => {
+    const answer = answerFromRules('what is my exact soil pH?', withSoil(), t);
+    expect(answer?.answer).not.toContain('test of your own field');
+  });
+
+  it('says so when the figure really is a field test', () => {
+    // No path in the app produces this today — nothing stores a Soil Health Card
+    // reading yet. The branch exists so that when one does, the wording is
+    // already correct rather than being bolted on beside a caveat that lies.
+    const answer = answerFromRules('what is my soil pH?', {
+      ...withSoil(),
+      soilPhProvenance: 'MEASURED',
+    }, t);
+    expect(answer?.answer).toContain('test of your own field');
+    expect(answer?.answer).not.toContain('estimate for your area');
+  });
+
+  it('gives the crop band and the verdict together', () => {
+    const answer = answerFromRules('is my soil pH ok for my crop?', withSoil(), t);
+    expect(answer?.answer).toContain('5.5');
+    expect(answer?.answer).toContain('6.5');
+    expect(answer?.answer).toContain('Suitable');
+  });
+
+  it('refuses to name an amendment quantity, whatever the verdict', () => {
+    // Unconditional: the same sentence appears when the pH suits the crop and
+    // when it does not (PRD §28 Guardrail 2).
+    for (const verdict of ['Suitable', 'Significant pH issue']) {
+      const answer = answerFromRules('what is my soil pH?', {
+        ...withSoil(),
+        phSuitability: verdict,
+      }, t);
+      expect(answer?.answer).toContain('cannot tell you how much lime');
+      expect(answer?.answer).toContain('Krishi Vigyan Kendra');
+    }
+  });
+
+  it('still states the reading and the caveat when the crop band is missing', () => {
+    // A crop the pH table does not cover leaves no optimum band, so the verdict
+    // sentence is dropped. The two sentences that carry Guardrail 1 are not.
+    const partial = withSoil();
+    delete partial.phOptimalMin;
+    delete partial.phOptimalMax;
+    delete partial.phSuitability;
+    const answer = answerFromRules('what is my soil pH?', partial, t);
+    expect(answer?.answer).toContain('6.3');
+    expect(answer?.answer).toContain('not a test of your field');
+    expect(answer?.answer).not.toContain('Your crop prefers');
+  });
+
+  it('answers a soil-character question from the farmer’s own record', () => {
+    const answer = answerFromRules('what soil type do I have?', withSoil(), t);
+    expect(answer?.intent).toBe('soil');
+    expect(answer?.answer).toContain('Sandy Loam');
+    expect(answer?.answer).toContain('1.8%');
+    expect(answer?.answer).toContain('250 m area');
+  });
+
+  it('omits the carbon figure and its caveat together', () => {
+    // The caveat exists to qualify the figure. Emitting it alone would warn the
+    // farmer about a number they were never shown.
+    const answer = answerFromRules('what soil type do I have?', fullContext(), t);
+    expect(answer?.answer).toContain('Sandy Loam');
+    expect(answer?.answer).not.toContain('250 m area');
+  });
+
+  it('returns null for a soil question on a farm with no soil recorded', () => {
+    expect(answerFromRules('what soil type do I have?', without('soilType'), t)).toBeNull();
+  });
+
+  it('answers pH and soil questions in the farmer’s language', () => {
+    const bn: TranslateFn = (key, vars) => translate('bn', key, vars);
+    const answer = answerFromRules('আমার মাটির pH কত?', withSoil(), bn);
+    expect(answer?.intent).toBe('ph');
+    expect(answer?.answer).toContain('6.3');
+    // The caveat has to survive translation, not just exist in English.
+    expect(answer?.answer).toContain('মাটি স্বাস্থ্য কার্ড');
+    expect(answer?.answer).toContain('কৃষি বিজ্ঞান কেন্দ্র');
+  });
+
+  /**
+   * Fertility and amendment questions (how much fertiliser / urea / lime).
+   *
+   * The claim under test: the app answers with what it actually knows FIRST
+   * (pH reading and verdict, organic carbon), and only THEN says it cannot give
+   * an exact quantity — never the other way around, and never a bare refusal
+   * when an estimate exists. This is the behaviour change from the old
+   * `referral`-only routing.
+   */
+  it('states the pH and carbon estimate before the no-quantity caution', () => {
+    const answer = answerFromRules('how much fertiliser should I add?', withSoil(), t);
+    expect(answer?.intent).toBe('fertility');
+    expect(answer?.answer).toContain('6.3');
+    expect(answer?.answer).toContain('1.8%');
+    const caution = answer?.answer.indexOf('cannot tell you an exact amount') ?? -1;
+    const phFigure = answer?.answer.indexOf('6.3') ?? -1;
+    expect(phFigure).toBeGreaterThanOrEqual(0);
+    expect(caution).toBeGreaterThan(phFigure);
+  });
+
+  it('always appends the no-exact-quantity caution, whatever estimate exists', () => {
+    const answer = answerFromRules('how much lime should I add?', withSoil(), t);
+    expect(answer?.answer).toContain('cannot tell you an exact amount');
+    expect(answer?.answer).toContain('Krishi Vigyan Kendra');
+  });
+
+  it('surfaces a flagged fertility issue ahead of the raw pH figure', () => {
+    const context = {
+      ...withSoil(),
+      topIssues: ['Soil pH is below what rice prefers'],
+    };
+    const answer = answerFromRules('how much urea should I use?', context, t);
+    expect(answer?.answer).toContain('Soil pH is below what rice prefers');
+  });
+
+  it('says plainly there is no estimate when the farm has none, then still cautions', () => {
+    const answer = answerFromRules('how much fertiliser do I need?', fullContext(), t);
+    expect(answer?.intent).toBe('fertility');
+    expect(answer?.answer).toContain('no soil pH or organic-carbon estimate');
+    expect(answer?.answer).toContain('cannot tell you an exact amount');
+  });
+
+  it('answers a fertility question with no farm at all', () => {
+    const answer = answerFromRules('how much urea should I apply?', undefined, t);
+    expect(answer?.intent).toBe('fertility');
+    expect(answer?.answer).toContain('Soil Health Card');
+    expect(answer?.answer).toContain('Krishi Vigyan Kendra');
+  });
+
+  it('never states an exact quantity, even with a full estimate available', () => {
+    // The one thing that must never change: no number of kg/ha, no "apply X",
+    // ever appears — only the reading, the verdict, and the referral.
+    const answer = answerFromRules('how much urea should I apply?', withSoil(), t);
+    expect(answer?.answer).not.toMatch(/\d+\s*(kg|kilograms?|litres?|grams?)/i);
+  });
+
+  it('answers fertility questions in the farmer’s language', () => {
+    const bn: TranslateFn = (key, vars) => translate('bn', key, vars);
+    const answer = answerFromRules('কত সার দিতে হবে?', withSoil(), bn);
+    expect(answer?.intent).toBe('fertility');
+    expect(answer?.answer).toContain('6.3');
+    expect(answer?.answer).toContain('কৃষি বিজ্ঞান কেন্দ্র');
   });
 });

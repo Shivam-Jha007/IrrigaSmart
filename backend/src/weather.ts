@@ -9,7 +9,14 @@
  * (docs/03_Data_Models.md): temperature (°C), humidity (%), rainfallForecast
  * (mm, today's total), windSpeed (m/s), cloudCover (%), observationTime (ISO),
  * dataSource. Units match docs/11_Decision_Logic.md §10 (metric).
+ *
+ * Open-Meteo's free tier is rate-limited per IP, so a deployment behind a shared
+ * egress IP can be refused for traffic that is not its own. See DEPLOYMENT.md
+ * ("live weather stopped working") — the provider's reason is logged below
+ * precisely so that case is recognisable rather than mistaken for a bug here.
  */
+
+import { openMeteoFailureReason } from './openMeteo.js';
 
 export interface DailyWeatherPayload {
   /** Calendar date (YYYY-MM-DD) in the location's timezone. */
@@ -171,7 +178,14 @@ export async function fetchWeather(latitude: number, longitude: number): Promise
   }
 
   if (!response.ok) {
-    throw new WeatherProviderError(`weather provider returned ${response.status}`, 502);
+    const reason = await openMeteoFailureReason(response);
+    // Logged as well as thrown. The frontend deliberately swallows this into a
+    // cached-weather fallback so the farmer still gets advice, which means the
+    // server log is the only place an operator can see WHY live weather stopped
+    // — and a farm whose device has no cache yet shows "no weather data" with no
+    // other trace of the cause.
+    console.error(`[IrrigaSmart] weather provider ${response.status}${reason}`);
+    throw new WeatherProviderError(`weather provider returned ${response.status}${reason}`, 502);
   }
 
   const body = (await response.json()) as OpenMeteoResponse;

@@ -3,7 +3,13 @@ import type { AppStore } from '../app/useAppStore';
 import type { FarmSummary, RecommendationView, WaterProgress } from '../app/appTypes';
 import type { AppNotification, DailyWeather, WeatherData } from '../types';
 import { DbBlockedError, getCachedWeather } from '../storage';
-import { buildAssistantContext, localDayString } from '../services';
+import {
+  buildAssistantContext,
+  buildFarmContext,
+  detectFarmIssues,
+  localDayString,
+  TOP_ISSUE_COUNT,
+} from '../services';
 import { FarmerAssistant } from '../components/FarmerAssistant';
 import { RecommendationCard } from '../components/RecommendationCard';
 import { WeatherSummary } from '../components/WeatherSummary';
@@ -14,6 +20,8 @@ import { SeasonalGuidance } from '../components/SeasonalGuidance';
 import { DiseaseRiskCard } from '../components/DiseaseRiskCard';
 import { DiseasePhotoCard } from '../components/DiseasePhotoCard';
 import { SoilMoistureCard } from '../components/SoilMoistureCard';
+import { PhSuitabilityCard } from '../components/PhSuitabilityCard';
+import { ImprovementPlanCard } from '../components/ImprovementPlanCard';
 import { ReminderPlanner } from '../components/ReminderPlanner';
 import { WaterChecklist } from '../components/WaterChecklist';
 
@@ -158,6 +166,14 @@ export function Dashboard({ store, onGoToFarms }: Props) {
   const greeting = t('dashboard.greeting', { name: farmer?.name ?? 'Farmer' });
   const selectedProfile = profiles.find((p) => p.farm.id === selectedFarmId);
 
+  // The improvement plan (PRD §15). Derived, never stored: it is a reading of the
+  // same context the assistant gets, so the card and the Copilot cannot disagree
+  // about what this farm's problems are. Empty until a farm is selected, and
+  // empty again for a farm whose detectors all lack the data they need.
+  const farmIssues = detectFarmIssues(
+    buildFarmContext({ profile: selectedProfile, view, weather, today, waterProgress }),
+  );
+
   if (profiles.length === 0) {
     return (
       <div className="page dashboard">
@@ -236,6 +252,33 @@ export function Dashboard({ store, onGoToFarms }: Props) {
                 }}
               />
             )}
+            {/* Seasonal guidance, soil pH suitability and the weather-based
+                disease watch live here rather than in the aside column below.
+                On desktop the aside is narrower (1fr vs 1.55fr) and was
+                carrying most of the supporting cards, which left the two
+                columns visibly unbalanced — a tall left column and a much
+                taller right one. Moving these three across evens out both
+                columns' length without changing what any card shows or how
+                it gets its data; every prop below is identical to before. */}
+            {selectedProfile && (
+              <SeasonalGuidance crop={selectedProfile.crop} language={store.settings.preferredLanguage} t={t} />
+            )}
+            {selectedProfile && (
+              <PhSuitabilityCard
+                crop={selectedProfile.crop}
+                soil={selectedProfile.soil}
+                fetchStatus={store.soilFetchStatus[selectedProfile.soil.id] ?? null}
+                t={t}
+              />
+            )}
+            {selectedProfile && view && (
+              <DiseaseRiskCard
+                risk={view.diseaseRisk}
+                crop={selectedProfile.crop}
+                language={store.settings.preferredLanguage}
+                t={t}
+              />
+            )}
             {/* Reminders are useful on every outcome, not only when irrigating:
                 a "monitor tomorrow" day is exactly when a farmer wants a nudge. */}
             <ReminderPlanner
@@ -262,6 +305,13 @@ export function Dashboard({ store, onGoToFarms }: Props) {
 
           {/* Aside zone: supporting context */}
           <div className="dashboard__aside">
+            {/* First: it answers "what should I fix about this farm", which is
+                the question a farmer has left over once the recommendation
+                above has answered "what should I do today". Only shown for a
+                selected farm, because there is nothing to assess without one. */}
+            {selectedProfile && (
+              <ImprovementPlanCard issues={farmIssues} topCount={TOP_ISSUE_COUNT} t={t} />
+            )}
             {weather && selectedProfile && (
               <WeatherSummary
                 weather={weather}
@@ -275,23 +325,13 @@ export function Dashboard({ store, onGoToFarms }: Props) {
             {view?.plan && (
               <PlanOutlook plan={view.plan} language={store.settings.preferredLanguage} t={t} />
             )}
-            {selectedProfile && (
-              <SeasonalGuidance crop={selectedProfile.crop} language={store.settings.preferredLanguage} t={t} />
-            )}
-            {selectedProfile && view && (
-              <DiseaseRiskCard
-                risk={view.diseaseRisk}
-                crop={selectedProfile.crop}
-                language={store.settings.preferredLanguage}
-                t={t}
-              />
-            )}
-            {/* Beside the weather-based watch, not instead of it: the two
-                answer different questions. Disease watch says the weather
-                favours something; this says what a leaf in front of you looks
-                like. It needs no weather series, so it renders whenever a farm
-                is selected — including for the seven crops the model was never
-                trained on, which it says plainly rather than hiding. */}
+            {/* Beside the weather-based watch (now in the left column), not
+                instead of it: the two answer different questions. Disease
+                watch says the weather favours something; this says what a
+                leaf in front of you looks like. It needs no weather series, so
+                it renders whenever a farm is selected — including for the
+                seven crops the model was never trained on, which it says
+                plainly rather than hiding. */}
             {selectedProfile && (
               <DiseasePhotoCard
                 crop={selectedProfile.crop.name}

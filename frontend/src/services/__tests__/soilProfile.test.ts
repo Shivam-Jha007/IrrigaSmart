@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { MeasuredSoilProfile, SoilLayer } from '../../types';
 import { SOIL_TYPES } from '../../types';
 import { SOIL_HYDRAULIC_PROPERTIES } from '../knowledgeBase';
-import { rootZoneWater, sameCoordinate, textureDisagreement } from '../soilProfile';
+import {
+  profileCarriesEveryReadProperty,
+  rootZoneWater,
+  sameCoordinate,
+  textureDisagreement,
+  topsoilPh,
+} from '../soilProfile';
 
 /**
  * Root-zone weighting (item 1).
@@ -14,7 +20,13 @@ import { rootZoneWater, sameCoordinate, textureDisagreement } from '../soilProfi
  */
 
 /** A layer with everything but the fields under test filled in plausibly. */
-function layer(topCm: number, bottomCm: number, thetaFC: number, thetaPWP: number): SoilLayer {
+function layer(
+  topCm: number,
+  bottomCm: number,
+  thetaFC: number,
+  thetaPWP: number,
+  phH2O: number | null = 6.4,
+): SoilLayer {
   return {
     topCm,
     bottomCm,
@@ -27,6 +39,7 @@ function layer(topCm: number, bottomCm: number, thetaFC: number, thetaPWP: numbe
     thetaPWPSource: 'saxton-rawls',
     bulkDensity: 1.31,
     organicCarbonPct: 1.82,
+    phH2O,
   };
 }
 
@@ -39,6 +52,26 @@ function profile(layers: SoilLayer[], usdaTextureClass: string | null = 'clay lo
     latitude: 23.677,
     longitude: 87.685,
   };
+}
+
+/**
+ * A layer as a build that predates one of these properties actually stored it:
+ * the key is ABSENT, not null, and IndexedDB hands it back as `undefined`.
+ *
+ * The cast is the point rather than a shortcut. `SoilLayer` describes what the
+ * app writes today and cannot express a record written by an older schema, so
+ * the type system offers no protection against these — which is exactly why the
+ * runtime guards in `topsoilPh` and `profileCarriesEveryReadProperty` exist and
+ * have to be tested against the real shape.
+ */
+function legacyLayer(
+  topCm: number,
+  bottomCm: number,
+  drop: 'phH2O' | 'organicCarbonPct',
+): SoilLayer {
+  const partial: Partial<SoilLayer> = { ...layer(topCm, bottomCm, 0.33, 0.18, 6.4) };
+  delete partial[drop];
+  return partial as SoilLayer;
 }
 
 /** The real reference-farm profile, as the backend returns it. */
@@ -182,6 +215,105 @@ describe('textureDisagreement', () => {
   it('stays quiet with no profile or no classified texture', () => {
     expect(textureDisagreement('Sandy', undefined)).toBeNull();
     expect(textureDisagreement('Sandy', profile([], null))).toBeNull();
+  });
+});
+
+describe('topsoilPh', () => {
+  it('weights the two topsoil layers by how much of 0-15cm they occupy', () => {
+    // REFERENCE: 0-5cm pH 6.4, 5-15cm pH 6.4 (fixture's real values) — use a
+    // profile where the two layers actually differ to prove the weighting.
+    const differing = profile([layer(0, 5, 0.33, 0.18, 6.0), layer(5, 15, 0.34, 0.19, 6.8)]);
+    // 5 cm at pH 6.0, 10 cm at pH 6.8, entirely within the 0-15cm topsoil.
+    const expected = (6.0 * 5 + 6.8 * 10) / 15;
+    expect(topsoilPh(differing)).toBeCloseTo(expected, 10);
+  });
+
+  it('ignores layers entirely below the topsoil', () => {
+    const withSubsoil = profile([
+      layer(0, 5, 0.33, 0.18, 6.2),
+      layer(5, 15, 0.34, 0.19, 6.2),
+      layer(15, 30, 0.34, 0.19, 8.5),
+      layer(30, 60, 0.35, 0.2, 9.0),
+    ]);
+    expect(topsoilPh(withSubsoil)).toBeCloseTo(6.2, 10);
+  });
+
+  it('skips a layer with a missing reading rather than fabricating one', () => {
+    // 0-5cm has no pH value; only the 5-15cm layer contributes, and the
+    // average must not be dragged toward some default for the missing part.
+    const partial = profile([layer(0, 5, 0.33, 0.18, null), layer(5, 15, 0.34, 0.19, 7.0)]);
+    expect(topsoilPh(partial)).toBeCloseTo(7.0, 10);
+  });
+
+  it('returns null when no profile exists', () => {
+    expect(topsoilPh(undefined)).toBeNull();
+  });
+
+  it('returns null when every layer is missing a reading', () => {
+    const noPh = profile([layer(0, 5, 0.33, 0.18, null), layer(5, 15, 0.34, 0.19, null)]);
+    expect(topsoilPh(noPh)).toBeNull();
+  });
+
+  it('returns null for an empty layer list', () => {
+    expect(topsoilPh(profile([]))).toBeNull();
+  });
+
+  it('keeps a sibling reading when a legacy layer has no pH key at all', () => {
+    // The regression this guard exists for. A profile stored before `phH2O` was
+    // requested has no such key, so `undefined === null` is false, the layer is
+    // not skipped, `undefined * cm` is NaN, and the whole topsoil mean becomes
+    // NaN — one legacy layer silently blanking the pH card for a farm that has a
+    // perfectly good reading at the other depth.
+    const mixed = profile([legacyLayer(0, 5, 'phH2O'), layer(5, 15, 0.34, 0.19, 7.0)]);
+    expect(topsoilPh(mixed)).toBeCloseTo(7.0, 10);
+  });
+
+  it('returns null when every topsoil layer predates the pH property', () => {
+    const allLegacy = profile([legacyLayer(0, 5, 'phH2O'), legacyLayer(5, 15, 'phH2O')]);
+    expect(topsoilPh(allLegacy)).toBeNull();
+  });
+});
+
+/**
+ * Whether a stored profile is complete for TODAY's readers.
+ *
+ * This is the predicate that decides whether an existing farm's profile is
+ * refetched in the background, so both mistakes it could make are expensive:
+ * saying "incomplete" when the data is fine means refetching every profile on
+ * every load, and saying "complete" when a key is missing leaves that farm's
+ * card blank forever with nothing visibly wrong.
+ */
+describe('profileCarriesEveryReadProperty', () => {
+  it('accepts a profile written by the current schema', () => {
+    expect(profileCarriesEveryReadProperty(REFERENCE)).toBe(true);
+  });
+
+  it('accepts a null pH, which is an answer and not an omission', () => {
+    // "The provider had no usable value at this depth" is a real result from a
+    // current fetch. Refetching would return the same null, so treating it as
+    // incomplete would mean querying SoilGrids again on every single load.
+    const withNulls = profile([layer(0, 5, 0.33, 0.18, null), layer(5, 15, 0.34, 0.19, null)]);
+    expect(profileCarriesEveryReadProperty(withNulls)).toBe(true);
+  });
+
+  it('rejects a profile stored before the pH property existed', () => {
+    expect(
+      profileCarriesEveryReadProperty(
+        profile([legacyLayer(0, 5, 'phH2O'), layer(5, 15, 0.34, 0.19, 6.4)]),
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects a profile stored before organic carbon existed', () => {
+    expect(
+      profileCarriesEveryReadProperty(profile([legacyLayer(0, 5, 'organicCarbonPct')])),
+    ).toBe(false);
+  });
+
+  it('rejects an empty layer list', () => {
+    // Nothing to read a property from is not "complete"; a stored empty profile
+    // should be refetched rather than kept forever.
+    expect(profileCarriesEveryReadProperty(profile([]))).toBe(false);
   });
 });
 

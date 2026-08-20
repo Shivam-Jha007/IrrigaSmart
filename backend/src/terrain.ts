@@ -44,6 +44,8 @@
  * returns raw layers and lets the root zone weight them).
  */
 
+import { openMeteoFailureReason } from './openMeteo.js';
+
 /** Downhill direction on an 8-point compass. */
 export type Aspect = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW';
 
@@ -289,7 +291,7 @@ export async function fetchTerrain(
     return unavailable('terrain provider is unreachable');
   }
   if (!response.ok) {
-    return unavailable(`terrain provider returned ${response.status}`);
+    return unavailable(`terrain provider returned ${response.status}${await openMeteoFailureReason(response)}`);
   }
 
   let body: ElevationResponse;

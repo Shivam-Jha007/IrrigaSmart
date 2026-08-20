@@ -2,9 +2,9 @@ import type { CropName } from '../types';
 import type { DiseaseId } from './diseaseKnowledge';
 
 /**
- * Photo-model class map (V1.7 item 16).
+ * Photo-model class map (V1.7 item 16; rice classes added in a later retrain).
  *
- * Translates the 23 raw class strings emitted by
+ * Translates the 27 raw class strings emitted by
  * `public/models/plant-disease-mobilenetv3.onnx` into something the UI can show
  * a farmer. Pure data and pure functions — no ONNX, no DOM, no fetch — so the
  * whole mapping is testable without loading a 6 MB model
@@ -19,18 +19,19 @@ import type { DiseaseId } from './diseaseKnowledge';
  * WHY THE MODEL'S CLASSES ARE NOT FOLDED INTO `DiseaseId`
  * `DiseaseId` is the union of weather-driven diseases, and every member of it
  * carries a temperature/humidity infection window in CROP_DISEASES. The photo
- * model knows twelve conditions that have no such window — spider mites are not
- * a disease at all, and two of the five plants it was trained on (apple, bell
- * pepper) are not crops this app supports. Widening `DiseaseId` with members
- * that cannot appear in `CROP_DISEASES` would make that record a lie and push an
+ * model knows fourteen conditions that have no such window — spider mites are
+ * not a disease at all, rice tungro is a virus spread by an insect rather than
+ * weather, and two of the six plants it was trained on (apple, bell pepper) are
+ * not crops this app supports. Widening `DiseaseId` with members that cannot
+ * appear in `CROP_DISEASES` would make that record a lie and push an
  * "impossible" branch into every consumer of the weather path. So the overlap
  * REUSES `DiseaseId` — the farmer gets the where-to-look/what-to-look-for text
  * already written and already translated into five languages — and the
  * remainder gets its own `VisionLabelId`, which exists only on the photo path.
  */
 
-/** The five plants in the training set. Not all are crops this app supports. */
-export type VisionPlant = 'Apple' | 'Maize' | 'PepperBell' | 'Potato' | 'Tomato';
+/** The six plants in the training set. Not all are crops this app supports. */
+export type VisionPlant = 'Apple' | 'Maize' | 'PepperBell' | 'Potato' | 'Rice' | 'Tomato';
 
 /**
  * A condition the photo model knows that has no `DiseaseId`, because it has no
@@ -48,7 +49,13 @@ export type VisionLabelId =
   | 'spiderMites'
   | 'targetSpot'
   | 'tomatoYellowLeafCurlVirus'
-  | 'tomatoMosaicVirus';
+  | 'tomatoMosaicVirus'
+  // Rice brown spot (Bipolaris oryzae) and tungro (a leafhopper-transmitted
+  // virus complex) have no published daily-aggregate infection window the way
+  // CROP_DISEASES.Rice's blast/bacterial-blight bands do, so they stay
+  // vision-only rather than being forced into an ill-fitting DiseaseProfile.
+  | 'riceBrownSpot'
+  | 'riceTungro';
 
 /**
  * What a class means.
@@ -73,16 +80,21 @@ export interface VisionClass {
 }
 
 /**
- * The 23 classes, keyed by the EXACT string in `plant-disease-labels.json`.
+ * The 27 classes, keyed by the EXACT string in `plant-disease-labels.json`.
  *
- * The keys are transcribed verbatim from the PlantVillage folder names and are
- * inconsistent on purpose — `Potato___Early_blight` has three underscores while
- * `Tomato_Early_blight` has one, `Corn_(maize)___Common_rust_` carries a
- * trailing underscore, and `Tomato__Target_Spot` has two. Do not tidy them.
- * A single "corrected" character silently unmaps a class, and the failure mode
- * is a farmer being shown nothing. `diseaseVisionMap.test.ts` reads the manifest
- * off disk and asserts these keys equal it exactly, so drift fails the build
- * rather than the field.
+ * The first 23 keys are transcribed verbatim from the PlantVillage folder names
+ * and are inconsistent on purpose — `Potato___Early_blight` has three
+ * underscores while `Tomato_Early_blight` has one, `Corn_(maize)___Common_rust_`
+ * carries a trailing underscore, and `Tomato__Target_Spot` has two. Do not tidy
+ * them. A single "corrected" character silently unmaps a class, and the failure
+ * mode is a farmer being shown nothing. `diseaseVision.test.ts` reads the
+ * manifest off disk and asserts these keys equal it exactly, so drift fails the
+ * build rather than the field.
+ *
+ * The 4 rice keys were added in a later retrain from a separate dataset (rice
+ * has no PlantVillage entry), and were named `Rice___<Condition>` to match that
+ * same `Plant___Disease` convention rather than the source dataset's own
+ * unprefixed folder names (`Blast`, `Brownspot`, ...).
  */
 export const VISION_CLASSES: Readonly<Record<string, VisionClass>> = {
   // --- Apple: not a crop this app supports ---------------------------------
@@ -197,16 +209,45 @@ export const VISION_CLASSES: Readonly<Record<string, VisionClass>> = {
     finding: { kind: 'visionOnly', label: 'tomatoMosaicVirus' },
   },
   Tomato_healthy: { plant: 'Tomato', appCrop: 'Tomato', finding: { kind: 'healthy' } },
+
+  // --- Rice: overlaps the app's Rice, and its design persona's own crop ----
+  // No healthy-rice folder exists in the training set this model was retrained
+  // on, so — unlike the other four plants — there is no Rice___healthy class
+  // and the healthy-count assertion in diseaseVision.test.ts stays at 5.
+  Rice___Bacterial_blight: {
+    plant: 'Rice',
+    appCrop: 'Rice',
+    finding: { kind: 'known', disease: 'riceBacterialLeafBlight' },
+  },
+  Rice___Blast: {
+    plant: 'Rice',
+    appCrop: 'Rice',
+    finding: { kind: 'known', disease: 'riceBlast' },
+  },
+  Rice___Brown_spot: {
+    plant: 'Rice',
+    appCrop: 'Rice',
+    // Bipolaris oryzae. No CROP_DISEASES.Rice entry — no published
+    // daily-aggregate temperature/humidity band for it — so vision-only.
+    finding: { kind: 'visionOnly', label: 'riceBrownSpot' },
+  },
+  Rice___Tungro: {
+    plant: 'Rice',
+    appCrop: 'Rice',
+    // A leafhopper-transmitted virus complex, not a fungus, and not weather-
+    // triggered the way the CROP_DISEASES bands model infection — vision-only.
+    finding: { kind: 'visionOnly', label: 'riceTungro' },
+  },
 };
 
 /**
  * The app crops the current model can say anything about at all.
  *
- * Three of ten. Seven — including Rice, the crop of the app's design persona —
- * have no coverage whatsoever, and the UI must present that as a normal state
- * rather than a failure (see `DiseasePhotoCard`). Derived from VISION_CLASSES
- * rather than written out, so adding a rice model later cannot leave this list
- * stale.
+ * Four of ten, now that Rice — the crop of the app's design persona — has
+ * coverage. Six still have none, and the UI must present that as a normal
+ * state rather than a failure (see `DiseasePhotoCard`). Derived from
+ * VISION_CLASSES rather than written out, so a future retrain cannot leave
+ * this list stale.
  */
 export const COVERED_CROPS: readonly CropName[] = Object.values(VISION_CLASSES)
   .map((entry) => entry.appCrop)
@@ -216,6 +257,37 @@ export const COVERED_CROPS: readonly CropName[] = Object.values(VISION_CLASSES)
 /** Whether the current model was trained on anything resembling this crop. */
 export function visionCoversCrop(crop: CropName): boolean {
   return COVERED_CROPS.includes(crop);
+}
+
+/**
+ * The plants this model can recognise as HEALTHY. Five of six.
+ *
+ * Rice is the exception, and it is not a small one. The retrain that added rice
+ * drew on a dataset with four disease folders and no healthy folder, so among the
+ * rice classes "this leaf is fine" is not a representable output. Feed the model
+ * a perfectly healthy rice leaf and the probability mass has nowhere to go but
+ * blast, bacterial blight, brown spot, tungro — or another plant entirely. It
+ * cannot answer "healthy rice" because no such class exists.
+ *
+ * A measurement rather than a worry: over six field photographs of diseased rice
+ * from Wikimedia, this model put three of them in `Corn_(maize)___healthy` and
+ * named a rice condition for the other three. The failure is real in both
+ * directions, and the only honest response available to the UI is to say what the
+ * model cannot do — see `vision.noHealthyClass`. Per-image numbers are in
+ * docs/14_Leaf_Photo_Model_Measurement.md §4.
+ *
+ * Derived from the class map rather than written out, exactly as COVERED_CROPS
+ * is: a retrain that adds a healthy-rice folder must silence the caveat by
+ * itself, and one that loses a healthy folder must raise it.
+ */
+export const PLANTS_WITH_HEALTHY_CLASS: readonly VisionPlant[] = Object.values(VISION_CLASSES)
+  .filter((entry) => entry.finding.kind === 'healthy')
+  .map((entry) => entry.plant)
+  .filter((plant, index, all) => all.indexOf(plant) === index);
+
+/** Whether the model has any healthy class for this plant. */
+export function plantHasHealthyClass(plant: VisionPlant): boolean {
+  return PLANTS_WITH_HEALTHY_CLASS.includes(plant);
 }
 
 /**
@@ -243,12 +315,12 @@ export function lookupVisionClass(raw: string): VisionClass | null {
 /**
  * Minimum confidence before a result is shown as a resemblance at all.
  *
- * The model reports 99.75% held-out accuracy, but that is on PlantVillage
- * laboratory images against uniform backgrounds; published evaluations show
+ * The model reports 99.76% held-out accuracy, but that is on laboratory-style
+ * training images against uniform backgrounds; published evaluations show
  * accuracy collapsing on real field photographs, and the roadmap's own risk note
  * says a confidently wrong model is worse than none
  * (docs/12_Product_Roadmap_v2.md §Disease Diagnosis from Images). A softmax over
- * 23 classes is near-saturated on in-distribution photos, so a genuinely
+ * 27 classes is near-saturated on in-distribution photos, so a genuinely
  * uncertain reading — the out-of-distribution case, which in the field is the
  * COMMON case — falls well below this. The threshold is set high deliberately:
  * showing nothing is a recoverable disappointment, showing the wrong disease
@@ -269,6 +341,17 @@ export type VisionVerdict =
       readonly kind: 'match';
       readonly entry: VisionClass;
       readonly confidence: number;
+      /**
+       * False when the model has no healthy class for this plant — i.e. when it
+       * could not have told the farmer their leaf was fine even if it were, so a
+       * named condition is the only kind of answer it can give. Carried on the
+       * verdict rather than recomputed in the component so the card cannot
+       * forget to ask, and so the caveat is asserted where the decision is made.
+       *
+       * Only meaningful alongside a named finding: a `healthy` finding is itself
+       * proof that its plant has a healthy class.
+       */
+      readonly plantHasHealthyClass: boolean;
     }
   /**
    * Confident, but the class belongs to a different plant than the farm's crop.
@@ -279,6 +362,28 @@ export type VisionVerdict =
    */
   | {
       readonly kind: 'otherPlant';
+      readonly entry: VisionClass;
+      readonly confidence: number;
+    }
+  /**
+   * Confident, a HEALTHY class, and a plant that is not the farm's crop.
+   *
+   * Split from `otherPlant` because collapsing the two produced the worst output
+   * this feature is capable of. `Corn_(maize)___healthy` is where this model puts
+   * leaves it does not recognise: over ten field photographs of diseased plants
+   * it was never trained on, it chose that class for both onion photographs at
+   * 89% and 96% confidence. Rendered through the shared path, a farmer holding a
+   * visibly diseased onion leaf read "this leaf looks similar to healthy leaves
+   * (96% similar)" with a mismatch note above it — a confident all-clear on a sick
+   * plant, which is a worse outcome than a wrong disease name because it ends the
+   * investigation instead of misdirecting it.
+   *
+   * A healthy reading for a plant the farmer is not growing is evidence about
+   * nothing. This kind exists so the component cannot state otherwise. The full
+   * measurement is in docs/14_Leaf_Photo_Model_Measurement.md §5.
+   */
+  | {
+      readonly kind: 'otherPlantHealthy';
       readonly entry: VisionClass;
       readonly confidence: number;
     }
@@ -306,7 +411,16 @@ export function verdictFor(
   }
 
   if (crop !== null && entry.appCrop !== crop) {
-    return { kind: 'otherPlant', entry, confidence };
+    // A healthy class for someone else's plant is not a statement about this
+    // farm's crop, and must not be rendered as one.
+    return entry.finding.kind === 'healthy'
+      ? { kind: 'otherPlantHealthy', entry, confidence }
+      : { kind: 'otherPlant', entry, confidence };
   }
-  return { kind: 'match', entry, confidence };
+  return {
+    kind: 'match',
+    entry,
+    confidence,
+    plantHasHealthyClass: plantHasHealthyClass(entry.plant),
+  };
 }

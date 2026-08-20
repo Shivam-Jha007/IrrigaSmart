@@ -59,13 +59,21 @@ export interface ModelSpec {
 }
 
 /**
- * The only model that exists today. A second entry (rice, say) needs no change
- * to anything below — `loadModel` takes the spec.
+ * The only model that exists today. A future retrain needs no change to
+ * anything below — `loadModel` takes the spec.
+ *
+ * `-v2` filenames rather than overwriting the v1 files: the Workbox
+ * `CacheFirst` rule in vite.config.ts matches the `/models/` path prefix, not
+ * a content hash, so a phone that already cached `plant-disease-mobilenetv3.onnx`
+ * would never see a same-named replacement. v2 adds rice (Bacterial blight,
+ * Blast, Brown spot, Tungro) to the original 23 classes; the v1 files are left
+ * in place rather than deleted, since removing them buys nothing once the spec
+ * below points elsewhere.
  */
 export const PLANT_DISEASE_MODEL: ModelSpec = {
-  id: 'plant-disease-mobilenetv3',
-  modelUrl: '/models/plant-disease-mobilenetv3.onnx',
-  manifestUrl: '/models/plant-disease-labels.json',
+  id: 'plant-disease-mobilenetv3-v2',
+  modelUrl: '/models/plant-disease-mobilenetv3-v2.onnx',
+  manifestUrl: '/models/plant-disease-labels-v2.json',
 };
 
 /** A raw reading, before the crop-awareness in `verdictFor` is applied. */

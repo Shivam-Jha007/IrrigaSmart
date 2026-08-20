@@ -7,6 +7,7 @@ import { OfflineBanner } from './components/OfflineBanner';
 import { Dashboard } from './pages/Dashboard';
 import { FarmsPage } from './pages/FarmsPage';
 import { HistoryPage } from './pages/HistoryPage';
+import { FertilizerPage } from './pages/FertilizerPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { Onboarding } from './pages/Onboarding';
 
@@ -87,6 +88,7 @@ function App() {
         {tab === 'dashboard' && <Dashboard store={store} onGoToFarms={() => setTab('farms')} />}
         {tab === 'farms' && <FarmsPage store={store} />}
         {tab === 'history' && <HistoryPage store={store} />}
+        {tab === 'fertilizer' && <FertilizerPage store={store} />}
         {tab === 'settings' && <SettingsPage store={store} onShowOnboarding={() => setShowOnboarding(true)} />}
       </main>
 
@@ -97,6 +99,7 @@ function App() {
           dashboard: t('nav.today'),
           farms: t('nav.farms'),
           history: t('nav.history'),
+          fertilizer: t('nav.fertilizer'),
           settings: t('nav.settings'),
         }}
       />

@@ -31,3 +31,25 @@ services:
       # it out of source control.
       - key: CORS_ORIGIN
         sync: false
+      # Provider key(s) for the farmer assistant (backend/src/assistant.ts). Set
+      # ONE of these in the Render dashboard; sync:false keeps them out of source
+      # control, and neither must ever be given a VITE_ prefix or moved to the
+      # frontend, which would publish it in the browser bundle.
+      #
+      # Optional by design: with neither key set, the /api/assistant route
+      # answers 503 ASSISTANT_DISABLED and the app falls back to its on-device
+      # rules, so the farmer still gets advice. Check which mode a deployment is
+      # in with /health, which reports `assistant: configured | disabled`.
+      #
+      # If both are set, ANTHROPIC_API_KEY takes priority.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Google Gemini — has a free tier with no billing account required, so
+      # this is the option that costs nothing to enable.
+      - key: GEMINI_API_KEY
+        sync: false
+      # Optional, and deliberately NOT declared here: GEMINI_MODEL overrides the
+      # model the Gemini path calls (default gemini-flash-lite-latest). It is left
+      # out of this blueprint because an unrecognised id would silently disable
+      # the assistant on every deploy that inherited it; add it in the dashboard
+      # only when moving to a specific model, and verify with /health.
