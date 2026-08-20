@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   AppNotification,
   Farm,
   Farmer,
   HistoryRecord,
   Recommendation,
+  SoilNutrientReading,
   WaterLedgerEntry,
 } from '../types';
 import {
@@ -42,9 +43,11 @@ import {
   intakeFactor,
   isSameLocalDay,
   localDayString,
+  type MeasuredSoilOutcome,
   notificationText,
   orphanedRecommendationIds,
   planNotifications,
+  profileCarriesEveryReadProperty,
   remindersToPrune,
   sameCoordinate,
 } from '../services';
@@ -56,6 +59,7 @@ import type {
   FarmProfile,
   FarmSummary,
   RecommendationView,
+  SoilFetchStatus,
   WaterProgress,
 } from './appTypes';
 import { buildCrop, buildSoil } from './entityFactories';
@@ -96,6 +100,11 @@ export interface AppStore extends AppData {
   t: TranslateFn;
   /** Notifications delivered today, for the dashboard reminders card. */
   todaysReminders: AppNotification[];
+  /**
+   * Measured-soil fetch state, keyed by soil record id. A key is absent once the
+   * profile has landed — presence means "there is something to explain".
+   */
+  soilFetchStatus: Readonly<Record<string, SoilFetchStatus>>;
   /** Create or update a farm (with its crop and soil) from a form draft. */
   saveFarm(draft: FarmDraft): Promise<void>;
   /** Delete a farm and its associated crop, soil, recommendations, history. */
@@ -134,6 +143,14 @@ export interface AppStore extends AppData {
   logIrrigation(farmId: string, minutes: number): Promise<WaterProgress | null>;
   /** Clear today's logged irrigation for a farm (undo a mis-tap). */
   resetTodayIrrigation(farmId: string): Promise<WaterProgress | null>;
+  /**
+   * Persist a Soil Health Card N/P/K reading entered on the Fertilizer page,
+   * against the soil record a specific farm currently resolves to. Replaces
+   * any prior reading for that soil record — this is the farmer's current
+   * best answer for their field, not a log of every number they have ever
+   * typed.
+   */
+  saveNutrientReading(farmId: string, reading: SoilNutrientReading): Promise<void>;
 }
 
 export function useAppStore(): AppStore {
@@ -143,13 +160,39 @@ export function useAppStore(): AppStore {
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState(false);
   const [todaysReminders, setTodaysReminders] = useState<AppNotification[]>([]);
+  const [soilFetchStatus, setSoilFetchStatus] = useState<Record<string, SoilFetchStatus>>({});
+  /**
+   * Soil records this session has already tried to backfill. A ref, not state:
+   * it must not itself trigger a render, and it guards the backfill effect —
+   * which depends on `profiles`, and so re-runs every time a fetch lands — from
+   * retrying the same record forever when the provider is down.
+   */
+  const soilBackfillAttempted = useRef<Set<string>>(new Set());
 
   const loadProfiles = useCallback(async (farmerId: string): Promise<FarmProfile[]> => {
     const farms = await getFarmsByFarmer(farmerId);
+    const soils = await soilRepository.getAll();
     const resolved = await Promise.all(
       farms.map(async (farm): Promise<FarmProfile | null> => {
         const crop = await cropRepository.getById(farm.primaryCropId);
-        const soil = (await soilRepository.getAll()).find((s) => s.name === farm.soilType);
+        // A farm links to its soil by TYPE, not by id, and `saveFarm` writes one
+        // record per farm — so two farms on the same soil type leave two records
+        // with the same name and a plain `find` hands both farms the first one.
+        // That would show one farm's measured profile, and its pH, under the
+        // other farm's name: a measurement presented for ground it was not taken
+        // on. Prefer the record actually measured at THIS farm's coordinate, then
+        // an unmeasured record of the right type, and only then whatever is
+        // there. (The real fix is a `soilId` on `Farm`, which needs a stored-data
+        // migration and is tracked separately.)
+        const candidates = soils.filter((s) => s.name === farm.soilType);
+        const soil =
+          candidates.find(
+            (s) =>
+              s.measured &&
+              sameCoordinate(s.measured, farm.location.latitude, farm.location.longitude),
+          ) ??
+          candidates.find((s) => !s.measured) ??
+          candidates[0];
         if (!crop || !soil) return null;
         return { farm, crop, soil };
       }),
@@ -193,6 +236,138 @@ export function useAppStore(): AppStore {
     if (!farmer) return;
     setProfiles(await loadProfiles(farmer.id));
   }, [farmer, loadProfiles]);
+
+  /**
+   * Fetch a farm's measured soil profile in the background and store it.
+   *
+   * Shared by farm creation and the backfill below so both report status the
+   * same way and neither can drift into a quieter failure than the other.
+   *
+   * Never awaited by anything the farmer is waiting on. The SoilGrids property
+   * query takes tens of seconds and the farm works on the Knowledge Base table
+   * until this lands — item 0's rule that a new feature must not be able to hold
+   * up a working one.
+   */
+  const ensureMeasuredSoil = useCallback(
+    async (soilId: string, latitude: number, longitude: number): Promise<void> => {
+      setSoilFetchStatus((prev) => ({ ...prev, [soilId]: 'pending' }));
+
+      // Retry the two failures a later request can actually clear, bounded so a
+      // real outage cannot loop. Without this, the once-per-session backfill
+      // guard below turns a passing failure into a pH card that stays blank
+      // until the farmer manually reloads — the fetch gives up on the first miss
+      // and nothing asks again. `pending` is left in place across the waits, so
+      // the card keeps saying "reading the soil map" rather than flickering to
+      // an error it is about to clear.
+      //
+      //   unreachable             — the backend is momentarily absent (a dev
+      //     restart, a cold start, a network blip). A refused connection fails
+      //     fast, so a short wait catches it coming back.
+      //   unavailable + retryable — SoilGrids timed out and the backend fell
+      //     back to the table. That fallback is cached for the backend's
+      //     CACHE_TTL_FAILURE_MS (60 s), so a retry sooner is served the same
+      //     cached miss; the wait is deliberately past that window so the retry
+      //     re-hits the provider. (Coupled to that backend constant on purpose —
+      //     a shorter wait here would just burn attempts on the cache.)
+      //
+      // A non-retryable `unavailable` (a 4xx, or values that failed the
+      // cross-check) is left to settle: that coordinate returns the same answer
+      // however many times it is asked, which is the distinction the backend's
+      // `retryable` flag draws and `fetchMeasuredSoil` carries through.
+      const MAX_RETRIES = 3;
+      const UNREACHABLE_DELAY_MS = 5_000;
+      const UNAVAILABLE_RETRY_DELAY_MS = 70_000;
+      const retryDelayMs = (o: MeasuredSoilOutcome): number | null => {
+        if (o.kind === 'unreachable') return UNREACHABLE_DELAY_MS;
+        if (o.kind === 'unavailable' && o.retryable) return UNAVAILABLE_RETRY_DELAY_MS;
+        return null;
+      };
+
+      let outcome = await fetchMeasuredSoil(latitude, longitude);
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {
+        const delayMs = retryDelayMs(outcome);
+        if (delayMs === null) break;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        // The farmer may have deleted the farm while we waited; stop if so.
+        if (!(await soilRepository.getById(soilId))) return;
+        outcome = await fetchMeasuredSoil(latitude, longitude);
+      }
+
+      if (outcome.kind !== 'measured') {
+        // The stored profile, if there is one, is deliberately left alone: an
+        // older reading for the right coordinate beats no reading, and a farm
+        // that was working offline must not get worse because a refresh failed.
+        setSoilFetchStatus((prev) => ({
+          ...prev,
+          [soilId]: outcome.kind === 'unreachable' ? 'unreachable' : 'noData',
+        }));
+        return;
+      }
+
+      // Re-read rather than reusing a captured record: the farmer may have
+      // edited or deleted the farm during those tens of seconds.
+      const current = await soilRepository.getById(soilId);
+      if (!current) return;
+      await soilRepository.save({ ...current, measured: outcome.profile });
+      setSoilFetchStatus((prev) => {
+        const next = { ...prev };
+        delete next[soilId];
+        return next;
+      });
+      await refresh();
+    },
+    [refresh],
+  );
+
+  /**
+   * Backfill measured soil for farms that are missing it, or whose stored record
+   * predates a property the app now reads.
+   *
+   * WHY THIS EXISTS AT ALL
+   * Fetching only at farm creation looked sufficient while the profile's shape
+   * was fixed. It is not: `phH2O` was added for the pH card, and every farm
+   * created before it kept a pH-less profile forever, so its pH card stayed
+   * blank with nothing wrong at the coordinate and nothing wrong with the
+   * provider. A farmer has no reason to re-save a farm to fix that, and should
+   * not have to.
+   *
+   * Sequential, and once per soil record per session — a `Set` in a ref rather
+   * than state, because the effect depends on `profiles` and every landed fetch
+   * refreshes them. Without the guard a provider outage would loop.
+   */
+  useEffect(() => {
+    if (loading || !farmer) return;
+
+    const due = profiles.filter((p) => {
+      if (soilBackfillAttempted.current.has(p.soil.id)) return false;
+      const measured = p.soil.measured;
+      if (!measured) return true;
+      // A profile for the wrong coordinate is not this farm's soil at all.
+      if (!sameCoordinate(measured, p.farm.location.latitude, p.farm.location.longitude)) {
+        return true;
+      }
+      // Present, right place, but written before a property the app now reads.
+      return !profileCarriesEveryReadProperty(measured);
+    });
+    if (due.length === 0) return;
+
+    for (const p of due) soilBackfillAttempted.current.add(p.soil.id);
+
+    let cancelled = false;
+    void (async () => {
+      for (const p of due) {
+        if (cancelled) return;
+        await ensureMeasuredSoil(
+          p.soil.id,
+          p.farm.location.latitude,
+          p.farm.location.longitude,
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, farmer, profiles, ensureMeasuredSoil]);
 
   // --- Automatic local cleanup ---
 
@@ -323,28 +498,30 @@ export function useAppStore(): AppStore {
       await refresh();
 
       // The measured profile is fetched AFTER the farm is saved and shown, never
-      // before. The SoilGrids 7-property query takes ~15 s, and making farm
-      // creation wait on a provider the farmer may not even be able to reach
-      // would trade a working feature for a better one — item 0. The farm works
-      // on the Knowledge Base table meanwhile; when this lands, the soil record
-      // is updated in place and the next recommendation picks it up.
-      if (!reusable) {
-        void fetchMeasuredSoil(draft.latitude, draft.longitude).then(async (measured) => {
-          if (!measured) return;
-          // Re-read rather than reusing `soil`: the farmer may have edited or
-          // deleted the farm during those 15 seconds.
-          const current = await soilRepository.getById(soilId);
-          if (!current) return;
-          await soilRepository.save({ ...current, measured });
-          await refresh();
-        });
+      // before. The SoilGrids property query takes tens of seconds, and making
+      // farm creation wait on a provider the farmer may not even be able to
+      // reach would trade a working feature for a better one — item 0. The farm
+      // works on the Knowledge Base table meanwhile; when this lands, the soil
+      // record is updated in place and the next recommendation picks it up.
+      //
+      // TWO DECISIONS, NOT ONE. What to STORE is `reusable` above — a profile
+      // measured at this coordinate is kept whatever else is true of it, so a
+      // farmer never loses a working water balance to a refresh. Whether to
+      // REFETCH is the separate question below, and it is also yes when the kept
+      // profile predates a property the app now reads. Collapsing the two is
+      // what left older farms permanently without pH.
+      if (!reusable || !profileCarriesEveryReadProperty(reusable)) {
+        // Not awaited, and its failure is reported through `soilFetchStatus`
+        // rather than thrown: the farm is already saved and usable.
+        soilBackfillAttempted.current.add(soilId);
+        void ensureMeasuredSoil(soilId, draft.latitude, draft.longitude);
       }
 
       // Terrain follows the same background pattern, in a SEPARATE request that
       // is deliberately not awaited alongside the soil one. The elevation
-      // endpoint answers in ~1.5 s against SoilGrids' ~15 s, so chaining them
-      // would make the fast one wait on the slow one for no reason, and a
-      // SoilGrids timeout would take the slope down with it.
+      // endpoint answers in ~1.5 s against SoilGrids' tens of seconds, so
+      // chaining them would make the fast one wait on the slow one for no
+      // reason, and a SoilGrids timeout would take the slope down with it.
       if (!reusableTerrain) {
         void fetchTerrain(draft.latitude, draft.longitude).then(async (terrain) => {
           if (!terrain) return;
@@ -358,7 +535,7 @@ export function useAppStore(): AppStore {
         });
       }
     },
-    [farmer, profiles, refresh],
+    [farmer, profiles, refresh, ensureMeasuredSoil],
   );
 
   const deleteFarm = useCallback(
@@ -469,6 +646,21 @@ export function useAppStore(): AppStore {
       return buildProgress(farmId, day);
     },
     [buildProgress],
+  );
+
+  const saveNutrientReading = useCallback(
+    async (farmId: string, reading: SoilNutrientReading): Promise<void> => {
+      const profile = profiles.find((p) => p.farm.id === farmId);
+      if (!profile) return;
+      // Re-read rather than reusing the captured `profile.soil`: nothing else
+      // awaits this call, and a slow tap sequence could otherwise overwrite a
+      // `measured` profile that landed from the SoilGrids backfill in between.
+      const current = await soilRepository.getById(profile.soil.id);
+      if (!current) return;
+      await soilRepository.save({ ...current, nutrientReading: reading });
+      await refresh();
+    },
+    [profiles, refresh],
   );
 
   const generateForFarm = useCallback(
@@ -716,6 +908,7 @@ export function useAppStore(): AppStore {
     initError,
     t,
     todaysReminders,
+    soilFetchStatus,
     saveFarm,
     deleteFarm,
     generateForFarm,
@@ -730,5 +923,6 @@ export function useAppStore(): AppStore {
     loadWaterProgress,
     logIrrigation,
     resetTodayIrrigation,
+    saveNutrientReading,
   };
 }

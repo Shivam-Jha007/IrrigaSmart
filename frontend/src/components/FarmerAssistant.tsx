@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Language } from '../types';
-import { localeFor, type TranslateFn } from '../i18n';
+import { localeFor, translate, type TranslateFn } from '../i18n';
 import {
+  alternatesFor,
   askAssistant,
+  detectSpokenLanguage,
   MAX_QUESTION_CHARS,
   speechInputSupported,
   speechOutputSupported,
@@ -130,15 +132,33 @@ export function FarmerAssistant({ context, language, t }: Props) {
         content: message.text,
       }));
 
+      // A question's own script, not Settings → Language, decides which
+      // language THIS turn is answered in. Without this, a farmer whose
+      // Settings happens to be English but who types or speaks Hindi/Bengali/
+      // Assamese/Urdu got their transcript recognised correctly and their
+      // reply given back in English regardless — the app answered the
+      // question it was configured for, not the one it was actually asked.
+      // `detectSpokenLanguage` returns null for Latin-script text (English, or
+      // any language typed in roman letters), in which case the farmer's own
+      // Settings choice is the only signal there is, and stays authoritative.
+      const spokenLanguage = detectSpokenLanguage(text);
+      const turnLanguage: Language = spokenLanguage ?? language;
+      const turnT: TranslateFn = spokenLanguage
+        ? (key, vars) => translate(spokenLanguage, key, vars)
+        : t;
+      const turnContext: AssistantContext | undefined = context
+        ? { ...context, language: turnLanguage }
+        : context;
+
       const controller = new AbortController();
       abortRef.current = controller;
 
       try {
         const answer = await askAssistant({
           question: text,
-          context,
+          context: turnContext,
           history,
-          t,
+          t: turnT,
           signal: controller.signal,
         });
         setMessages((prev) => [
@@ -152,7 +172,90 @@ export function FarmerAssistant({ context, language, t }: Props) {
         setBusy(false);
       }
     },
-    [busy, context, messages, t],
+    [busy, context, language, messages, t],
+  );
+
+  /**
+   * Begin (or retry) a recognition attempt at one alternate locale.
+   *
+   * WHY THIS RETRIES ON `language-not-supported` SPECIFICALLY
+   * `localeFor('bn')` returns 'bn-IN', the correct tag for Bengali as spoken in
+   * India — but some recognition engines only ship a 'bn-BD' language pack and
+   * reject 'bn-IN' outright with this exact error, even though they can
+   * transcribe the same speech under the other tag (the mirror image of the
+   * synthesis gap `chooseVoice` fixes in speech.ts — see that file's
+   * `LOCALE_ALTERNATES` note for the Chromium bug this traces back to). Rather
+   * than showing the farmer an error for a locale mismatch the app itself can
+   * silently work around, the next alternate from `alternatesFor` is tried
+   * automatically; only once every alternate has failed does the farmer see
+   * `assistant.voiceLanguageUnsupported`.
+   */
+  const attemptListening = useCallback(
+    (alternateIndex: number) => {
+      const alternates = alternatesFor(locale);
+      const tryLocale = alternates[alternateIndex];
+      if (!tryLocale) {
+        // Exhausted every alternate — this is the honest "unsupported" case.
+        setListening(false);
+        listenRef.current = null;
+        setVoiceError(t('assistant.voiceLanguageUnsupported'));
+        return;
+      }
+
+      const session = startListening(tryLocale, {
+        onPartial: (partial) => setInput(partial),
+        onFinal: (final) => {
+          setInput(final);
+          setListening(false);
+          listenRef.current = null;
+          void send(final);
+        },
+        onError: (code) => {
+          if (code === 'language-not-supported' && alternateIndex + 1 < alternates.length) {
+            attemptListening(alternateIndex + 1);
+            return;
+          }
+          setListening(false);
+          listenRef.current = null;
+          setVoiceError(
+            code === 'not-allowed' || code === 'service-not-allowed'
+              ? t('assistant.voiceDenied')
+              : code === 'no-speech'
+                ? t('assistant.voiceNoSpeech')
+                // Distinct from the generic fallback: a farmer speaking one of
+                // this app's non-English languages needs to know their
+                // language — not their microphone — is the problem, since
+                // some browsers (observed on Edge) throw this for every
+                // language regardless of which one is actually unsupported.
+                : code === 'language-not-supported'
+                  ? t('assistant.voiceLanguageUnsupported')
+                  : code === 'network'
+                    ? t('assistant.voiceNetwork')
+                    : t('assistant.voiceError'),
+          );
+        },
+        // Some browsers end a session with no error at all when nothing was
+        // heard — the mic icon would otherwise just switch off with no
+        // explanation, which is indistinguishable from a broken microphone.
+        // Same message as the explicit 'no-speech' error above, since to the
+        // farmer it is the same outcome.
+        onSilentEnd: () => {
+          setVoiceError(t('assistant.voiceNoSpeech'));
+        },
+        onEnd: () => {
+          setListening(false);
+          listenRef.current = null;
+        },
+      });
+
+      if (!session) {
+        setVoiceError(t('assistant.voiceError'));
+        return;
+      }
+      listenRef.current = session;
+      setListening(true);
+    },
+    [locale, send, t],
   );
 
   const toggleListening = useCallback(() => {
@@ -164,38 +267,8 @@ export function FarmerAssistant({ context, language, t }: Props) {
     }
 
     setVoiceError(null);
-    const session = startListening(locale, {
-      onPartial: (partial) => setInput(partial),
-      onFinal: (final) => {
-        setInput(final);
-        setListening(false);
-        listenRef.current = null;
-        void send(final);
-      },
-      onError: (code) => {
-        setListening(false);
-        listenRef.current = null;
-        setVoiceError(
-          code === 'not-allowed' || code === 'service-not-allowed'
-            ? t('assistant.voiceDenied')
-            : code === 'no-speech'
-              ? t('assistant.voiceNoSpeech')
-              : t('assistant.voiceError'),
-        );
-      },
-      onEnd: () => {
-        setListening(false);
-        listenRef.current = null;
-      },
-    });
-
-    if (!session) {
-      setVoiceError(t('assistant.voiceError'));
-      return;
-    }
-    listenRef.current = session;
-    setListening(true);
-  }, [listening, locale, send, t]);
+    attemptListening(0);
+  }, [attemptListening, listening]);
 
   if (!open) {
     return (

@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  SOIL_DEPTHS,
+  SOIL_DEPTH_BATCHES,
+  clearSoilCache,
+  fetchSoilProperties,
   parseSoilGrids,
   saxtonRawls,
   usdaTextureClass,
@@ -99,6 +103,32 @@ describe('parseSoilGrids — units and shape', () => {
     // 1% = 10 g/kg. A topsoil SOC of 1.8% is ordinary; 18% would not be.
     expect(layers[0]!.organicCarbonPct).toBeGreaterThan(0.2);
     expect(layers[0]!.organicCarbonPct).toBeLessThan(5);
+  });
+
+  it('converts pH from pH×10 to standard pH units', () => {
+    // Fixture carries phh2o mean 64 at d_factor 10 → pH 6.4, a plausible
+    // slightly-acidic value for the reference farm's clay loam.
+    expect(layers[0]!.phH2O).toBeCloseTo(6.4, 6);
+    expect(layers[3]!.phH2O).toBeCloseTo(6.5, 6);
+    for (const l of layers) {
+      expect(l.phH2O).not.toBeNull();
+      expect(l.phH2O as number).toBeGreaterThan(3);
+      expect(l.phH2O as number).toBeLessThan(10);
+    }
+  });
+
+  it('keeps a layer whose only missing property is pH', () => {
+    // pH has no cross-check partner and does not gate water-balance figures,
+    // so a missing phh2o value must not drop the layer the way a missing
+    // clay/FC/PWP value does.
+    const noPh = {
+      properties: {
+        layers: fixture.properties.layers.filter((l) => l.name !== 'phh2o'),
+      },
+    };
+    const parsed = parseSoilGrids(noPh);
+    expect(parsed).toHaveLength(4);
+    for (const l of parsed) expect(l.phH2O).toBeNull();
   });
 
   it('drops a layer that is missing any required property', () => {
@@ -258,5 +288,233 @@ describe('usdaTextureClass', () => {
     expect(usdaTextureClass(-1, 50, 51)).toBeNull();
     expect(usdaTextureClass(Number.NaN, 40, 40)).toBeNull();
     expect(usdaTextureClass(10, 10, 10)).toBeNull(); // sums to 30
+  });
+});
+
+/**
+ * The fetch path: the depth split, the retry, and the cache.
+ *
+ * WHY THESE EXIST
+ * The single 8-property × 4-depth query this module used to send stopped being
+ * serviceable — timed at over 50 s against the live provider, past its own
+ * timeout — so the request is now split into two depth halves. That split is
+ * only safe if merging the halves reproduces exactly what one successful whole
+ * query would have returned, and "exactly" is a claim worth asserting rather
+ * than believing: the first test below feeds each half only the depths it asked
+ * for and requires the merged result to deep-equal `parseSoilGrids` over the
+ * whole fixture.
+ *
+ * The provider is stubbed rather than called. These tests are about this
+ * module's control flow — how many requests, in what shape, retried when — and a
+ * live call can neither pin down a 503 nor prove a cache hit.
+ */
+const REFERENCE_LAT = 23.677;
+const REFERENCE_LON = 87.685;
+
+/** Minimal stand-in for the parts of `Response` that `fetchBatch` touches. */
+function jsonResponse(body: unknown, status = 200): globalThis.Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => Promise.resolve(body),
+  } as unknown as globalThis.Response;
+}
+
+/** The fixture narrowed to the depths one half actually requested. */
+function fixtureForDepths(depths: readonly string[]): Capture {
+  return {
+    properties: {
+      layers: fixture.properties.layers.map((l) => ({
+        ...l,
+        depths: l.depths.filter((d) => depths.includes(d.label)),
+      })),
+    },
+  };
+}
+
+/**
+ * Stub the provider. `statusPlan` maps the Nth property query to an HTTP status;
+ * anything not listed (and any `'ok'`) is served the fixture slice for the
+ * depths that query asked for.
+ */
+function stubProvider(statusPlan: ReadonlyArray<number | 'ok'> = []): {
+  queries: Array<{ depths: string[]; properties: string[] }>;
+  classificationCalls: () => number;
+} {
+  const queries: Array<{ depths: string[]; properties: string[] }> = [];
+  let classificationCalls = 0;
+
+  vi.stubGlobal('fetch', (input: string | URL) => {
+    const url = String(input);
+    // The WRB classification endpoint is a different question on the same host,
+    // reached only from the fallback path. Counted separately so a test can tell
+    // "the profile query ran twice" from "the suggestion query also ran".
+    if (url.includes('/classification/query')) {
+      classificationCalls += 1;
+      return Promise.resolve(jsonResponse({ wrb_class_name: 'Luvisols' }));
+    }
+    const params = new URL(url).searchParams;
+    const depths = params.getAll('depth');
+    const planned = statusPlan[queries.length] ?? 'ok';
+    queries.push({ depths, properties: params.getAll('property') });
+    if (planned !== 'ok') return Promise.resolve(jsonResponse({}, planned));
+    return Promise.resolve(jsonResponse(fixtureForDepths(depths)));
+  });
+
+  return { queries, classificationCalls: () => classificationCalls };
+}
+
+describe('fetchSoilProperties — depth split, retry and cache', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    // A module-level cache would otherwise let one case's stubbed provider
+    // answer the next case's fetch — cross-talk that fails intermittently.
+    clearSoilCache();
+  });
+
+  it('asks for every depth exactly once across the batches', () => {
+    // Pure, no network. A batch list that dropped 15-30cm would still produce a
+    // plausible-looking three-layer profile, and the only symptom would be a
+    // quietly reduced root-zone coverage downstream.
+    expect(SOIL_DEPTH_BATCHES.flat()).toEqual([...SOIL_DEPTHS]);
+  });
+
+  it('splits the query by depth and keeps all eight properties in each half', async () => {
+    const { queries } = stubProvider();
+    await fetchSoilProperties(REFERENCE_LAT, REFERENCE_LON);
+
+    expect(queries.map((q) => q.depths)).toEqual([
+      ['0-5cm', '5-15cm'],
+      ['15-30cm', '30-60cm'],
+    ]);
+    // Every half carries the full property list — that is what makes the split
+    // lossless. Splitting by property instead would leave each layer assembled
+    // from two responses, so one half failing would yield a half-built layer
+    // rather than a missing one, and `parseSoilGrids` could not tell.
+    for (const q of queries) {
+      expect(q.properties).toEqual([
+        'clay',
+        'sand',
+        'silt',
+        'wv0033',
+        'wv1500',
+        'bdod',
+        'soc',
+        'phh2o',
+      ]);
+    }
+  });
+
+  it('merges the halves into exactly what one whole-profile query would return', async () => {
+    stubProvider();
+    const payload = await fetchSoilProperties(REFERENCE_LAT, REFERENCE_LON);
+
+    expect(payload.source).toBe('measured');
+    expect(payload.fallbackReason).toBeNull();
+    // A measured answer has nothing to retry.
+    expect(payload.retryable).toBe(false);
+    // The losslessness claim, asserted rather than assumed.
+    expect(payload.layers).toEqual(parseSoilGrids(fixture));
+    expect(payload.usdaTextureClass).toBe('clay loam');
+    expect(payload.layers.map((l) => l.topCm)).toEqual([0, 5, 15, 30]);
+    expect(payload.layers[0]!.phH2O).toBeCloseTo(6.4, 6);
+  });
+
+  it('retries a half the provider shed and still returns a measured profile', async () => {
+    // 503 is what SoilGrids returns when it is shedding load, which is the
+    // failure this retry exists for. Real timers: the delay is 1.5 s and faking
+    // them here would test the fake rather than the backoff.
+    const { queries } = stubProvider([503]);
+    const payload = await fetchSoilProperties(REFERENCE_LAT, REFERENCE_LON);
+
+    expect(queries.map((q) => q.depths)).toEqual([
+      ['0-5cm', '5-15cm'], // shed
+      ['0-5cm', '5-15cm'], // retried
+      ['15-30cm', '30-60cm'],
+    ]);
+    expect(payload.source).toBe('measured');
+    expect(payload.layers).toHaveLength(4);
+  });
+
+  it('does not retry a 4xx, and reports the provider status', async () => {
+    // A 400 or 404 is the same answer every time; retrying only adds latency to
+    // a failure the farmer is already waiting on.
+    const { queries, classificationCalls } = stubProvider([404]);
+    const payload = await fetchSoilProperties(REFERENCE_LAT, REFERENCE_LON);
+
+    expect(queries).toHaveLength(1);
+    expect(payload.source).toBe('table');
+    expect(payload.fallbackReason).toBe('soil provider returned 404');
+    // A 4xx is the same answer every time, so the fallback is not retryable.
+    expect(payload.retryable).toBe(false);
+    expect(payload.layers).toEqual([]);
+    // The coarser WRB suggestion is still attempted, so the farm form is not
+    // left with nothing when the property query fails.
+    expect(classificationCalls()).toBe(1);
+  });
+
+  it('falls back to the table when only the deep half fails', async () => {
+    // Half a profile parses and validates perfectly well; the missing depths
+    // would silently reduce root-zone coverage instead of saying anything. A
+    // partial measurement is a quieter and worse failure than the table.
+    const { queries } = stubProvider(['ok', 404]);
+    const payload = await fetchSoilProperties(REFERENCE_LAT, REFERENCE_LON);
+
+    expect(queries).toHaveLength(2);
+    expect(payload.source).toBe('table');
+    expect(payload.layers).toEqual([]);
+  });
+
+  it('marks a table fallback from a transient failure as retryable', async () => {
+    // 503 is load-shedding: the same request a little later may well succeed. The
+    // first attempt AND its one retry shed here, so the profile query gives up to
+    // the table — but the payload records that the failure was transient, which
+    // is what lets the frontend ask again instead of leaving the pH card blank.
+    const { queries } = stubProvider([503, 503]);
+    const payload = await fetchSoilProperties(REFERENCE_LAT, REFERENCE_LON);
+
+    expect(queries).toHaveLength(2); // the first half, then its single retry
+    expect(payload.source).toBe('table');
+    expect(payload.fallbackReason).toBe('soil provider returned 503');
+    expect(payload.retryable).toBe(true);
+  });
+
+  it('shares one flight between concurrent callers for the same coordinate', async () => {
+    // The case this cache exists for: creating a farm calls /api/soil twice
+    // within milliseconds, once for the form chip and once for the profile.
+    const { queries } = stubProvider();
+    const [a, b] = await Promise.all([
+      fetchSoilProperties(REFERENCE_LAT, REFERENCE_LON),
+      fetchSoilProperties(REFERENCE_LAT, REFERENCE_LON),
+    ]);
+
+    expect(queries).toHaveLength(2); // two halves, not four
+    expect(a).toBe(b); // same promise, so literally the same object
+  });
+
+  it('serves a settled result without touching the provider again', async () => {
+    const { queries } = stubProvider();
+    await fetchSoilProperties(REFERENCE_LAT, REFERENCE_LON);
+    expect(queries).toHaveLength(2);
+    await fetchSoilProperties(REFERENCE_LAT, REFERENCE_LON);
+    expect(queries).toHaveLength(2);
+  });
+
+  it('does not serve one coordinate answer for another', async () => {
+    // The reason the key is the exact coordinate and not a rounded grid cell:
+    // two points inside one 250 m cell are still two different pieces of ground,
+    // and quietly serving one estimate as the other's is the provenance
+    // compromise this codebase does not make.
+    const { queries } = stubProvider();
+    await fetchSoilProperties(REFERENCE_LAT, REFERENCE_LON);
+    await fetchSoilProperties(REFERENCE_LAT + 0.0005, REFERENCE_LON);
+    expect(queries).toHaveLength(4);
+  });
+
+  it('rejects an impossible coordinate without caching anything', async () => {
+    const { queries } = stubProvider();
+    await expect(fetchSoilProperties(91, 0)).rejects.toThrow(/latitude/);
+    await expect(fetchSoilProperties(0, 181)).rejects.toThrow(/longitude/);
+    expect(queries).toEqual([]);
   });
 });

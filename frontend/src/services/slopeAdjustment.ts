@@ -74,6 +74,31 @@ export function intakeFactor(terrain: FarmTerrain | undefined): number {
 /** Methods that move water across the surface and so are exposed to slope. */
 const SURFACE_METHODS: readonly IrrigationMethod[] = ['Flood', 'Furrow'];
 
+/** Whether a method moves water across the surface, where slope acts on it. */
+export function isSurfaceMethod(method: IrrigationMethod | null): boolean {
+  return method !== null && SURFACE_METHODS.includes(method);
+}
+
+/**
+ * The surface-irrigation advisory, decided from the two values it needs.
+ *
+ * Split out from `warnsSurfaceMethod` so the improvement engine can ask the same
+ * question of a `FarmContext` — whose slope is a `Sourced<number | null>` and not
+ * a `FarmTerrain` — without either copying the threshold or faking a terrain
+ * record. One threshold, one predicate, two callers.
+ */
+export function surfaceMethodWarned(
+  slopePercent: number | null | undefined,
+  method: IrrigationMethod | null,
+): boolean {
+  if (!isSurfaceMethod(method)) return false;
+  if (typeof slopePercent !== 'number' || !Number.isFinite(slopePercent)) return false;
+  // Note this uses the warning threshold, not the deadband: the advisory is a
+  // sentence of advice with no cost if it is wrong, so it is worth showing on
+  // ground the runoff maths deliberately declines to act on.
+  return slopePercent > SLOPE.METHOD_WARNING_PERCENT;
+}
+
 /**
  * Whether to show the surface-irrigation advisory for this farm.
  *
@@ -86,11 +111,5 @@ export function warnsSurfaceMethod(
   terrain: FarmTerrain | undefined,
   method: IrrigationMethod,
 ): boolean {
-  if (!terrain || !SURFACE_METHODS.includes(method)) return false;
-  const slope = terrain.slopePercent;
-  if (typeof slope !== 'number' || !Number.isFinite(slope)) return false;
-  // Note this uses the warning threshold, not the deadband: the advisory is a
-  // sentence of advice with no cost if it is wrong, so it is worth showing on
-  // ground the runoff maths deliberately declines to act on.
-  return slope > SLOPE.METHOD_WARNING_PERCENT;
+  return surfaceMethodWarned(terrain?.slopePercent, method);
 }

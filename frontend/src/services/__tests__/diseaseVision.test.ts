@@ -7,11 +7,20 @@ import { CROP_DISEASES } from '../diseaseKnowledge';
 import {
   COVERED_CROPS,
   MIN_CONFIDENCE,
+  PLANTS_WITH_HEALTHY_CLASS,
   VISION_CLASSES,
   lookupVisionClass,
+  plantHasHealthyClass,
   verdictFor,
   visionCoversCrop,
 } from '../diseaseVisionMap';
+import {
+  creditLineFor,
+  REFERENCE_IMAGES,
+  referenceImagesFor,
+  WEATHER_REFERENCE_IMAGES,
+} from '../diseaseReference';
+import { TRANSLATIONS } from '../../i18n/translations';
 import { argmax, centreCrop, preprocess, VisionError } from '../diseaseVision';
 
 /**
@@ -28,7 +37,7 @@ import { argmax, centreCrop, preprocess, VisionError } from '../diseaseVision';
  */
 
 const MANIFEST_PATH = fileURLToPath(
-  new URL('../../../public/models/plant-disease-labels.json', import.meta.url),
+  new URL('../../../public/models/plant-disease-labels-v2.json', import.meta.url),
 );
 
 interface Manifest {
@@ -53,8 +62,8 @@ describe('the class map matches the shipped manifest', () => {
     expect(Object.keys(VISION_CLASSES).sort()).toEqual([...manifest.classes].sort());
   });
 
-  it('has 23 classes', () => {
-    expect(Object.keys(VISION_CLASSES)).toHaveLength(23);
+  it('has 27 classes', () => {
+    expect(Object.keys(VISION_CLASSES)).toHaveLength(27);
   });
 
   it('preserves the manifest quirks exactly — do not tidy these', () => {
@@ -65,6 +74,13 @@ describe('the class map matches the shipped manifest', () => {
     expect(VISION_CLASSES['Potato___Early_blight']).toBeDefined(); // triple ___
     expect(VISION_CLASSES['Tomato_Early_blight']).toBeDefined(); // single _
     expect(VISION_CLASSES['Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot']).toBeDefined(); // space
+  });
+
+  it('has the four rice classes, named with the same Plant___Disease convention', () => {
+    expect(VISION_CLASSES['Rice___Bacterial_blight']).toBeDefined();
+    expect(VISION_CLASSES['Rice___Blast']).toBeDefined();
+    expect(VISION_CLASSES['Rice___Brown_spot']).toBeDefined();
+    expect(VISION_CLASSES['Rice___Tungro']).toBeDefined();
   });
 
   it('maps every class to a plant, and every overlapping class to a real app crop', () => {
@@ -122,6 +138,32 @@ describe('reuse of the weather knowledge base', () => {
     });
   });
 
+  it('maps rice blast and bacterial blight onto the existing weather-path DiseaseIds', () => {
+    expect(VISION_CLASSES['Rice___Blast']?.finding).toEqual({
+      kind: 'known',
+      disease: 'riceBlast',
+    });
+    expect(VISION_CLASSES['Rice___Bacterial_blight']?.finding).toEqual({
+      kind: 'known',
+      disease: 'riceBacterialLeafBlight',
+    });
+  });
+
+  it('keeps rice brown spot and tungro vision-only — neither has a CROP_DISEASES entry', () => {
+    // Brown spot (Bipolaris oryzae) has no published daily-aggregate infection
+    // window, and tungro is a leafhopper-transmitted virus rather than a
+    // weather-triggered condition — forcing either onto a DiseaseId would
+    // invent a temperature/humidity band CROP_DISEASES.Rice does not have.
+    expect(VISION_CLASSES['Rice___Brown_spot']?.finding).toEqual({
+      kind: 'visionOnly',
+      label: 'riceBrownSpot',
+    });
+    expect(VISION_CLASSES['Rice___Tungro']?.finding).toEqual({
+      kind: 'visionOnly',
+      label: 'riceTungro',
+    });
+  });
+
   it('keeps gray leaf spot vision-only rather than folding it into blight or rust', () => {
     // Cercospora is a different organism with no CROP_DISEASES entry. Forcing
     // it onto turcicum would state, in five languages, that the farmer has a
@@ -143,26 +185,30 @@ describe('reuse of the weather knowledge base', () => {
     const healthy = Object.entries(VISION_CLASSES).filter(([raw]) =>
       raw.toLowerCase().endsWith('healthy'),
     );
-    expect(healthy).toHaveLength(5); // apple, maize, pepper, potato, tomato
+    // apple, maize, pepper, potato, tomato — still 5, not 6: the rice dataset
+    // this model was retrained on has no healthy-rice folder, so there is no
+    // Rice___healthy class.
+    expect(healthy).toHaveLength(5);
     for (const [raw, entry] of healthy) {
       expect(entry.finding, raw).toEqual({ kind: 'healthy' });
     }
   });
 });
 
-describe('crop coverage — the seven crops the model cannot help', () => {
-  it('covers exactly Maize, Potato and Tomato', () => {
-    expect([...COVERED_CROPS].sort()).toEqual(['Maize', 'Potato', 'Tomato']);
+describe('crop coverage — the six crops the model cannot help', () => {
+  it('covers exactly Maize, Potato, Rice and Tomato', () => {
+    expect([...COVERED_CROPS].sort()).toEqual(['Maize', 'Potato', 'Rice', 'Tomato']);
   });
 
-  it('reports no coverage for the other seven, including Rice', () => {
+  it('reports coverage for Rice now that it has classes, and none for the other six', () => {
     // Rice matters specifically: it is the crop of the app's design persona, so
-    // the "not trained on your crop" state is the COMMON path, not an edge case.
-    expect(visionCoversCrop('Rice')).toBe(false);
+    // its coverage state was the COMMON path, not an edge case, before this
+    // retrain — and remains worth asserting explicitly now that it is covered.
+    expect(visionCoversCrop('Rice')).toBe(true);
     for (const crop of SUPPORTED_CROPS) {
       expect(visionCoversCrop(crop), crop).toBe(COVERED_CROPS.includes(crop));
     }
-    expect(SUPPORTED_CROPS.filter((crop) => !visionCoversCrop(crop))).toHaveLength(7);
+    expect(SUPPORTED_CROPS.filter((crop) => !visionCoversCrop(crop))).toHaveLength(6);
   });
 
   it('derives coverage from the map, so a new model cannot leave it stale', () => {
@@ -175,11 +221,60 @@ describe('crop coverage — the seven crops the model cannot help', () => {
   });
 });
 
+describe('the plants the model can call healthy — five of six', () => {
+  /**
+   * Rice is the exception and it is not a small one. The retrain that added rice
+   * used a dataset with four disease folders and no healthy folder, so "this rice
+   * leaf is fine" is not a representable output: the probability mass has nowhere
+   * to go but blast, bacterial blight, brown spot, tungro — or another plant.
+   *
+   * Measured, not assumed: over six field photographs of diseased rice from
+   * Wikimedia this model put three in `Corn_(maize)___healthy` and named a rice
+   * condition for the other three. The UI's only honest response is to say what
+   * the model cannot do, which is why the flag rides on the verdict.
+   */
+  it('is exactly the five plants that have a healthy class, and excludes Rice', () => {
+    expect([...PLANTS_WITH_HEALTHY_CLASS].sort()).toEqual([
+      'Apple',
+      'Maize',
+      'PepperBell',
+      'Potato',
+      'Tomato',
+    ]);
+    expect(PLANTS_WITH_HEALTHY_CLASS).not.toContain('Rice');
+  });
+
+  it('is derived from the class map, so a retrain cannot leave it stale', () => {
+    // The same discipline as COVERED_CROPS: a retrain that adds a healthy-rice
+    // folder must silence the caveat by itself, and one that loses a healthy
+    // folder must raise it. A hard-coded list is how vision.coveredCrops came to
+    // name three crops for two months after rice made it four.
+    const derived = new Set(
+      Object.values(VISION_CLASSES)
+        .filter((entry) => entry.finding.kind === 'healthy')
+        .map((entry) => entry.plant),
+    );
+    expect(new Set(PLANTS_WITH_HEALTHY_CLASS)).toEqual(derived);
+  });
+
+  it('lists each plant once, however many healthy classes it has', () => {
+    expect(new Set(PLANTS_WITH_HEALTHY_CLASS).size).toBe(PLANTS_WITH_HEALTHY_CLASS.length);
+  });
+
+  it('answers per plant, and says no for Rice', () => {
+    expect(plantHasHealthyClass('Rice')).toBe(false);
+    for (const plant of ['Apple', 'Maize', 'PepperBell', 'Potato', 'Tomato'] as const) {
+      expect(plantHasHealthyClass(plant), plant).toBe(true);
+    }
+  });
+});
+
 describe('lookupVisionClass', () => {
   it('returns null rather than throwing for a class the manifest does not have', () => {
     // A swapped model must degrade to "cannot read this photo", not crash the
-    // dashboard mid-render.
-    expect(lookupVisionClass('Rice___Blast')).toBeNull();
+    // dashboard mid-render. 'Rice___Blast' is a real class now that rice is
+    // covered, so a still-unmapped rice condition stands in for it here.
+    expect(lookupVisionClass('Rice___Sheath_Blight')).toBeNull();
     expect(lookupVisionClass('')).toBeNull();
   });
 
@@ -256,8 +351,265 @@ describe('verdictFor — the presentation decision', () => {
   });
 
   it('reports an unmapped class distinctly from an unsure one', () => {
-    const verdict = verdictFor('Rice___Blast', 0.99, 'Rice');
+    // 'Rice___Blast' is now a real, mapped class — use a still-unmapped rice
+    // condition instead.
+    const verdict = verdictFor('Rice___Sheath_Blight', 0.99, 'Rice');
     expect(verdict.kind).toBe('unknownClass');
+  });
+
+  /**
+   * The worst output this feature is capable of, and the reason
+   * `otherPlantHealthy` exists as its own kind.
+   *
+   * `Corn_(maize)___healthy` is where this model puts leaves it does not
+   * recognise. Measured: over ten field photographs of plants it was never
+   * trained on, it chose that class for both onion photographs, at 0.8864 and
+   * 0.9630 — comfortably past MIN_CONFIDENCE. Rendered through the shared healthy
+   * branch, a farmer holding a visibly diseased leaf read "looks similar to
+   * healthy leaves (96% similar)" with a small mismatch note above it. That is a
+   * confident all-clear on a sick plant, which is worse than a wrong disease name
+   * because it ends the investigation instead of misdirecting it.
+   */
+  describe('a healthy class for a plant the farmer is not growing', () => {
+    const MAIZE_HEALTHY = 'Corn_(maize)___healthy';
+
+    it('is never a match and never a plain otherPlant', () => {
+      const verdict = verdictFor(MAIZE_HEALTHY, 0.96, 'Rice');
+      expect(verdict.kind).toBe('otherPlantHealthy');
+      expect(verdict.kind).not.toBe('match');
+      expect(verdict.kind).not.toBe('otherPlant');
+    });
+
+    it('holds for the measured onion confidences, on every covered crop but maize', () => {
+      // Those two readings only reach a farmer whose own crop is covered by the
+      // model, so the maize case is excluded here — for a maize farmer this class
+      // IS their crop and a healthy reading is a legitimate answer.
+      for (const confidence of [0.8864, 0.963]) {
+        for (const crop of ['Potato', 'Rice', 'Tomato'] as const) {
+          expect(verdictFor(MAIZE_HEALTHY, confidence, crop).kind, `${crop} @${confidence}`).toBe(
+            'otherPlantHealthy',
+          );
+        }
+      }
+    });
+
+    it('still reads as a match when maize is the crop', () => {
+      const verdict = verdictFor(MAIZE_HEALTHY, 0.96, 'Maize');
+      expect(verdict.kind).toBe('match');
+    });
+
+    it('still reads as a match when no farm is selected', () => {
+      // Nothing to contradict, so nothing to warn about.
+      expect(verdictFor(MAIZE_HEALTHY, 0.96, null).kind).toBe('match');
+    });
+
+    it('leaves a NAMED off-crop class on the old otherPlant path', () => {
+      // The split is about health claims, not about crop mismatch. "Looks like
+      // maize common rust, and you grow rice" is still worth reporting.
+      expect(verdictFor('Corn_(maize)___Common_rust_', 0.9, 'Rice').kind).toBe('otherPlant');
+    });
+
+    it('checks confidence first, so the three weak rice misfires read as unsure', () => {
+      // The measured rice failures: 0.2109, 0.1621 and 0.309, all into
+      // Corn_(maize)___healthy. MIN_CONFIDENCE catches these before the crop
+      // check ever runs.
+      for (const confidence of [0.2109, 0.1621, 0.309]) {
+        expect(verdictFor(MAIZE_HEALTHY, confidence, 'Rice').kind, String(confidence)).toBe(
+          'unsure',
+        );
+      }
+    });
+  });
+
+  describe('the no-healthy-class flag carried on a match', () => {
+    it('is false for every rice class, because the model cannot say "healthy rice"', () => {
+      const riceClasses = Object.keys(VISION_CLASSES).filter((raw) => raw.startsWith('Rice___'));
+      expect(riceClasses).toHaveLength(4);
+
+      for (const raw of riceClasses) {
+        const verdict = verdictFor(raw, 0.9, 'Rice');
+        expect(verdict.kind, raw).toBe('match');
+        if (verdict.kind !== 'match') throw new Error('unreachable');
+        expect(verdict.plantHasHealthyClass, raw).toBe(false);
+      }
+    });
+
+    it('is true for every maize, potato and tomato class', () => {
+      for (const [raw, entry] of Object.entries(VISION_CLASSES)) {
+        if (entry.appCrop === null || entry.appCrop === 'Rice') continue;
+        const verdict = verdictFor(raw, 0.9, entry.appCrop);
+        expect(verdict.kind, raw).toBe('match');
+        if (verdict.kind !== 'match') throw new Error('unreachable');
+        expect(verdict.plantHasHealthyClass, raw).toBe(true);
+      }
+    });
+
+    it('agrees with plantHasHealthyClass for the entry it resolved', () => {
+      // The flag exists so the card cannot forget to ask; this pins it to the
+      // single source of truth rather than to a list repeated here.
+      for (const [raw, entry] of Object.entries(VISION_CLASSES)) {
+        const verdict = verdictFor(raw, 0.9, null);
+        if (verdict.kind !== 'match') continue;
+        expect(verdict.plantHasHealthyClass, raw).toBe(plantHasHealthyClass(entry.plant));
+      }
+    });
+  });
+});
+
+describe('reference images for probable findings', () => {
+  const PUBLIC_PATH = fileURLToPath(new URL('../../../public', import.meta.url));
+
+  it('provides at least one bundled image for every named supported-crop class', () => {
+    // 14 PlantVillage classes always ship exactly 2 (bundled with the model
+    // export, both same-licensed and easy to source in pairs). The 4 rice
+    // classes are sourced individually, and two of them — blast and bacterial
+    // blight — have a single usable freely licensed photograph of the right
+    // disease on the right host, so the count check is per-class rather than a
+    // flat 2. The singletons are named below so a pair silently dropping to one
+    // still fails. Every image must be a real, non-empty file with a distinct src.
+    const namedSupportedClasses = Object.entries(VISION_CLASSES).filter(
+      ([, entry]) => entry.appCrop !== null && entry.finding.kind !== 'healthy',
+    );
+
+    expect(namedSupportedClasses).toHaveLength(18); // 14 PlantVillage + 4 rice
+    expect(Object.keys(REFERENCE_IMAGES)).toHaveLength(18);
+
+    /** Classes with exactly one image. See ATTRIBUTION.md for why, per class. */
+    const singletons: readonly string[] = ['Rice___Blast', 'Rice___Bacterial_blight'];
+
+    for (const [rawClass, entry] of namedSupportedClasses) {
+      const images = referenceImagesFor(rawClass, entry);
+      expect(images.length, rawClass).toBe(singletons.includes(rawClass) ? 1 : 2);
+      expect(new Set(images.map((image) => image.src)).size, rawClass).toBe(images.length);
+
+      for (const image of images) {
+        const assetPath = fileURLToPath(new URL(`../../../public${image.src}`, import.meta.url));
+        expect(assetPath.startsWith(PUBLIC_PATH), image.src).toBe(true);
+        expect(readFileSync(assetPath).byteLength, image.src).toBeGreaterThan(0);
+        expect(image.sourceFile, image.src).toMatch(/\.(?:JPG|jpg|jpeg)$/i);
+      }
+    }
+  });
+
+  it('does not show reference images for healthy findings', () => {
+    for (const [rawClass, entry] of Object.entries(VISION_CLASSES)) {
+      if (entry.finding.kind === 'healthy') {
+        expect(referenceImagesFor(rawClass, entry), rawClass).toEqual([]);
+      }
+    }
+  });
+
+  it('does not invent references for an unmapped raw class', () => {
+    const knownEntry = VISION_CLASSES.Tomato_Late_blight;
+    if (!knownEntry) throw new Error('test fixture is missing');
+    expect(referenceImagesFor('Rice___Sheath_Blight', knownEntry)).toEqual([]);
+  });
+});
+
+/**
+ * Attribution.
+ *
+ * WHY THIS SUITE EXISTS
+ * Both cards used to print one hardcoded credit line each, and both lines were
+ * false for a large share of the images beside them. The weather card said "USDA
+ * reference images · Public domain / CC BY 3.0" while displaying photographs from
+ * PlantVillage, EcoPort, DLR Rheinpfalz, Bugwood and Wikimedia under five
+ * different licences; the photo card said "PlantVillage examples · CC BY-SA 3.0"
+ * over every rice photograph, none of which is a PlantVillage image. CC BY-SA
+ * 3.0, CC BY-SA 4.0, CC BY 4.0, CC BY 2.0 and CC BY 3.0 US all require the author
+ * and the licence to be named, so those lines were a licence breach and not just
+ * a wrong caption — and nothing in 429 passing tests noticed, because no test
+ * looked at the credit at all.
+ *
+ * These assertions are deliberately about the *data*, so a new folder cannot be
+ * added without a credit, and about the *rendered markup*, so a correct data
+ * table cannot be undone by a card going back to a constant string.
+ */
+describe('reference image attribution', () => {
+  /** Every image the app can display, from both cards' maps. */
+  const allImages = [
+    ...Object.values(REFERENCE_IMAGES).flat(),
+    ...Object.values(WEATHER_REFERENCE_IMAGES).flat(),
+  ];
+
+  it('has a named holder and licence for every image on both paths', () => {
+    expect(allImages.length).toBeGreaterThan(0);
+    for (const image of allImages) {
+      expect(image.credit.holder, image.src).toBeTruthy();
+      expect(image.credit.licence, image.src).toBeTruthy();
+    }
+  });
+
+  it('uses only licences that actually permit this use', () => {
+    // A closed set. Anything else — non-commercial, no-derivatives, "fair use",
+    // or an unstated licence — must be a deliberate edit here, not a quiet
+    // addition to the image table.
+    const permitted: readonly string[] = [
+      'Public domain',
+      'CC BY 2.0',
+      'CC BY 3.0 US',
+      'CC BY 4.0',
+      'CC BY-SA 3.0',
+      'CC BY-SA 4.0',
+    ];
+    for (const image of allImages) {
+      expect(permitted, image.src).toContain(image.credit.licence);
+    }
+  });
+
+  it('does not credit PlantVillage for anything outside the bundled export', () => {
+    // The photo card's old constant claimed PlantVillage for all 18 classes.
+    // Only the 14 that ship with the model export are PlantVillage images.
+    const plantVillage = allImages.filter((i) => i.credit.holder === 'PlantVillage');
+    for (const image of plantVillage) {
+      expect(image.src, image.src).not.toMatch(/\/rice-|\/wheat-|\/soybean-|\/groundnut-|\/onion-|\/sugarcane-/);
+    }
+    for (const image of allImages.filter((i) => i.src.includes('/rice-'))) {
+      expect(image.credit.holder, image.src).not.toBe('PlantVillage');
+    }
+  });
+
+  it('does not credit USDA for work that is not USDA', () => {
+    // The weather card's old constant named USDA for everything it showed. Only
+    // Kolmer's wheat leaf rust and Frederick's soybean rust are USDA ARS.
+    const usda = allImages.filter((i) => i.credit.holder.includes('USDA'));
+    expect(usda.map((i) => i.src).sort()).toEqual([
+      '/disease-reference/soybean-rust/1.jpg',
+      '/disease-reference/wheat-leaf-rust/1.jpg',
+      '/disease-reference/wheat-leaf-rust/2.jpg',
+    ]);
+  });
+
+  it('builds one credit per distinct source, in order, without repeats', () => {
+    // A PlantVillage pair shares a credit; printing it twice would read as two
+    // independent sources.
+    const pair = REFERENCE_IMAGES.Tomato_Late_blight;
+    if (!pair) throw new Error('test fixture is missing');
+    expect(creditLineFor(pair)).toBe('PlantVillage — CC BY-SA 3.0');
+
+    // Two sources stay two, separated and in image order.
+    const mixed = WEATHER_REFERENCE_IMAGES['Onion:onionDownyMildew'];
+    if (!mixed) throw new Error('test fixture is missing');
+    expect(creditLineFor(mixed)).toBe(
+      'Howard F. Schwartz, Colorado State University (Bugwood.org) — CC BY 3.0 US · ' +
+        'Jochen Kreiselmaier, DLR Rheinpfalz — CC BY 4.0',
+    );
+  });
+
+  it('returns an empty line for no images, so the card can omit the label', () => {
+    expect(creditLineFor([])).toBe('');
+  });
+
+  it('has dropped the false constant credit strings from every language', () => {
+    // Not merely unused — gone from the table, so the next author cannot reach
+    // for `disease.referenceCredit` and reintroduce the USDA claim.
+    for (const language of ['en', 'hi', 'bn', 'as', 'ur'] as const) {
+      const table: Record<string, string> = TRANSLATIONS[language];
+      expect(Object.keys(table), language).not.toContain('disease.referenceCredit');
+      expect(table['vision.referenceCredit'], language).toContain('{credits}');
+      expect(table['vision.referenceCredit'], language).not.toContain('USDA');
+      expect(table['vision.referenceCredit'], language).not.toContain('PlantVillage');
+    }
   });
 });
 

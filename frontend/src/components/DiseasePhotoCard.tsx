@@ -12,6 +12,9 @@ import {
 } from '../i18n';
 import {
   classifyPhoto,
+  COVERED_CROPS,
+  creditLineFor,
+  referenceImagesFor,
   visionCoversCrop,
   VisionError,
   type VisionFinding,
@@ -27,15 +30,22 @@ import {
  * RESEMBLES. Neither diagnoses, and this component's job is largely to keep the
  * second from being mistaken for the first.
  *
- * Three deliberate choices, all from docs/12 §Product Boundaries and the
+ * Four deliberate choices, all from docs/12 §Product Boundaries and the
  * roadmap's own note that a confidently wrong model is worse than none:
  *
  *  1. Nothing is claimed to be present. Every result reads "looks similar to
  *     photos of X", and the percentage is labelled similarity, not probability.
  *  2. Low confidence shows NO disease name at all. Not a hedged name — none.
- *  3. Uncovered crops (seven of ten, Rice included) are told so up front, and
- *     the picker is not offered. A rice farmer gets an honest "not trained on
- *     rice" instead of a confident tomato answer.
+ *  3. Uncovered crops (six of ten, since the retrain added rice) are told so up
+ *     front, and the picker is not offered. The list of covered crops is derived
+ *     from COVERED_CROPS rather than written into a translated string, because
+ *     the hard-coded version outlived its accuracy: it still named three crops
+ *     for two months after rice made it four.
+ *  4. A confident HEALTHY reading is only ever shown for the farmer's own crop.
+ *     See `otherPlantHealthy` in diseaseVisionMap — the measurement behind this
+ *     is that unfamiliar leaves land in `Corn_(maize)___healthy` at up to 96%
+ *     confidence, and an all-clear on a diseased plant ends the investigation.
+ *     Numbers: docs/14_Leaf_Photo_Model_Measurement.md.
  */
 
 interface Props {
@@ -119,7 +129,10 @@ export function DiseasePhotoCard({ crop, language, t }: Props) {
         <p className="photo-card__blocked" role="note">
           {t('vision.cropNotCovered', {
             crop: t(cropLabelKey(crop)),
-            covered: t('vision.coveredCrops'),
+            // Derived, and comma-joined rather than run through a conjunction:
+            // `Intl.ListFormat` has no Assamese data and would splice an English
+            // "and" into an Assamese sentence.
+            covered: COVERED_CROPS.map((covered) => t(cropLabelKey(covered))).join(', '),
           })}
         </p>
       ) : (
@@ -158,7 +171,13 @@ export function DiseasePhotoCard({ crop, language, t }: Props) {
             )}
 
             {state.phase === 'done' && (
-              <Outcome verdict={state.result.verdict} crop={crop} language={language} t={t} />
+              <Outcome
+                verdict={state.result.verdict}
+                rawClass={state.result.reading.rawClass}
+                crop={crop}
+                language={language}
+                t={t}
+              />
             )}
           </div>
 
@@ -181,17 +200,21 @@ export function DiseasePhotoCard({ crop, language, t }: Props) {
 /**
  * Renders one verdict.
  *
- * Split out from the card so each branch is readable on its own — the four
+ * Split out from the card so each branch is readable on its own — the five
  * outcomes say materially different things and blending them into one paragraph
- * with conditionals is how a hedge turns into a claim.
+ * with conditionals is how a hedge turns into a claim. `otherPlantHealthy` is the
+ * proof: it used to share the healthy branch, and the result was a 96%-confident
+ * "looks similar to healthy leaves" printed under a photo of a diseased onion.
  */
 function Outcome({
   verdict,
+  rawClass,
   crop,
   language,
   t,
 }: {
   readonly verdict: VisionVerdict;
+  readonly rawClass: string;
   readonly crop: CropName;
   readonly language: Language;
   readonly t: TranslateFn;
@@ -213,8 +236,28 @@ function Outcome({
     );
   }
 
+  // A healthy class for a plant the farmer is not growing. No percentage, no
+  // health claim, no reference images: the reading is about someone else's crop,
+  // and the only useful thing to say is what it does and does not mean.
+  if (verdict.kind === 'otherPlantHealthy') {
+    return (
+      <div className="photo-card__outcome photo-card__outcome--unsure">
+        <p className="photo-card__mismatch" role="note">
+          {t('vision.otherPlantHealthy', {
+            plant: t(visionPlantKey(verdict.entry.plant)),
+            crop: t(cropLabelKey(crop)),
+          })}
+        </p>
+        <p className="photo-card__tips">{t('vision.retakeTips')}</p>
+      </div>
+    );
+  }
+
   const { entry, confidence } = verdict;
   const percent = formatPercent(confidence, language);
+  const nameKey = entry.finding.kind === 'healthy' ? null : nameKeyFor(entry.finding);
+  const referenceImages =
+    verdict.kind === 'match' ? referenceImagesFor(rawClass, entry) : [];
 
   return (
     <div className="photo-card__outcome">
@@ -235,9 +278,51 @@ function Outcome({
           <p className="photo-card__tips">{t('vision.healthyCaveat')}</p>
         </>
       ) : (
-        <p className="photo-card__reading">
-          {t('vision.similarTo', { name: t(nameKeyFor(entry.finding)), percent })}
-        </p>
+        <>
+          <p className="photo-card__reading">
+            {t('vision.similarTo', { name: t(nameKey as TranslationKey), percent })}
+          </p>
+          {/* Rice, today. The model has no healthy class for this plant, so a
+              named condition is the only answer it is capable of giving — which
+              makes "it named something" carry far less information than it
+              appears to. The farmer is told that outright. */}
+          {verdict.kind === 'match' && !verdict.plantHasHealthyClass && (
+            <p className="photo-card__tips">
+              {t('vision.noHealthyClass', { crop: t(cropLabelKey(crop)) })}
+            </p>
+          )}
+          {referenceImages.length > 0 && (
+            <div className="photo-card__references">
+              <p className="photo-card__references-title">{t('vision.referenceTitle')}</p>
+              <p className="photo-card__references-note">{t('vision.referenceNote')}</p>
+              <div className="photo-card__reference-grid">
+                {referenceImages.map((image, index) => (
+                  <img
+                    key={image.src}
+                    className="photo-card__reference-image"
+                    src={image.src}
+                    alt={t('vision.referenceAlt', {
+                      name: t(nameKey as TranslationKey),
+                      number: index + 1,
+                    })}
+                    loading="lazy"
+                  />
+                ))}
+              </div>
+              {/* One picture beats none, but the farmer should know they are
+                  comparing against a single example rather than a pair. */}
+              {referenceImages.length === 1 && (
+                <p className="photo-card__references-note">{t('vision.referenceSingle')}</p>
+              )}
+              {/* Derived from the images on screen. The fixed string it replaces
+                  credited PlantVillage for the rice photographs, none of which
+                  came from PlantVillage — see services/diseaseReference.ts. */}
+              <p className="photo-card__reference-credit">
+                {t('vision.referenceCredit', { credits: creditLineFor(referenceImages) })}
+              </p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

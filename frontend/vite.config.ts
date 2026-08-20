@@ -50,6 +50,18 @@ export default defineConfig({
             },
           },
           {
+            // Reference examples are local so a farmer can compare a probable
+            // match without a second network request. Cache on first display;
+            // keeping all 28 out of the precache preserves the small app shell.
+            urlPattern: ({ url }) => url.pathname.startsWith('/disease-reference/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'disease-reference-images',
+              expiration: { maxEntries: 32, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             // NOTE: these URLs are NOT content-hashed — they are static files
             // under public/. A retrained model must therefore ship under a new
             // filename (and a matching PLANT_DISEASE_MODEL spec), or phones

@@ -1,5 +1,5 @@
 import type { Crop, DiseaseRiskLevel, Language } from '../types';
-import type { DiseaseRiskAssessment } from '../services';
+import { creditLineFor, weatherReferenceImagesFor, type DiseaseRiskAssessment } from '../services';
 import {
   confidenceBadgeKey,
   cropLabelKey,
@@ -72,6 +72,7 @@ export function DiseaseRiskCard({ risk, crop, language, t }: Props) {
 
   const locale = localeFor(language);
   const diseaseName = t(diseaseNameKey(risk.disease));
+  const referenceImages = weatherReferenceImagesFor(crop.name, risk.disease);
 
   return (
     <section className="disease" aria-label={t('disease.title')}>
@@ -125,6 +126,41 @@ export function DiseaseRiskCard({ risk, crop, language, t }: Props) {
           what: t(diseaseWhatKey(risk.disease)),
         })}
       </p>
+
+      {/* One or two, not "two or nothing". Some diseases have exactly one
+          freely licensed, correctly identified photograph behind them, and the
+          old `=== 2` gate silently hid the whole block for those — the farmer
+          got no picture at all for a disease the app had a good picture of. */}
+      {referenceImages.length > 0 && (
+        <div className="disease__references">
+          <p className="disease__references-title">{t('vision.referenceTitle')}</p>
+          <p className="disease__references-note">{t('vision.referenceNote')}</p>
+          <div className="disease__reference-grid">
+            {referenceImages.map((image, index) => (
+              <img
+                key={image.src}
+                className="disease__reference-image"
+                src={image.src}
+                alt={t('vision.referenceAlt', {
+                  name: diseaseName,
+                  number: index + 1,
+                })}
+                loading="lazy"
+              />
+            ))}
+          </div>
+          {referenceImages.length === 1 && (
+            <p className="disease__references-note">{t('vision.referenceSingle')}</p>
+          )}
+          {/* Derived from the images on screen, not a fixed string. The fixed
+              string used to name USDA and two licences over photographs from
+              five sources under five licences — see the header of
+              services/diseaseReference.ts. */}
+          <p className="disease__reference-credit">
+            {t('vision.referenceCredit', { credits: creditLineFor(referenceImages) })}
+          </p>
+        </div>
+      )}
 
       <p className="disease__tip">{t('disease.tipDry')}</p>
       <p className="disease__advice">{t('disease.advice')}</p>
