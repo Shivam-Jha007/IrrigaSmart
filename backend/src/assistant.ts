@@ -55,12 +55,19 @@ import { GoogleGenAI } from '@google/genai';
 const MODEL = 'claude-opus-5';
 
 /**
- * Default Gemini model id. Flash-Lite is chosen over Flash or Pro because it is
- * the model the Gemini free tier grants the most daily requests on — this route
- * answers short, low-stakes explanatory questions, not tasks that need a larger
- * model's reasoning depth.
+ * Default Gemini model id.
+ *
+ * Flash (not Flash-Lite) is the deliberate default since the assistant began
+ * quoting official fertilizer schedules and composing action lists: Flash-Lite
+ * — the previous default, chosen when the route only reworded engine figures —
+ * followed the prompt's letter unevenly, sometimes copied bracketed provenance
+ * tokens straight into replies, and produced the flat generic sentences farmers
+ * objected to. Flash follows instructions and the label rules far better at a
+ * per-request cost that is still small for a few-sentence reply. Flash-Lite
+ * remains available to a deployment via `GEMINI_MODEL` if its larger free-tier
+ * quota matters more than answer quality.
  */
-const DEFAULT_GEMINI_MODEL = 'gemini-flash-lite-latest';
+const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
 
 /**
  * Which Gemini model this deployment calls.
@@ -164,6 +171,25 @@ export interface AssistantContext {
   /** Advisory disease-risk summary, already computed from weather. */
   diseaseRiskLevel?: string;
   diseaseName?: string;
+  /** Where on the plant to look for the at-risk disease (translated). */
+  diseaseWhere?: string;
+  /** What the signs look like (translated). */
+  diseaseWhat?: string;
+
+  // --- Latest leaf-photo check (V2.2, on-device model) ---
+  //
+  // A PRE-WORDED summary of the most recent photo the farmer checked on the
+  // Today screen. The verdict's careful phrasing — "looks similar to", never
+  // "has"; similarity %, never probability — is a product boundary, and it is
+  // enforced on the client, in the sentence itself, so neither answer path can
+  // re-word it into a diagnosis claim.
+
+  /** Pre-translated verdict sentence, e.g. "The photo looks similar to Rice Blast (72% similar)." */
+  photoVerdict?: string;
+  /** Which crop the checked photo was of, when it differed from the farm's. */
+  photoPlant?: string;
+  /** When the photo was checked. ISO 8601. */
+  photoCheckedAt?: string;
   /** Approximate slope from the ~90 m DEM, when the farm has a terrain record. */
   slopePercent?: number;
   /** Litres saved today versus the baseline practice, from the water ledger. */
@@ -216,12 +242,53 @@ export interface AssistantContext {
 
   /** Available nitrogen from the farmer's own reading, kg/ha. */
   fertilityN?: number;
-  /** Available phosphorus (P₂O₅) from the same reading, kg/ha. */
   fertilityP2O5?: number;
-  /** Available potassium (K₂O) from the same reading, kg/ha. */
   fertilityK2O?: number;
-  /** The booklet's Low/Medium/High band this reading classifies into. */
+  fertilityProvenance?: string;
   fertilityBand?: string;
+  fertilityPh?: number;
+  fertilityEc?: number;
+  fertilityOrganicCarbonPct?: number;
+  fertilitySulphur?: number;
+  fertilityZinc?: number;
+  fertilityBoron?: number;
+  fertilityIron?: number;
+  fertilityManganese?: number;
+  fertilityCopper?: number;
+
+  // --- Resolved fertilizer schedule (State Agriculture Department booklet) ---
+  //
+  // Unlike every soil-chemistry field above, these figures ARE quotable exact
+  // values: they are a transcription of the official State Agriculture
+  // Department (West Bengal) soil-test-based fertilizer schedule — the same
+  // tables the app's Fertilizer tab shows — resolved to the crop, variety, soil
+  // zone and fertility band the farmer selected. The model may state these
+  // numbers verbatim WITH attribution to the State schedule. It may still never
+  // invent or adjust one: if no schedule line is present below, there is no
+  // figure to give, and the answer is to say so.
+
+  /** Official schedule dose for the selected band, e.g. "N 50, P2O5 25, K2O 25 kg/ha". */
+  fertScheduleNpk?: string;
+  /** The band the dose was resolved for, e.g. "Medium". */
+  fertScheduleBand?: string;
+  /** Variety label, e.g. "Kharif (monsoon) rice" or "Potato". */
+  fertScheduleVariety?: string;
+  /** Soil zone label the schedule was resolved for, e.g. "Terai". */
+  fertScheduleZone?: string;
+  /** Booklet soil amendment line, e.g. "Dolomite @ 1-2 t/ha". */
+  fertScheduleAmeliorant?: string;
+  /** Booklet manure/bio-fertilizer line, e.g. "FYM @ 5 t/ha ...". */
+  fertScheduleManure?: string;
+  /** Booklet sulphur line, e.g. "S @ 20 kg/ha at land preparation". */
+  fertScheduleSulphur?: string;
+  /** Booklet micronutrient line. */
+  fertScheduleMicronutrients?: string;
+  /** Booklet split-timing / general note for this crop table. */
+  fertScheduleTiming?: string;
+  /** True when the booklet has no NPK cell for this zone (Hill/Coastal gaps). */
+  fertScheduleNoDose?: boolean;
+  /** Crop alternatives ranked by pH suitability for this farm's soil. */
+  phAltCrops?: string[];
 }
 
 export interface AssistantTurn {
@@ -284,6 +351,21 @@ const FORBIDDEN_TERMS = [
 const FORBIDDEN_PATTERN = new RegExp(`\\b(${FORBIDDEN_TERMS.join('|')})\\b`, 'i');
 
 /**
+ * §7 provenance tokens that must never surface in a farmer-visible reply.
+ *
+ * The fact lines below deliberately weld labels like [USER_PROVIDED] onto the
+ * values they qualify, and the prompt tells the model to express what the label
+ * means in words rather than print it. A small model complies unevenly — a
+ * farmer being told "your loamy soil [USER_PROVIDED] wins" is the exact
+ * primitive-looking failure this removes. The strip is mechanical so it holds
+ * whatever the model does, the same reason FORBIDDEN_TERMS is a regex and not a
+ * hope. Only the bracketed token is removed; the sentence around it keeps its
+ * meaning because the model was asked to write a qualifier in words anyway.
+ */
+const PROVENANCE_TOKEN_PATTERN =
+  /\s*\[(?:MEASURED|USER_PROVIDED|REGIONAL_ESTIMATE|FORECAST|CALCULATED|INFERRED|UNKNOWN)\]/g;
+
+/**
  * Replace a reply that names a chemical with a referral.
  *
  * Dropping the whole answer rather than editing the offending sentence is
@@ -298,7 +380,7 @@ export function sanitizeReply(text: string): { text: string; blocked: boolean } 
       blocked: true,
     };
   }
-  return { text, blocked: false };
+  return { text: text.replace(PROVENANCE_TOKEN_PATTERN, ''), blocked: false };
 }
 /**
  * The system prompt.
@@ -331,7 +413,7 @@ export function buildSystemPrompt(context: AssistantContext | undefined): string
     '',
     `Reply in ${languageName}. If the farmer writes in another language or mixes languages, answer in ${languageName} unless they clearly asked for something else. Use plain everyday words, not agronomy jargon.`,
     '',
-    'Keep answers to 2-4 short sentences. The farmer is reading this on a phone, often standing in the field, and it may be read aloud to them.',
+    'Keep answers short — normally 2-4 sentences. When the farmer asks "what should I do today" or similar, a short numbered or bulleted list of concrete actions (3-4 items max, each one line) is better than a paragraph. The farmer is reading this on a phone, often standing in the field, and it may be read aloud to them.',
     '',
     'THE NUMBERS ARE ALREADY DECIDED.',
     "The app's irrigation engine has already computed today's advice from an FAO-56 crop water balance, the farm's soil, and the weather forecast. Those figures appear below. Your job is to explain them, not to recompute them.",
@@ -352,21 +434,31 @@ export function buildSystemPrompt(context: AssistantContext | undefined): string
     '- Never present a REGIONAL_ESTIMATE as if it were a field measurement. Do not say "your soil pH is 6.2" when 6.2 is a REGIONAL_ESTIMATE. Say it is an estimate for the area, and name what it came from.',
     '- If the farmer asks for an exact, actual or true value and all the app has is a REGIONAL_ESTIMATE, your FIRST sentence must say that the app does not have a test of their field, and you must point them at a Soil Health Card soil test. Give the estimate afterwards, labelled as one, or not at all. Never answer such a question with a bare number.',
     '- Never overrule a USER_PROVIDED fact with a REGIONAL_ESTIMATE one. If the map and the farmer disagree, say both and say the farmer is the better source for their own field.',
-    '- Never state a quantity of lime, gypsum, sulphur, fertiliser, manure or any soil amendment or chemical, even when the app has told you a value is out of range. Naming a rate needs a soil test and a local officer. Say what the reading suggests and who can act on it.',
+    '- Never state a quantity of lime, gypsum, sulphur, fertiliser, manure or any soil amendment or chemical OF YOUR OWN, even when the app has told you a value is out of range. The single exception is an OFFICIAL STATE SCHEDULE line below: those figures are transcriptions of the State Agriculture Department (West Bengal) fertilizer schedule — the same official booklet the app\'s Fertilizer tab displays — and you may quote them verbatim with attribution ("as per the State schedule"). Never scale, combine or re-derive a schedule figure, and when no schedule line is present for a crop or zone, say so plainly instead of giving a number.',
     '- Never turn a CALCULATED or INFERRED figure into a certainty. "The app works it out as about X" is honest; "your soil holds exactly X" is not.',
     '',
     'WHAT YOU MUST NOT DO.',
     '- Never name a fungicide, pesticide, insecticide or any plant-protection chemical, and never give a dose, concentration or spray schedule. You cannot see the crop, so naming a product would mean guessing at a diagnosis you have not made, and a wrong spray costs the farmer money and can harm the crop.',
     '- Never state that a disease is present. The app can only say that the weather favours a disease, or that a photo looks similar to one. Phrase it that way.',
-    "- Never state an exact quantity of fertiliser, urea, lime, gypsum, sulphur, manure or any other soil amendment or chemical — that always needs an actual soil test and a local officer, whatever the app's own figures suggest.",
-    '- For pest and disease treatment, seed choice, market prices or government schemes, say this is outside what the app can advise and point the farmer to their local Krishi Vigyan Kendra (KVK) or agriculture extension officer.',
+    '- Outside the OFFICIAL STATE SCHEDULE lines, never state an exact quantity of fertiliser, urea, lime, gypsum, sulphur, manure or any other soil amendment or chemical that you worked out yourself.',
+    '- For pest and disease questions, follow ON DISEASE AND PEST QUESTIONS below instead of giving a bare referral. For seed choice, market prices or government schemes, say this is outside what the app can advise and point the farmer to their local Krishi Vigyan Kendra (KVK) or agriculture extension officer.',
     '- Do not invent local details you were not given: village names, prices, dates or scheme names.',
     '',
-    'ON FERTILITY AND SOIL-HEALTH QUESTIONS (how much fertiliser, is my soil deficient, should I add lime, etc.), DO THIS INSTEAD OF REFUSING.',
-    '- Answer with what the app actually has FIRST: its pH figure and verdict, its organic-carbon estimate, and any fertility issue already listed under "Improvements the app has already flagged" below, each with its own [LABEL] caveat exactly as the RULES above require.',
-    '- Only after giving that estimate, add one line saying you cannot give an exact fertiliser or amendment amount from an estimate, and that a soil or leaf test at the local Krishi Vigyan Kendra will give the real figure and the right quantity.',
-    '- If the app has no pH, organic-carbon or fertility figure at all for this farm, say so plainly and go straight to recommending a soil test — there is nothing to estimate from.',
-    '- This still means you may never state a quantity yourself (see WHAT YOU MUST NOT DO above): you may describe the reading and the verdict, never a rate.',
+    'ON DISEASE AND PEST QUESTIONS ("what spray", "is this blight", "my leaves have spots"), NEVER A BARE REFERRAL AND NEVER A CHEMICAL. DO THIS INSTEAD:',
+    '- Lead with scouting: the disease facts below say where to look and what the signs look like. Tell the farmer exactly that — which leaves, what the spots look like — and suggest checking in the morning while the leaves are dry. If the facts carry no scouting detail, say you do not know this disease\'s specific signs rather than describing some.',
+    '- Add prevention that is always safe to state: remove infected plant debris, improve drainage, avoid wetting the leaves in the evening, keep plant spacing for air movement. Present these as good practice, never as a cure.',
+    '- Then the photo check: the app has a "Check a leaf photo" card on the Today screen that compares a leaf photo against common diseases entirely on the phone, no internet needed. Tell the farmer to use it.',
+    '- End with a prepared referral, not a dead end: if they find the signs, show the photo to the local Krishi Vigyan Kendra or input dealer, who will confirm and name what is approved for the crop stage.',
+    '- If a "latest leaf-photo check" fact is present below, the farmer has already used the photo check — quote its verdict sentence as worded ("looks similar to X, N% similar"), remind them it is a resemblance rather than a diagnosis, and if it resembles a disease, add the scouting facts from the weather section so they know what to confirm on the leaf. If no photo fact is present, tell them the card exists on the Today screen.',
+    '- Still never name a chemical or product, never give a dose, and never say the disease is present (see WHAT YOU MUST NOT DO).',
+    '',
+    'ON FERTILITY AND SOIL-HEALTH QUESTIONS (how much fertiliser, is my soil deficient, should I add lime, how do I improve my soil, what could I grow instead), DO THIS INSTEAD OF REFUSING.',
+    '- If an OFFICIAL STATE SCHEDULE line is present below, lead with it: name the dose, the manure and amendment lines, and the split timing, attributed to the State schedule. That IS the exact answer the farmer is asking for.',
+    '- Otherwise answer with what the app actually has: its pH figure and verdict, its organic-carbon estimate, and any fertility issue already listed under "Improvements the app has already flagged" below, each with its own [LABEL] caveat exactly as the RULES above require.',
+    '- When the pH sits outside the crop\'s optimal band, give the farmer a plan, not just the number: say which way the pH needs to move and the usual correction for that direction on these soils — lime or dolomite to raise pH, gypsum to lower it — always adding that the amount needs a soil test and the local KVK. Then, if a crop-alternatives line is present below, name the best-suited crops from it as a second option.',
+    '- When the farmer says they HAVE a Soil Health Card or lab report: if the numbers are in their message, interpret them; if not, show them the two ways to use it — send the numbers here in the chat (pH 6.2, organic carbon 0.8%, N 240, P 12, K 150 kg/ha, and any S, Zn, B, Fe, Mn, Cu), or open the Fertilizer tab, choose crop and soil zone, tap the soil-test option, enter the card\'s numbers and tap "Save reading" — after which the app stores them on the farm, uses their fertility band for the official schedule dose, and remembers them.',
+    '- If the farmer has no soil test, recommending one (a Soil Health Card at the local KVK) is a next step on the list — not a substitute for the figures you have already given.',
+    '- If the app has no pH, schedule or fertility figure at all for this farm, say so plainly and go straight to recommending a soil test — there is nothing to estimate from.',
     '',
     'WHAT YOU SHOULD DO.',
     "- Answer the actual question first, in the first sentence, using the app's own figures whenever it has any that bear on the question — an estimate with its caveat stated is more useful to a farmer than an instant refusal.",
@@ -548,8 +640,30 @@ export function describeContext(context: AssistantContext | undefined): string[]
 
   if (context.diseaseRiskLevel !== undefined) {
     const named = context.diseaseName ? ` for ${context.diseaseName}` : '';
+    // Scouting detail rides the same line: "where to look" and "what the signs
+    // look like" are Knowledge Base facts (docs/10 §10.5), and a risk figure a
+    // farmer can act on TODAY beats a number they must interpret themselves.
+    // They appear only with the disease they belong to.
+    const scout =
+      context.diseaseWhere !== undefined ? `; where to look: ${context.diseaseWhere}` : '';
+    const signs =
+      context.diseaseWhat !== undefined ? `; what the signs look like: ${context.diseaseWhat}` : '';
     facts.push(
-      `Disease risk from weather${named}: ${context.diseaseRiskLevel}. This means the weather favours it — NOT that the disease is present.`,
+      `Disease risk from weather${named}: ${context.diseaseRiskLevel}. This means the weather favours it — NOT that the disease is present.${scout}${signs}`,
+    );
+  }
+
+  // --- Latest leaf-photo check (V2.2) ---
+  //
+  // The verdict arrives PRE-WORDED by the client ("looks similar to X, N%
+  // similar") because that phrasing is a product boundary, and the model must
+  // re-quote it, not re-word it, into a diagnosis. photoPlant is included in
+  // the same line for the same reason the scouting detail is: a reading about
+  // a different plant explains itself or it misleads.
+  if (context.photoVerdict !== undefined) {
+    const plant = context.photoPlant ? ` (the photo looked like a ${context.photoPlant} leaf)` : '';
+    facts.push(
+      `Result of the farmer's latest leaf-photo check, from the app's on-device photo model: ${context.photoVerdict}${plant}. It is a RESEMBLANCE, not a diagnosis — quote it as worded, never turn it into "the crop has" anything, and never name a treatment.`,
     );
   }
 
@@ -565,6 +679,67 @@ export function describeContext(context: AssistantContext | undefined): string[]
   if (Array.isArray(context.topIssues) && context.topIssues.length > 0) {
     facts.push(
       `Improvements the app has already flagged for this farm, most important first: ${context.topIssues.join('; ')}. If the farmer asks what to fix, work from this list — it was produced by the same rules that produced the figures above. Do not invent a different one.`,
+    );
+  }
+
+  // --- OFFICIAL STATE SCHEDULE (quotable, unlike everything above) ---
+  //
+  // Assembled from the fertSchedule* fields into one block the prompt's rules
+  // can name ("an OFFICIAL STATE SCHEDULE line"). Every figure is a direct
+  // transcription of the State Agriculture Department booklet — never a value
+  // the model derived — so the instructions tell it to quote verbatim with
+  // attribution and the worst it can do is paraphrase an official number.
+  if (
+    context.fertScheduleNpk !== undefined ||
+    context.fertScheduleNoDose === true ||
+    context.fertScheduleManure !== undefined ||
+    context.fertScheduleAmeliorant !== undefined
+  ) {
+    const where = [
+      context.fertScheduleVariety,
+      context.fertScheduleZone ? `${context.fertScheduleZone} zone` : undefined,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    facts.push(
+      `OFFICIAL STATE SCHEDULE — State Agriculture Department fertilizer recommendation${where ? ` (${where})` : ''}:`,
+    );
+    if (context.fertScheduleNpk !== undefined && context.fertScheduleBand !== undefined) {
+      facts.push(
+        `- NPK dose for ${context.fertScheduleBand} fertility soil: ${context.fertScheduleNpk}. Quote these numbers exactly, attributed to the State schedule.`,
+      );
+    }
+    if (context.fertScheduleNoDose === true) {
+      facts.push(
+        '- The schedule booklet has NO NPK dose for this crop and zone — say so plainly; do not offer a number.',
+      );
+    }
+    if (context.fertScheduleManure !== undefined) {
+      facts.push(`- Manure / bio-fertilizer line: ${context.fertScheduleManure}`);
+    }
+    if (context.fertScheduleAmeliorant !== undefined) {
+      facts.push(`- Soil amendment line: ${context.fertScheduleAmeliorant}`);
+    }
+    if (context.fertScheduleSulphur !== undefined) {
+      facts.push(`- Sulphur line: ${context.fertScheduleSulphur}`);
+    }
+    if (context.fertScheduleMicronutrients !== undefined) {
+      facts.push(`- Micronutrient line: ${context.fertScheduleMicronutrients}`);
+    }
+    if (context.fertScheduleTiming !== undefined) {
+      facts.push(`- Split timing / general note: ${context.fertScheduleTiming}`);
+    }
+  }
+
+  // --- Crop alternatives by pH suitability ---
+  //
+  // Ranked by deterministic code (frontend assistantContext), not by the model:
+  // each crop is scored against the farm's pH by CROP_PH_RANGE exactly as the
+  // pH suitability card scores the current crop. The model presents; it never
+  // ranks.
+  if (Array.isArray(context.phAltCrops) && context.phAltCrops.length > 0) {
+    facts.push(
+      `Crops the app's pH data ranks as well-suited to this farm's soil, best first: ${context.phAltCrops.join(', ')}. These are pH-suitability options only — water, market and labour are the farmer's to weigh.`,
     );
   }
 

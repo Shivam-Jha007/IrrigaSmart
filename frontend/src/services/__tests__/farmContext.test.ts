@@ -447,6 +447,10 @@ describe('buildAssistantContext — unchanged by the FarmContext refactor', () =
       totalAvailableMm: 90.1,
       diseaseRiskLevel: 'Moderate',
       diseaseName: 'disease.name.riceBlast',
+      // V2.2: scouting detail from the same Knowledge Base profile, attached to
+      // the disease it scouts for (docs/10 §10.5).
+      diseaseWhere: 'disease.where.riceBlast',
+      diseaseWhat: 'disease.what.riceBlast',
       tomorrowStatus: 'enum.status.Monitor Tomorrow',
       temperatureC: 32,
       humidityPercent: 60,
@@ -484,6 +488,20 @@ describe('buildAssistantContext — unchanged by the FarmContext refactor', () =
       // the assertion — severity ranks disease above texture, and a farmer with
       // time for one thing must be told the same first thing as the Copilot.
       topIssues: ['improve.disease.title', 'improve.texture.title'],
+
+      // V2.2: the top five crops the pH data ranks as suited, best first. At
+      // the fixture's pH 6.3 every crop is 'suitable', so the ranking is the
+      // tie-breaks alone: band width (narrower first), then name. Groundnut's
+      // 0.7-wide band leads; Onion and Tomato tie on 0.8 and sort by name; Rice
+      // follows on 1.0. Capped at five so "everything suits your soil" never
+      // reaches the model as a ten-item list.
+      phAltCrops: [
+        'enum.crop.Groundnut',
+        'enum.crop.Onion',
+        'enum.crop.Tomato',
+        'enum.crop.Rice',
+        'enum.crop.Soybean',
+      ],
     });
   });
 

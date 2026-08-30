@@ -52,6 +52,14 @@ interface Props {
   readonly crop: CropName;
   readonly language: Language;
   readonly t: TranslateFn;
+  /**
+   * Called once per completed check with the result (or undefined for a failed
+   * one). The Dashboard uses this to keep the assistant's "what did the photo
+   * show?" answer in step with what the card just showed — the alternative, a
+   * summary read back out of this component's state by a sibling, would couple
+   * the assistant to the card's internals.
+   */
+  readonly onResult?: (result: VisionResult | undefined) => void;
 }
 
 /** Idle → busy → done/failed. One shot per photo; no queueing. */
@@ -61,7 +69,7 @@ type State =
   | { readonly phase: 'done'; readonly result: VisionResult }
   | { readonly phase: 'failed'; readonly key: TranslationKey };
 
-export function DiseasePhotoCard({ crop, language, t }: Props) {
+export function DiseasePhotoCard({ crop, language, t, onResult }: Props) {
   const [state, setState] = useState<State>({ phase: 'idle' });
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -95,6 +103,7 @@ export function DiseasePhotoCard({ crop, language, t }: Props) {
         const result = await classifyPhoto(file, crop);
         if (activeRun.current !== run) return;
         setState({ phase: 'done', result });
+        onResult?.(result);
       } catch (error) {
         if (activeRun.current !== run) return;
         // A VisionError carries a code that maps to translated, actionable text.
@@ -104,9 +113,12 @@ export function DiseasePhotoCard({ crop, language, t }: Props) {
           phase: 'failed',
           key: visionErrorKey(error instanceof VisionError ? error.code : 'inferenceFailed'),
         });
+        // A failed check is also a result: the assistant must not keep quoting
+        // an older photo as "the latest" when the farmer just saw this one fail.
+        onResult?.(undefined);
       }
     },
-    [crop],
+    [crop, onResult],
   );
 
   const reset = useCallback(() => {
@@ -282,14 +294,13 @@ function Outcome({
           <p className="photo-card__reading">
             {t('vision.similarTo', { name: t(nameKey as TranslationKey), percent })}
           </p>
-          {/* Rice, today. The model has no healthy class for this plant, so a
-              named condition is the only answer it is capable of giving — which
-              makes "it named something" carry far less information than it
-              appears to. The farmer is told that outright. */}
           {verdict.kind === 'match' && !verdict.plantHasHealthyClass && (
             <p className="photo-card__tips">
               {t('vision.noHealthyClass', { crop: t(cropLabelKey(crop)) })}
             </p>
+          )}
+          {verdict.kind === 'tentative' && (
+            <p className="photo-card__tips">{t('vision.retakeTips')}</p>
           )}
           {referenceImages.length > 0 && (
             <div className="photo-card__references">

@@ -21,7 +21,7 @@ import {
   WEATHER_REFERENCE_IMAGES,
 } from '../diseaseReference';
 import { TRANSLATIONS } from '../../i18n/translations';
-import { argmax, centreCrop, preprocess, VisionError } from '../diseaseVision';
+import { argmax, centreCrop, cropConditionedReading, preprocess, VisionError } from '../diseaseVision';
 
 /**
  * Photo model — mapping and preprocessing (V1.7 item 16).
@@ -37,7 +37,7 @@ import { argmax, centreCrop, preprocess, VisionError } from '../diseaseVision';
  */
 
 const MANIFEST_PATH = fileURLToPath(
-  new URL('../../../public/models/plant-disease-labels-v2.json', import.meta.url),
+  new URL('../../../public/models/plant-disease-labels-v3.json', import.meta.url),
 );
 
 interface Manifest {
@@ -62,8 +62,8 @@ describe('the class map matches the shipped manifest', () => {
     expect(Object.keys(VISION_CLASSES).sort()).toEqual([...manifest.classes].sort());
   });
 
-  it('has 27 classes', () => {
-    expect(Object.keys(VISION_CLASSES)).toHaveLength(27);
+  it('has 29 classes', () => {
+    expect(Object.keys(VISION_CLASSES)).toHaveLength(29);
   });
 
   it('preserves the manifest quirks exactly — do not tidy these', () => {
@@ -76,11 +76,13 @@ describe('the class map matches the shipped manifest', () => {
     expect(VISION_CLASSES['Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot']).toBeDefined(); // space
   });
 
-  it('has the four rice classes, named with the same Plant___Disease convention', () => {
-    expect(VISION_CLASSES['Rice___Bacterial_blight']).toBeDefined();
-    expect(VISION_CLASSES['Rice___Blast']).toBeDefined();
+  it('has the rice classes from v3, including healthy rice', () => {
+    expect(VISION_CLASSES['Rice___Bacterial_leaf_blight']).toBeDefined();
     expect(VISION_CLASSES['Rice___Brown_spot']).toBeDefined();
-    expect(VISION_CLASSES['Rice___Tungro']).toBeDefined();
+    expect(VISION_CLASSES['Rice___Leaf_blast']).toBeDefined();
+    expect(VISION_CLASSES['Rice___Leaf_scald']).toBeDefined();
+    expect(VISION_CLASSES['Rice___Sheath_blight']).toBeDefined();
+    expect(VISION_CLASSES['Rice___healthy']).toBeDefined();
   });
 
   it('maps every class to a plant, and every overlapping class to a real app crop', () => {
@@ -139,28 +141,28 @@ describe('reuse of the weather knowledge base', () => {
   });
 
   it('maps rice blast and bacterial blight onto the existing weather-path DiseaseIds', () => {
-    expect(VISION_CLASSES['Rice___Blast']?.finding).toEqual({
+    expect(VISION_CLASSES['Rice___Leaf_blast']?.finding).toEqual({
       kind: 'known',
       disease: 'riceBlast',
     });
-    expect(VISION_CLASSES['Rice___Bacterial_blight']?.finding).toEqual({
+    expect(VISION_CLASSES['Rice___Bacterial_leaf_blight']?.finding).toEqual({
       kind: 'known',
       disease: 'riceBacterialLeafBlight',
     });
   });
 
-  it('keeps rice brown spot and tungro vision-only — neither has a CROP_DISEASES entry', () => {
-    // Brown spot (Bipolaris oryzae) has no published daily-aggregate infection
-    // window, and tungro is a leafhopper-transmitted virus rather than a
-    // weather-triggered condition — forcing either onto a DiseaseId would
-    // invent a temperature/humidity band CROP_DISEASES.Rice does not have.
+  it('keeps rice brown spot, leaf scald and sheath blight vision-only', () => {
     expect(VISION_CLASSES['Rice___Brown_spot']?.finding).toEqual({
       kind: 'visionOnly',
       label: 'riceBrownSpot',
     });
-    expect(VISION_CLASSES['Rice___Tungro']?.finding).toEqual({
+    expect(VISION_CLASSES['Rice___Leaf_scald']?.finding).toEqual({
       kind: 'visionOnly',
-      label: 'riceTungro',
+      label: 'riceLeafScald',
+    });
+    expect(VISION_CLASSES['Rice___Sheath_blight']?.finding).toEqual({
+      kind: 'visionOnly',
+      label: 'riceSheathBlight',
     });
   });
 
@@ -181,14 +183,12 @@ describe('reuse of the weather knowledge base', () => {
     });
   });
 
-  it('gives every *___healthy class the healthy finding and nothing else', () => {
+  it('gives every healthy class the healthy finding and nothing else', () => {
     const healthy = Object.entries(VISION_CLASSES).filter(([raw]) =>
       raw.toLowerCase().endsWith('healthy'),
     );
-    // apple, maize, pepper, potato, tomato — still 5, not 6: the rice dataset
-    // this model was retrained on has no healthy-rice folder, so there is no
-    // Rice___healthy class.
-    expect(healthy).toHaveLength(5);
+    expect(healthy).toHaveLength(6);
+    expect(VISION_CLASSES['Rice___healthy']?.finding).toEqual({ kind: 'healthy' });
     for (const [raw, entry] of healthy) {
       expect(entry.finding, raw).toEqual({ kind: 'healthy' });
     }
@@ -221,27 +221,17 @@ describe('crop coverage — the six crops the model cannot help', () => {
   });
 });
 
-describe('the plants the model can call healthy — five of six', () => {
-  /**
-   * Rice is the exception and it is not a small one. The retrain that added rice
-   * used a dataset with four disease folders and no healthy folder, so "this rice
-   * leaf is fine" is not a representable output: the probability mass has nowhere
-   * to go but blast, bacterial blight, brown spot, tungro — or another plant.
-   *
-   * Measured, not assumed: over six field photographs of diseased rice from
-   * Wikimedia this model put three in `Corn_(maize)___healthy` and named a rice
-   * condition for the other three. The UI's only honest response is to say what
-   * the model cannot do, which is why the flag rides on the verdict.
-   */
-  it('is exactly the five plants that have a healthy class, and excludes Rice', () => {
+describe('the plants the model can call healthy — all six', () => {
+  it('includes Rice now that v3 has a healthy-rice class', () => {
     expect([...PLANTS_WITH_HEALTHY_CLASS].sort()).toEqual([
       'Apple',
       'Maize',
       'PepperBell',
       'Potato',
+      'Rice',
       'Tomato',
     ]);
-    expect(PLANTS_WITH_HEALTHY_CLASS).not.toContain('Rice');
+    expect(PLANTS_WITH_HEALTHY_CLASS).toContain('Rice');
   });
 
   it('is derived from the class map, so a retrain cannot leave it stale', () => {
@@ -261,9 +251,9 @@ describe('the plants the model can call healthy — five of six', () => {
     expect(new Set(PLANTS_WITH_HEALTHY_CLASS).size).toBe(PLANTS_WITH_HEALTHY_CLASS.length);
   });
 
-  it('answers per plant, and says no for Rice', () => {
-    expect(plantHasHealthyClass('Rice')).toBe(false);
-    for (const plant of ['Apple', 'Maize', 'PepperBell', 'Potato', 'Tomato'] as const) {
+  it('answers per plant, including Rice', () => {
+    expect(plantHasHealthyClass('Rice')).toBe(true);
+    for (const plant of ['Apple', 'Maize', 'PepperBell', 'Potato', 'Rice', 'Tomato'] as const) {
       expect(plantHasHealthyClass(plant), plant).toBe(true);
     }
   });
@@ -302,6 +292,13 @@ describe('verdictFor — the presentation decision', () => {
     if (verdict.kind !== 'match') throw new Error('unreachable');
     expect(verdict.entry.finding).toEqual({ kind: 'known', disease: 'lateBlight' });
     expect(verdict.confidence).toBe(0.94);
+  });
+
+  it('shows a tentative rice blast candidate below the strong-match threshold', () => {
+    const verdict = verdictFor('Rice___Leaf_blast', 0.372, 'Rice');
+    expect(verdict.kind).toBe('tentative');
+    if (verdict.kind !== 'tentative') throw new Error('unreachable');
+    expect(verdict.entry.finding).toEqual({ kind: 'known', disease: 'riceBlast' });
   });
 
   it('withholds anything below the threshold', () => {
@@ -421,16 +418,16 @@ describe('verdictFor — the presentation decision', () => {
     });
   });
 
-  describe('the no-healthy-class flag carried on a match', () => {
-    it('is false for every rice class, because the model cannot say "healthy rice"', () => {
+  describe('the healthy-class flag carried on a match', () => {
+    it('is true for every rice class because v3 can recognise healthy rice', () => {
       const riceClasses = Object.keys(VISION_CLASSES).filter((raw) => raw.startsWith('Rice___'));
-      expect(riceClasses).toHaveLength(4);
+      expect(riceClasses).toHaveLength(6);
 
       for (const raw of riceClasses) {
         const verdict = verdictFor(raw, 0.9, 'Rice');
         expect(verdict.kind, raw).toBe('match');
         if (verdict.kind !== 'match') throw new Error('unreachable');
-        expect(verdict.plantHasHealthyClass, raw).toBe(false);
+        expect(verdict.plantHasHealthyClass, raw).toBe(true);
       }
     });
 
@@ -471,14 +468,19 @@ describe('reference images for probable findings', () => {
       ([, entry]) => entry.appCrop !== null && entry.finding.kind !== 'healthy',
     );
 
-    expect(namedSupportedClasses).toHaveLength(18); // 14 PlantVillage + 4 rice
-    expect(Object.keys(REFERENCE_IMAGES)).toHaveLength(18);
+    expect(namedSupportedClasses).toHaveLength(19); // 14 PlantVillage + 5 rice
+    expect(Object.keys(REFERENCE_IMAGES)).toHaveLength(19);
 
-    /** Classes with exactly one image. See ATTRIBUTION.md for why, per class. */
-    const singletons: readonly string[] = ['Rice___Blast', 'Rice___Bacterial_blight'];
+    /** Classes with exactly one image. */
+    const singletons: readonly string[] = ['Rice___Leaf_blast', 'Rice___Bacterial_leaf_blight'];
+    const noReferences: readonly string[] = ['Rice___Leaf_scald', 'Rice___Sheath_blight'];
 
     for (const [rawClass, entry] of namedSupportedClasses) {
       const images = referenceImagesFor(rawClass, entry);
+      if (noReferences.includes(rawClass)) {
+        expect(images, rawClass).toEqual([]);
+        continue;
+      }
       expect(images.length, rawClass).toBe(singletons.includes(rawClass) ? 1 : 2);
       expect(new Set(images.map((image) => image.src)).size, rawClass).toBe(images.length);
 
@@ -713,6 +715,15 @@ describe('preprocess — where a silent, confident-looking bug lives', () => {
 
   it('rejects a malformed manifest normalisation', () => {
     expect(() => preprocess(solid(1, 0, 0, 0), 1, [0.5, 0.5], STD)).toThrow(VisionError);
+  });
+});
+
+describe('crop-conditioned readings', () => {
+  it('ranks rice blast above non-rice classes for a rice farm', () => {
+    const classes = ['Corn_(maize)___healthy', 'Rice___Leaf_blast', 'Rice___Sheath_blight'];
+    const reading = cropConditionedReading([0.4, 0.1086, 0.1005], classes, 'Rice');
+    expect(reading?.rawClass).toBe('Rice___Leaf_blast');
+    expect(reading?.confidence).toBeCloseTo(0.5194, 3);
   });
 });
 

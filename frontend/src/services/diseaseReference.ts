@@ -47,7 +47,6 @@ const GROTH: ImageCredit = {
   holder: 'Donald Groth, LSU AgCenter (Bugwood.org)',
   licence: 'CC BY 3.0 US',
 };
-const JIRCAS: ImageCredit = { holder: 'Nozaki Michio, TARC (JIRCAS)', licence: 'CC BY 2.0' };
 const USDA_KOLMER: ImageCredit = { holder: 'James Kolmer, USDA ARS', licence: 'Public domain' };
 const LANDCARE: ImageCredit = {
   holder: 'LandCare Ltd. New Zealand (EcoPort)',
@@ -148,21 +147,14 @@ const REFERENCE_IMAGES: Readonly<Record<string, readonly DiseaseReferenceImage[]
   // already added for the weather-risk card (WEATHER_REFERENCE_IMAGES below);
   // the other three are new. See ATTRIBUTION.md for full source/licence details
   // of every folder, and for the gaps and the rejected candidates.
-  Rice___Bacterial_blight: [
+  Rice___Bacterial_leaf_blight: [
     {
       src: '/disease-reference/rice-bacterial-blight/1.jpg',
       sourceFile: 'Bacterial blight of rice.jpeg',
       credit: GROTH,
     },
   ],
-  // One image. The folder used to hold two, and the first was light microscopy
-  // of the pathogen's hyphae and a conidium at 255x137 — an image of the fungus,
-  // not of a symptom, shown to a farmer under "compare your leaf against these".
-  // It was removed rather than replaced: no second freely licensed photograph of
-  // a blast LESION exists that is usable, and the alternatives are worse than one
-  // (ATTRIBUTION.md records all three, including one carrying a named fungicide
-  // burned into the image).
-  Rice___Blast: [
+  Rice___Leaf_blast: [
     {
       src: '/disease-reference/rice-blast/1.jpg',
       sourceFile: 'Rice blast Magnaporthe grisea.jpg',
@@ -181,23 +173,8 @@ const REFERENCE_IMAGES: Readonly<Record<string, readonly DiseaseReferenceImage[]
       credit: { holder: 'William M. Brown Jr. (Bugwood.org)', licence: 'CC BY 3.0 US' },
     },
   ],
-  Rice___Tungro: [
-    {
-      src: '/disease-reference/rice-tungro/1.jpg',
-      sourceFile: 'Rice plants affected by tungro disease1.jpg',
-      credit: JIRCAS,
-    },
-    // Same photographer and archive as 1.jpg, from the JIRCAS Flickr collection
-    // rather than Commons — Commons holds exactly one tungro photograph and it is
-    // 1.jpg. Both are canopy views because that is how tungro presents: patchy
-    // orange-yellow discolouration and stunting across a stand, not a single
-    // lesion on a single blade.
-    {
-      src: '/disease-reference/rice-tungro/2.jpg',
-      sourceFile: '35741758564_18c382be02_b.jpg',
-      credit: JIRCAS,
-    },
-  ],
+  Rice___Leaf_scald: [],
+  Rice___Sheath_blight: [],
 };
 
 const WEATHER_REFERENCE_IMAGES: Readonly<
@@ -207,8 +184,8 @@ const WEATHER_REFERENCE_IMAGES: Readonly<
   // the two cards must not disagree about what it looks like. Both are single
   // images — see the notes on REFERENCE_IMAGES above, and ATTRIBUTION.md. This is
   // why neither card can gate on "exactly two".
-  'Rice:riceBlast': REFERENCE_IMAGES.Rice___Blast!,
-  'Rice:riceBacterialLeafBlight': REFERENCE_IMAGES.Rice___Bacterial_blight!,
+  'Rice:riceBlast': REFERENCE_IMAGES.Rice___Leaf_blast!,
+  'Rice:riceBacterialLeafBlight': REFERENCE_IMAGES.Rice___Bacterial_leaf_blight!,
   'Wheat:wheatStripeRust': [
     {
       src: '/disease-reference/wheat-stripe-rust/1.jpg',

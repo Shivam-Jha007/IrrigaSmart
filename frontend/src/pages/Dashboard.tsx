@@ -9,6 +9,7 @@ import {
   detectFarmIssues,
   localDayString,
   TOP_ISSUE_COUNT,
+  type VisionResult,
 } from '../services';
 import { FarmerAssistant } from '../components/FarmerAssistant';
 import { RecommendationCard } from '../components/RecommendationCard';
@@ -54,6 +55,15 @@ export function Dashboard({ store, onGoToFarms }: Props) {
   const [selectedFarmId, setSelectedFarmId] = useState<string>('');
   const [view, setView] = useState<RecommendationView | null>(null);
   const [weather, setWeather] = useState<WeatherData | null>(null);
+  // The latest leaf-photo check, kept so the assistant can answer "what did
+  // the photo show?" from the same result the card just displayed. Session
+  // state, deliberately not persisted: a photo verdict is about a leaf in the
+  // farmer's hand today, and a stored one would be quietly stale tomorrow.
+  // Cleared when the selected farm changes — a photo of one farm's leaf must
+  // not be quoted as another farm's.
+  const [lastPhoto, setLastPhoto] = useState<{ result: VisionResult; checkedAt: string } | null>(
+    null,
+  );
   // Today's daily record, held beside the weather because the sunshine figure
   // lives only in the daily series — WeatherData carries the current snapshot.
   const [today, setToday] = useState<DailyWeather | null>(null);
@@ -156,6 +166,10 @@ export function Dashboard({ store, onGoToFarms }: Props) {
     if (selectedFarmId) {
       void refresh(selectedFarmId);
     }
+    // The photo belongs to the farm it was taken on. Not conditional on the
+    // id CHANGING (initial selection must clear the null state too, and an
+    // effect keyed on selectedFarmId is the one place both cases meet).
+    setLastPhoto(null);
   }, [selectedFarmId, refresh]);
 
   // Load card overviews whenever the farm list changes.
@@ -310,7 +324,12 @@ export function Dashboard({ store, onGoToFarms }: Props) {
                 above has answered "what should I do today". Only shown for a
                 selected farm, because there is nothing to assess without one. */}
             {selectedProfile && (
-              <ImprovementPlanCard issues={farmIssues} topCount={TOP_ISSUE_COUNT} t={t} />
+              <ImprovementPlanCard
+                issues={farmIssues}
+                topCount={TOP_ISSUE_COUNT}
+                t={t}
+                language={store.settings.preferredLanguage}
+              />
             )}
             {weather && selectedProfile && (
               <WeatherSummary
@@ -337,6 +356,11 @@ export function Dashboard({ store, onGoToFarms }: Props) {
                 crop={selectedProfile.crop.name}
                 language={store.settings.preferredLanguage}
                 t={t}
+                onResult={(result) =>
+                  setLastPhoto(
+                    result ? { result, checkedAt: new Date().toISOString() } : null,
+                  )
+                }
               />
             )}
           </div>
@@ -353,6 +377,7 @@ export function Dashboard({ store, onGoToFarms }: Props) {
           weather,
           today,
           waterProgress,
+          photoCheck: lastPhoto,
           language: store.settings.preferredLanguage,
           t,
         })}

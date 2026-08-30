@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Language } from '../types';
-import { localeFor, translate, type TranslateFn } from '../i18n';
+import { localeFor, translate, type TranslateFn, type TranslationKey } from '../i18n';
 import {
   alternatesFor,
   askAssistant,
@@ -13,7 +13,10 @@ import {
   stopSpeaking,
   type AssistantContext,
   type AssistantSource,
+  type AssistantTopic,
   type AssistantTurn,
+  assistantTopicActions,
+  farmBriefing,
   type ListenSession,
 } from '../services';
 
@@ -79,9 +82,11 @@ export function FarmerAssistant({ context, language, t }: Props) {
   const locale = localeFor(language);
   const canListen = speechInputSupported();
   const canSpeak = speechOutputSupported();
+  const topicActions = assistantTopicActions(t);
+  const briefing = farmBriefing(context, t);
+  const topicLabel = (topic: AssistantTopic) => t(`assistant.topic.${topic}` as TranslationKey);
 
-  // Keep the newest message in view. A farmer should not have to scroll to read
-  // the answer they just asked for.
+  // Keep the newest message in view.
   useEffect(() => {
     const log = logRef.current;
     if (log) log.scrollTop = log.scrollHeight;
@@ -304,9 +309,24 @@ export function FarmerAssistant({ context, language, t }: Props) {
           </button>
         </header>
 
+        <div className="assistant__topics" aria-label={t('assistant.title')}>
+          {topicActions.map((action) => (
+            <button
+              key={action.topic}
+              type="button"
+              className="assistant__topic"
+              disabled={busy}
+              onClick={() => void send(action.question)}
+            >
+              {topicLabel(action.topic)}
+            </button>
+          ))}
+        </div>
+
         <div className="assistant__log" ref={logRef}>
           {messages.length === 0 && (
             <div className="assistant__intro">
+              {briefing && <p className="assistant__briefing">{briefing}</p>}
               <p className="assistant__introText">{t('assistant.intro')}</p>
               <div className="assistant__suggestions">
                 {SUGGESTION_KEYS.map((key) => (

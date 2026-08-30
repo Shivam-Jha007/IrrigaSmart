@@ -99,6 +99,14 @@ export interface MeasuredSoilProfile {
  * regional estimate: the farmer is the better source for their own plot,
  * whatever the two disagree on (docs/07 Provenance rules).
  */
+export interface SoilSensorReading {
+  /** Farmer-entered latest sensor reading; moisture is volumetric percentage. */
+  moisturePct?: number;
+  temperatureC?: number;
+  ec?: number;
+  recordedAt: string;
+}
+
 export interface SoilNutrientReading {
   /** Available nitrogen, kg/ha. */
   n: number;
@@ -106,7 +114,35 @@ export interface SoilNutrientReading {
   p2o5: number;
   /** Available potassium as K₂O, kg/ha. */
   k2o: number;
+  /** Optional Soil Health Card values. */
+  ph?: number;
+  ec?: number;
+  organicCarbonPct?: number;
+  sulphur?: number;
+  zinc?: number;
+  boron?: number;
+  iron?: number;
+  manganese?: number;
+  copper?: number;
   /** When the farmer entered this reading. ISO 8601. */
+  recordedAt: string;
+}
+
+/**
+ * The fertilizer-tool selection the farmer last made on the Fertilizer page
+ * (crop variety + soil zone), persisted so the assistant can resolve the same
+ * official State schedule the farmer sees on that page.
+ *
+ * USER_PROVIDED, like `nutrientReading`: the farmer tapped these buttons
+ * themselves. Crop is NOT stored — it is always the farm's current crop, so a
+ * crop change cannot leave a stale schedule attached to the new crop.
+ */
+export interface FertilizerSelection {
+  /** `varietyId` from fertilizerKnowledge, e.g. 'kharif' or 'default'. */
+  varietyId: string;
+  /** Soil zone key, e.g. 'Terai'. */
+  zone: string;
+  /** When the farmer last confirmed this selection. ISO 8601. */
   recordedAt: string;
 }
 
@@ -126,4 +162,6 @@ export interface Soil {
   drainage: DrainageCategory;
   measured?: MeasuredSoilProfile;
   nutrientReading?: SoilNutrientReading;
+  fertilizerSelection?: FertilizerSelection;
+  sensorReading?: SoilSensorReading;
 }

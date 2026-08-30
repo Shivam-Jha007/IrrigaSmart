@@ -484,6 +484,8 @@ const en = {
   'vision.name.tomatoYellowLeafCurlVirus': 'yellow leaf curl virus',
   'vision.name.tomatoMosaicVirus': 'mosaic virus',
   'vision.name.riceBrownSpot': 'brown spot',
+  'vision.name.riceLeafScald': 'leaf scald',
+  'vision.name.riceSheathBlight': 'sheath blight',
   'vision.name.riceTungro': 'tungro',
 
   'vision.error.modelUnavailable':
@@ -572,14 +574,29 @@ const en = {
   'assistant.suggest.timing': 'What time should I irrigate?',
   'assistant.suggest.why': 'Why this advice?',
   'assistant.suggest.moisture': 'How dry is my soil?',
+  'assistant.topic.today': 'Today',
+  'assistant.topic.irrigation': 'Irrigation',
+  'assistant.topic.soil': 'Soil',
+  'assistant.topic.weather': 'Weather',
+  'assistant.topic.fertilizer': 'Fertilizer',
+  'assistant.topic.disease': 'Disease watch',
+  'assistant.topic.todayQuestion': 'What should I do today?',
+  'assistant.topic.irrigationQuestion': 'When and how much should I irrigate?',
+  'assistant.topic.soilQuestion': 'What is my current soil condition?',
+  'assistant.topic.weatherQuestion': 'What is today’s weather doing to my farm?',
+  'assistant.topic.fertilizerQuestion': 'What should I know about my soil fertility?',
+  'assistant.topic.diseaseQuestion': 'What disease risk does the weather favour?',
+  'assistant.briefing.today': '{farm}: {crop} Today’s advice is {status}.',
+  'assistant.briefing.noRecommendation': 'No recommendation is available yet.',
 
   'assistant.rule.empty': 'Please type or speak a question.',
   'assistant.rule.referral':
-    'I cannot advise on medicines, sprays, seed choice or prices. Please show a sample to your local Krishi Vigyan Kendra or agriculture extension officer — they can see your crop and know what is approved locally. I can help with irrigation timing, water amounts, and your soil’s pH and fertility estimate.',
+    'I cannot name medicines, sprays or doses — a wrong one costs you money and can harm the crop. If you are worried about a disease: take a leaf photo in the “Check a leaf photo” card on the Today screen, and if you see signs, show that photo to your local Krishi Vigyan Kendra or input dealer — they can see your crop and know what is approved locally. I can help with irrigation timing, water amounts, your soil’s pH and fertility, and the official fertilizer schedule for covered crops.',
   'assistant.rule.capability':
-    'I can tell you how much water to give today, when to give it, why the app advises it, what the weather and rain are doing, how dry your soil is, your soil’s pH and fertility estimate, and how much water you have saved. I cannot name a medicine, spray, or an exact fertiliser amount.',
+    'I can tell you how much water to give today, when to give it, why the app advises it, what the weather and rain are doing, how dry your soil is, your soil’s pH and fertility, the official fertilizer schedule for covered crops, and how much water you have saved. I cannot name a medicine or spray — but for a disease worry I can tell you where to look, what the signs look like, and how to use the leaf photo check.',
   'assistant.rule.greeting':
     'Namaste. Ask me how much water to give today, when to irrigate, or why the app advises it.',
+  'assistant.rule.today': 'Today’s farm action is: {status}.',
   'assistant.rule.amount': 'Give {mm} mm today — about {litres} litres for your field.',
   'assistant.rule.amountRun': 'That is about {minutes} minutes of running time.',
   'assistant.rule.amountNone': 'No irrigation is needed today.',
@@ -599,7 +616,23 @@ const en = {
   'assistant.rule.disease': 'The weather is currently {level} for {disease}.',
   'assistant.rule.diseaseNone': 'The weather does not currently favour the common diseases of this crop.',
   'assistant.rule.diseaseCaveat':
-    'This is about the weather only — I have not seen your crop and cannot say any disease is present. If you find signs, show a sample to your Krishi Vigyan Kendra.',
+    'This is about the weather only — I have not seen your crop and cannot say any disease is present.',
+  'assistant.rule.diseaseScout': 'While you are in the field, look at {where} — best in the morning while the leaves are dry.',
+  'assistant.rule.diseaseSigns': 'The signs to look for: {what}',
+  'assistant.rule.diseasePhoto':
+    'Not sure? Take a leaf photo in the “Check a leaf photo” card on the Today screen — the app compares it with common diseases right on your phone, no internet needed.',
+  'assistant.rule.diseaseNext':
+    'If you do find signs like these, show the photo to your Krishi Vigyan Kendra or input dealer — they will confirm it and tell you what is approved for your crop stage.',
+
+  // --- Latest leaf-photo check (V2.2). Pre-worded verdicts: "similar to",
+  // similarity percent, never a diagnosis. ---
+  'assistant.photo.match': 'The photo looks similar to {name} ({percent}% similar).',
+  'assistant.photo.tentative': 'The photo only weakly resembles {name} ({percent}% similar).',
+  'assistant.photo.healthy': 'The photo looks like a healthy leaf ({percent}% similar).',
+  'assistant.photo.otherPlant': 'The photo looks like a {plant} leaf, not your {crop}.',
+  'assistant.rule.photoAnswer': 'That is a resemblance, not a diagnosis — the app cannot say the disease is present.',
+  'assistant.rule.photoNext': 'If the leaf does show signs, take it (or the photo) to your Krishi Vigyan Kendra or input dealer for confirmation.',
+  'assistant.rule.photoNone': 'I do not have a photo check to report yet. Take a leaf photo in the “Check a leaf photo” card on the Today screen — it works on your phone, no internet needed.',
   'assistant.rule.savedToday': 'You saved about {litres} litres today.',
   'assistant.rule.savedTotal': 'Across all your recorded days, about {litres} litres.',
   'assistant.rule.savedBasis':
@@ -636,6 +669,23 @@ const en = {
     'Your own Soil Health Card reading for this field: N {n}, P₂O₅ {p}, K₂O {k} kg/ha — overall fertility: {band}.',
   'assistant.rule.fertilityAdvice':
     'I cannot tell you an exact amount of fertiliser, urea, lime, gypsum or any other amendment to add — that needs a soil test. Please take a soil or leaf sample to your local Krishi Vigyan Kendra or agriculture extension officer; they can give you the exact quantity for your field.',
+  'assistant.rule.testInterpreted': 'I read these farmer-provided soil results: pH {ph}, organic carbon {oc}%, and {values}. These are field-test values, so they are more useful for this field than the area map estimate.',
+  'assistant.rule.testLow': 'The low nutrient group is {nutrients}; this can limit crop growth and should be addressed through a crop-stage fertilizer plan.',
+  'assistant.rule.testNoLow': 'No low N, P₂O₅, or K₂O result was found in the values provided.',
+  'assistant.rule.testHigh': 'The high nutrient group is {nutrients}; avoid adding more of those nutrients until the crop plan and next test support it.',
+  'assistant.rule.testNextSteps': 'Use these results to select the matching crop and soil zone in the Fertilizer section, follow split timing rather than applying everything at once, and confirm any exact product or rate with the local recommendation. I can explain the result, but I will not invent a dose.',
+  'assistant.rule.testPrompt': 'Yes — two ways. Send me the numbers here in this format: pH 6.2, EC 0.3, organic carbon 0.8%, N 240, P 12, K 150, S 10, Zn 1.2, B 0.5, Fe 8, Mn 5, Cu 0.4 — and I will classify N/P/K for your crop. Or open the Fertilizer tab, choose your crop and soil zone, tap the soil-test option, type your card’s numbers and tap “Save reading” — the app stores them on your farm, uses your fertility band for the official dose, and remembers them for next time.',
+  'assistant.rule.phAmendAcidic':
+    'To bring pH up into this crop’s range, the usual correction on these soils is lime or dolomite — the amount needs a soil test and your local Krishi Vigyan Kendra.',
+  'assistant.rule.phAmendAlkaline':
+    'To bring pH down into this crop’s range, the usual correction on these soils is gypsum — the amount needs a soil test and your local Krishi Vigyan Kendra.',
+  'assistant.rule.phAlts': 'At this pH, the crops the app’s data suits best are: {crops}.',
+  'assistant.rule.fertScheduleQuote':
+    'As per the State schedule for {variety} in the {zone} zone, on {band}-fertility soil: {npk}.',
+  'assistant.rule.fertScheduleMore':
+    'The manure, amendment and split-timing lines for this schedule are on the Fertilizer tab.',
+  'assistant.rule.fertScheduleNote':
+    'Confirm the final plan with your local Krishi Vigyan Kendra — they can adjust it for your field’s history.',
   'assistant.rule.soilType': 'You recorded this field’s soil as {soil}.',
   'assistant.rule.soilCarbon':
     'The soil map estimates about {oc}% organic carbon in your topsoil.',
@@ -1197,6 +1247,8 @@ const hi: Record<TranslationKey, string> = {
   'vision.name.tomatoYellowLeafCurlVirus': 'पीला पत्ती मरोड़ विषाणु',
   'vision.name.tomatoMosaicVirus': 'मोज़ेक विषाणु',
   'vision.name.riceBrownSpot': 'भूरा धब्बा',
+  'vision.name.riceLeafScald': 'पत्ती झुलसा',
+  'vision.name.riceSheathBlight': 'शीथ ब्लाइट',
   'vision.name.riceTungro': 'टुंग्रो',
 
   'vision.error.modelUnavailable':
@@ -1276,14 +1328,29 @@ const hi: Record<TranslationKey, string> = {
   'assistant.suggest.timing': 'सिंचाई किस समय करें?',
   'assistant.suggest.why': 'यह सलाह क्यों?',
   'assistant.suggest.moisture': 'मेरी मिट्टी कितनी सूखी है?',
+  'assistant.topic.today': 'आज',
+  'assistant.topic.irrigation': 'सिंचाई',
+  'assistant.topic.soil': 'मिट्टी',
+  'assistant.topic.weather': 'मौसम',
+  'assistant.topic.fertilizer': 'उर्वरता',
+  'assistant.topic.disease': 'रोग जोखिम',
+  'assistant.topic.todayQuestion': 'मुझे आज क्या करना चाहिए?',
+  'assistant.topic.irrigationQuestion': 'मुझे कब और कितना पानी देना चाहिए?',
+  'assistant.topic.soilQuestion': 'मेरी मिट्टी की अभी क्या स्थिति है?',
+  'assistant.topic.weatherQuestion': 'आज का मौसम मेरे खेत को कैसे प्रभावित कर रहा है?',
+  'assistant.topic.fertilizerQuestion': 'मेरी मिट्टी की उर्वरता के बारे में क्या पता है?',
+  'assistant.topic.diseaseQuestion': 'मौसम किस रोग के जोखिम को बढ़ा रहा है?',
+  'assistant.briefing.today': '{farm}: {crop} आज की सलाह {status} है।',
+  'assistant.briefing.noRecommendation': 'अभी कोई सलाह उपलब्ध नहीं है।',
 
   'assistant.rule.empty': 'कृपया कोई सवाल लिखें या बोलें।',
   'assistant.rule.referral':
-    'मैं दवा, छिड़काव, बीज या भाव पर सलाह नहीं दे सकता। कृपया अपने नज़दीकी कृषि विज्ञान केंद्र या कृषि विस्तार अधिकारी को नमूना दिखाएँ — वे आपकी फ़सल देख सकते हैं और जानते हैं कि यहाँ क्या मान्य है। मैं सिंचाई के समय, पानी की मात्रा, और आपकी मिट्टी के pH व उर्वरता के अंदाज़े में मदद कर सकता हूँ।',
+    'मैं दवा, छिड़काव या खुराक का नाम नहीं बता सकता — ग़लत सलाह से पैसा और फ़सल दोनों डूब सकते हैं। अगर आपको रोग की चिंता है तो आज की स्क्रीन पर “पत्ते की फ़ोटो जाँचें” कार्ड में पत्ते की फ़ोटो लें, और लक्षण दिखें तो वह फ़ोटो अपने नज़दीकी कृषि विज्ञान केंद्र या बीज-दवा दुकान को दिखाएँ — वे आपकी फ़सल देख सकते हैं और जानते हैं कि यहाँ क्या मान्य है। मैं सिंचाई के समय, पानी की मात्रा, मिट्टी के pH व उर्वरता, और मान्य उर्वरक अनुसूची में मदद कर सकता हूँ।',
   'assistant.rule.capability':
-    'मैं बता सकता हूँ कि आज कितना पानी देना है, कब देना है, ऐप ऐसा क्यों कहता है, मौसम और बारिश कैसी है, मिट्टी कितनी सूखी है, आपकी मिट्टी का pH व उर्वरता का अंदाज़ा, और आपने कितना पानी बचाया। मैं कोई दवा, छिड़काव या खाद की सटीक मात्रा नहीं बता सकता।',
+    'मैं बता सकता हूँ कि आज कितना पानी देना है, कब देना है, ऐप ऐसा क्यों कहता है, मौसम और बारिश कैसी है, मिट्टी कितनी सूखी है, आपकी मिट्टी का pH व उर्वरता, शामिल फसलों की मान्य उर्वरक अनुसूची, और आपने कितना पानी बचाया। मैं कोई दवा या छिड़काव नहीं बता सकता — पर रोग की चिंता पर मैं बता सकता हूँ कि कहाँ देखना है, लक्षण कैसे दिखते हैं, और पत्ते की फ़ोटो जाँच कैसे चलानी है।',
   'assistant.rule.greeting':
     'नमस्ते। पूछिए कि आज कितना पानी देना है, कब सिंचाई करनी है, या ऐप ऐसा क्यों कहता है।',
+  'assistant.rule.today': 'आज खेत में यह करना है: {status}।',
   'assistant.rule.amount': 'आज {mm} मिमी दें — आपके खेत के लिए लगभग {litres} लीटर।',
   'assistant.rule.amountRun': 'यानी लगभग {minutes} मिनट चलाना होगा।',
   'assistant.rule.amountNone': 'आज सिंचाई की ज़रूरत नहीं है।',
@@ -1303,7 +1370,22 @@ const hi: Record<TranslationKey, string> = {
   'assistant.rule.disease': 'मौसम इस समय {disease} के लिए {level} है।',
   'assistant.rule.diseaseNone': 'मौसम इस समय इस फ़सल के आम रोगों के अनुकूल नहीं है।',
   'assistant.rule.diseaseCaveat':
-    'यह केवल मौसम की बात है — मैंने आपकी फ़सल नहीं देखी और नहीं कह सकता कि कोई रोग लगा है। लक्षण दिखें तो कृषि विज्ञान केंद्र को नमूना दिखाएँ।',
+    'यह केवल मौसम की बात है — मैंने आपकी फ़सल नहीं देखी और नहीं कह सकता कि कोई रोग लगा है।',
+  'assistant.rule.diseaseScout': 'खेत में हों तो {where} देखें — सुबह, जब पत्ते सूखे हों, सबसे अच्छा है।',
+  'assistant.rule.diseaseSigns': 'जो लक्षण ढूँढने हैं: {what}',
+  'assistant.rule.diseasePhoto':
+    'पक्का नहीं? आज की स्क्रीन पर “पत्ते की फ़ोटो जाँचें” कार्ड में पत्ते की फ़ोटो लें — ऐप उसे आपके फ़ोन पर ही आम रोगों से मिलाता है, इंटरनेट की ज़रूरत नहीं।',
+  'assistant.rule.diseaseNext':
+    'अगर ऐसे लक्षण मिलें तो फ़ोटो कृषि विज्ञान केंद्र या बीज-दवा दुकान को दिखाएँ — वे पक्का करेंगे और बताएँगे कि आपकी फ़सल के चरण के लिए क्या मान्य है।',
+
+  // --- Latest leaf-photo check (V2.2) ---
+  'assistant.photo.match': 'फ़ोटो {name} से मिलती-जुलती लगती है ({percent}% समान)।',
+  'assistant.photo.tentative': 'फ़ोटो {name} से केवल हल्की-सी मिलती है ({percent}% समान)।',
+  'assistant.photo.healthy': 'फ़ोटो स्वस्थ पत्ते जैसी लगती है ({percent}% समान)।',
+  'assistant.photo.otherPlant': 'फ़ोटो {plant} के पत्ते जैसी लगती है, आपकी {crop} नहीं।',
+  'assistant.rule.photoAnswer': 'यह समानता है, निदान नहीं — ऐप नहीं कह सकता कि रोग है ही।',
+  'assistant.rule.photoNext': 'अगर पत्ते पर लक्षण दिखें तो उसे (या फ़ोटो) पक्का कराने कृषि विज्ञान केंद्र या बीज-दवा दुकान ले जाएँ।',
+  'assistant.rule.photoNone': 'अभी कोई फ़ोटो जाँच मेरे पास नहीं है। आज की स्क्रीन पर “पत्ते की फ़ोटो जाँचें” कार्ड में पत्ते की फ़ोटो लें — यह आपके फ़ोन पर चलती है, इंटरनेट नहीं चाहिए।',
   'assistant.rule.savedToday': 'आज आपने लगभग {litres} लीटर बचाए।',
   'assistant.rule.savedTotal': 'अब तक दर्ज सभी दिनों में लगभग {litres} लीटर।',
   'assistant.rule.savedBasis':
@@ -1332,6 +1414,23 @@ const hi: Record<TranslationKey, string> = {
     'आपकी इस खेत की अपनी मृदा स्वास्थ्य कार्ड रीडिंग: N {n}, P₂O₅ {p}, K₂O {k} किग्रा/हेक्टेयर — कुल उर्वरता: {band}।',
   'assistant.rule.fertilityAdvice':
     'मैं खाद, यूरिया, चूना, जिप्सम या किसी और सुधारक की सटीक मात्रा नहीं बता सकता — उसके लिए मिट्टी की जाँच चाहिए। कृपया मिट्टी या पत्ती का नमूना अपने नज़दीकी कृषि विज्ञान केंद्र या कृषि विस्तार अधिकारी को दिखाएँ; वे आपके खेत के लिए सटीक मात्रा बता सकते हैं।',
+  'assistant.rule.testInterpreted': 'मैंने आपके दिए हुए मिट्टी परीक्षण के परिणाम पढ़े: pH {ph}, जैविक कार्बन {oc}%, और {values}। ये खेत की जाँच के आँकड़े हैं, इसलिए इस खेत के लिए क्षेत्रीय नक्शे के अनुमान से अधिक उपयोगी हैं।',
+  'assistant.rule.testLow': 'कम पोषक तत्व: {nutrients}। इससे फ़सल की बढ़त सीमित हो सकती है; इसे फ़सल की अवस्था के अनुसार खाद योजना में देखें।',
+  'assistant.rule.testNoLow': 'दिए गए N, P₂O₅ और K₂O में कोई कम परिणाम नहीं मिला।',
+  'assistant.rule.testHigh': 'अधिक पोषक तत्व: {nutrients}। फ़सल योजना और अगली जाँच के बिना इनकी अतिरिक्त मात्रा न डालें।',
+  'assistant.rule.testNextSteps': 'अब Fertilizer भाग में अपनी फ़सल और मिट्टी का क्षेत्र चुनें, खाद को फ़सल की अवस्था के अनुसार बाँटकर दें, और स्थानीय अनुसूची से मात्रा मिलाएँ। मैं परिणाम समझा सकता हूँ, लेकिन मात्रा का अनुमान नहीं लगाऊँगा।',
+  'assistant.rule.testPrompt': 'हाँ — दो तरीके हैं। यहाँ संख्याएँ इस रूप में भेजें: pH 6.2, organic carbon 0.8%, N 240, P 12, K 150 kg/ha — मैं हर मान वर्गीकृत करके समझाऊँगा। या Fertilizer टैब खोलें, फ़सल और मिट्टी का क्षेत्र चुनें, मिट्टी-परीक्षण विकल्प दबाएँ, कार्ड की संख्याएँ भरें और “रीडिंग सहेजें” दबाएँ — ऐप उन्हें आपके खेत पर सहेज लेगा, आधिकारिक खुराक उसी अनुसार दिखाएगा, और अगली बार भी याद रखेगा।',
+  'assistant.rule.phAmendAcidic':
+    'इस फ़सल की सीमा तक pH बढ़ाने के लिए इन मिट्टियों में सामान्य उपाय चूना या डोलोमाइट है — मात्रा के लिए मिट्टी परीक्षण और आपके कृषि विज्ञान केंद्र की सलाह ज़रूरी है।',
+  'assistant.rule.phAmendAlkaline':
+    'इस फ़सल की सीमा तक pH घटाने के लिए इन मिट्टियों में सामान्य उपाय जिप्सम है — मात्रा के लिए मिट्टी परीक्षण और आपके कृषि विज्ञान केंद्र की सलाह ज़रूरी है।',
+  'assistant.rule.phAlts': 'इस pH पर ऐप के आँकड़ों के अनुसार सबसे उपयुक्त फ़सलें हैं: {crops}।',
+  'assistant.rule.fertScheduleQuote':
+    'राज्य अनुसूची के अनुसार, {zone} क्षेत्र की {variety} के लिए, {band} उर्वरता वाली मिट्टी पर: {npk}।',
+  'assistant.rule.fertScheduleMore':
+    'इस अनुसूची की गोबर खाद, मिट्टी-संशोधन और विभाजन-समय की पंक्तियाँ Fertilizer टैब पर देखें।',
+  'assistant.rule.fertScheduleNote':
+    'अंतिम योजना अपने कृषि विज्ञान केंद्र से पक्की करें — वे आपके खेत के इतिहास के हिसाब से उसे बदल सकते हैं।',
   'assistant.rule.soilType': 'आपने इस खेत की मिट्टी {soil} दर्ज की है।',
   'assistant.rule.soilCarbon':
     'मृदा नक़्शे के अनुसार आपकी ऊपरी मिट्टी में लगभग {oc}% जैविक कार्बन है।',
@@ -1888,6 +1987,8 @@ const bn: Record<TranslationKey, string> = {
   'vision.name.tomatoYellowLeafCurlVirus': 'হলুদ পাতা কুঁকড়ানো ভাইরাস',
   'vision.name.tomatoMosaicVirus': 'মোজাইক ভাইরাস',
   'vision.name.riceBrownSpot': 'বাদামি দাগ',
+  'vision.name.riceLeafScald': 'পাতা ঝলসানো',
+  'vision.name.riceSheathBlight': 'শীথ ব্লাইট',
   'vision.name.riceTungro': 'টুংরো',
 
   'vision.error.modelUnavailable':
@@ -1969,14 +2070,29 @@ const bn: Record<TranslationKey, string> = {
   'assistant.suggest.timing': 'কখন সেচ দেব?',
   'assistant.suggest.why': 'এই পরামর্শ কেন?',
   'assistant.suggest.moisture': 'আমার মাটি কতটা শুকনো?',
+  'assistant.topic.today': 'আজ',
+  'assistant.topic.irrigation': 'সেচ',
+  'assistant.topic.soil': 'মাটি',
+  'assistant.topic.weather': 'আবহাওয়া',
+  'assistant.topic.fertilizer': 'উর্বরতা',
+  'assistant.topic.disease': 'রোগের ঝুঁকি',
+  'assistant.topic.todayQuestion': 'আজ আমার কী করা উচিত?',
+  'assistant.topic.irrigationQuestion': 'কখন এবং কতটা সেচ দেব?',
+  'assistant.topic.soilQuestion': 'এখন আমার মাটির অবস্থা কী?',
+  'assistant.topic.weatherQuestion': 'আজকের আবহাওয়া আমার খেতকে কীভাবে প্রভাবিত করছে?',
+  'assistant.topic.fertilizerQuestion': 'আমার মাটির উর্বরতা সম্পর্কে কী জানা আছে?',
+  'assistant.topic.diseaseQuestion': 'আবহাওয়া কোন রোগের ঝুঁকি বাড়াচ্ছে?',
+  'assistant.briefing.today': '{farm}: {crop} আজকের পরামর্শ হল {status}।',
+  'assistant.briefing.noRecommendation': 'এখনও কোনও পরামর্শ নেই।',
 
   'assistant.rule.empty': 'অনুগ্রহ করে একটি প্রশ্ন লিখুন বা বলুন।',
   'assistant.rule.referral':
-    'ওষুধ, স্প্রে, বীজ বা দাম নিয়ে আমি পরামর্শ দিতে পারি না। অনুগ্রহ করে আপনার নিকটবর্তী কৃষি বিজ্ঞান কেন্দ্র বা কৃষি সম্প্রসারণ আধিকারিককে একটি নমুনা দেখান — তাঁরা ফসল দেখে বলতে পারবেন এবং স্থানীয়ভাবে কী অনুমোদিত তা জানেন। আমি সেচের সময়, জলের পরিমাণ, এবং আপনার মাটির pH ও উর্বরতার অনুমানে সাহায্য করতে পারি।',
+    'ওষুধ, স্প্রে বা মাত্রার নাম আমি বলতে পারি না — ভুল পরামর্শে টাকা ও ফসল দুটোই যেতে পারে। রোগের শঙ্কা থাকলে আজকের পর্দার “পাতার ছবি দেখুন” কার্ডে পাতার একটি ছবি তুলুন, আর লক্ষণ দেখলে সেই ছবি আপনার নিকটবর্তী কৃষি বিজ্ঞান কেন্দ্র বা বীজ-ওষুধের দোকানে দেখান — তাঁরা ফসল দেখে বলতে পারবেন এবং স্থানীয়ভাবে কী অনুমোদিত তা জানেন। আমি সেচের সময়, জলের পরিমাণ, মাটির pH ও উর্বরতা, এবং অন্তর্ভুক্ত ফসলের সরকারি সারের অনুসূচিত মাত্রা নিয়ে সাহায্য করতে পারি।',
   'assistant.rule.capability':
-    'আমি বলতে পারি আজ কত জল দিতে হবে, কখন দিতে হবে, অ্যাপ কেন এই পরামর্শ দিচ্ছে, আবহাওয়া ও বৃষ্টি কেমন, আপনার মাটি কতটা শুকনো, আপনার মাটির pH ও উর্বরতার অনুমান, আর আপনি কত জল বাঁচিয়েছেন। আমি কোনও ওষুধ, স্প্রে বা সারের সঠিক মাত্রা বলতে পারি না।',
+    'আমি বলতে পারি আজ কত জল দিতে হবে, কখন দিতে হবে, অ্যাপ কেন এই পরামর্শ দিচ্ছে, আবহাওয়া ও বৃষ্টি কেমন, আপনার মাটি কতটা শুকনো, আপনার মাটির pH ও উর্বরতা, অন্তর্ভুক্ত ফসলের সরকারি সারের অনুসূচি, আর আপনি কত জল বাঁচিয়েছেন। কোনও ওষুধ বা স্প্রের নাম বলতে পারি না — কিন্তু রোগের শঙ্কায় বলতে পারি কোথায় দেখবেন, লক্ষণ কেমন দেখায়, আর পাতার ছবির পরীক্ষা কীভাবে চালাবেন।',
   'assistant.rule.greeting':
     'নমস্কার। জিজ্ঞাসা করুন আজ কত জল দেবেন, কখন সেচ দেবেন, বা অ্যাপ কেন এই পরামর্শ দিচ্ছে।',
+  'assistant.rule.today': 'আজ খেতে এই কাজটি করুন: {status}।',
   'assistant.rule.amount': 'আজ {mm} মিমি দিন — আপনার খেতের জন্য প্রায় {litres} লিটার।',
   'assistant.rule.amountRun': 'অর্থাৎ প্রায় {minutes} মিনিট চালাতে হবে।',
   'assistant.rule.amountNone': 'আজ সেচের দরকার নেই।',
@@ -1996,7 +2112,22 @@ const bn: Record<TranslationKey, string> = {
   'assistant.rule.disease': 'এই আবহাওয়া এখন {disease}-এর জন্য {level}।',
   'assistant.rule.diseaseNone': 'এই ফসলের সাধারণ রোগের পক্ষে আবহাওয়া এখন অনুকূল নয়।',
   'assistant.rule.diseaseCaveat':
-    'এটি কেবল আবহাওয়ার কথা — আমি আপনার ফসল দেখিনি, তাই কোনও রোগ হয়েছে বলতে পারি না। লক্ষণ দেখলে কৃষি বিজ্ঞান কেন্দ্রে নমুনা দেখান।',
+    'এটি কেবল আবহাওয়ার কথা — আমি আপনার ফসল দেখিনি, তাই কোনও রোগ হয়েছে বলতে পারি না।',
+  'assistant.rule.diseaseScout': 'খেতে থাকলে {where} দেখুন — সকালে, পাতা শুকনো থাকলে, সবচেয়ে ভালো।',
+  'assistant.rule.diseaseSigns': 'যে লক্ষণগুলি খুঁজবেন: {what}',
+  'assistant.rule.diseasePhoto':
+    'নিশ্চিত নন? আজকের পর্দার “পাতার ছবি দেখুন” কার্ডে পাতার ছবি তুলুন — অ্যাপ সেটি আপনার ফোনেই সাধারণ রোগের সঙ্গে মেলায়, ইন্টারনেট লাগে না।',
+  'assistant.rule.diseaseNext':
+    'এমন লক্ষণ পেলে ছবিটি কৃষি বিজ্ঞান কেন্দ্র বা বীজ-ওষুধের দোকানে দেখান — তাঁরা নিশ্চিত করে বলবেন আপনার ফসলের পর্যায়ে কী অনুমোদিত।',
+
+  // --- Latest leaf-photo check (V2.2) ---
+  'assistant.photo.match': 'ছবিটি {name}-এর ছবির সঙ্গে মিলতে দেখাচ্ছে ({percent}% সদৃশ)।',
+  'assistant.photo.tentative': 'ছবিটি {name}-এর সঙ্গে খানিকটাই মেলে ({percent}% সদৃশ)।',
+  'assistant.photo.healthy': 'ছবিটি সুস্থ পাতার মতো দেখাচ্ছে ({percent}% সদৃশ)।',
+  'assistant.photo.otherPlant': 'ছবিটি {plant}-এর পাতার মতো দেখাচ্ছে, আপনার {crop} নয়।',
+  'assistant.rule.photoAnswer': 'এটি সাদৃশ্য, রোগনির্ণয় নয় — রোগ আছে বলা অ্যাপের পক্ষে সম্ভব নয়।',
+  'assistant.rule.photoNext': 'পাতায় লক্ষণ দেখলে নিশ্চিত করতে পাতাটি (বা ছবি) কৃষি বিজ্ঞান কেন্দ্র বা বীজ-ওষুধের দোকানে নিয়ে যান।',
+  'assistant.rule.photoNone': 'এখনও কোনও ছবির পরীক্ষা আমার কাছে নেই। আজকের পর্দার “পাতার ছবি দেখুন” কার্ডে পাতার ছবি তুলুন — এটি আপনার ফোনেই চলে, ইন্টারনেট লাগে না।',
   'assistant.rule.savedToday': 'আজ আপনি প্রায় {litres} লিটার বাঁচিয়েছেন।',
   'assistant.rule.savedTotal': 'আপনার নথিভুক্ত সব দিন মিলিয়ে প্রায় {litres} লিটার।',
   'assistant.rule.savedBasis':
@@ -2025,6 +2156,23 @@ const bn: Record<TranslationKey, string> = {
     'এই খেতের জন্য আপনার নিজের মাটি স্বাস্থ্য কার্ড রিডিং: N {n}, P₂O₅ {p}, K₂O {k} কেজি/হেক্টর — সার্বিক উর্বরতা: {band}।',
   'assistant.rule.fertilityAdvice':
     'সার, ইউরিয়া, চুন, জিপসাম বা অন্য কোনও সংশোধকের সঠিক পরিমাণ আমি বলতে পারি না — তার জন্য মাটি পরীক্ষা প্রয়োজন। অনুগ্রহ করে মাটি বা পাতার নমুনা আপনার নিকটবর্তী কৃষি বিজ্ঞান কেন্দ্র বা কৃষি সম্প্রসারণ আধিকারিককে দেখান; তাঁরা আপনার জমির জন্য সঠিক পরিমাণ বলতে পারবেন।',
+  'assistant.rule.testInterpreted': 'আমি আপনার দেওয়া মাটি পরীক্ষার ফল পড়েছি: pH {ph}, জৈব কার্বন {oc}%, এবং {values}। এগুলি খেতের পরীক্ষার মান, তাই এই খেতের জন্য এলাকার মানচিত্রের অনুমানের চেয়ে বেশি কার্যকর।',
+  'assistant.rule.testLow': 'কম পুষ্টি: {nutrients}। এটি ফসলের বৃদ্ধি সীমিত করতে পারে; ফসলের পর্যায় অনুযায়ী সার পরিকল্পনায় এটিকে অগ্রাধিকার দিন।',
+  'assistant.rule.testNoLow': 'দেওয়া N, P₂O₅ এবং K₂O মানে কোনও কম ফল পাওয়া যায়নি।',
+  'assistant.rule.testHigh': 'বেশি পুষ্টি: {nutrients}। ফসল পরিকল্পনা ও পরবর্তী পরীক্ষা সমর্থন না করা পর্যন্ত এগুলি আর যোগ করবেন না।',
+  'assistant.rule.testNextSteps': 'এখন Fertilizer বিভাগে ফসল ও মাটির অঞ্চল বেছে নিন, ফসলের পর্যায় অনুযায়ী ভাগ করে প্রয়োগ করুন, এবং স্থানীয় সূচির সঙ্গে পরিমাণ মিলিয়ে নিন। আমি ফল ব্যাখ্যা করব, কিন্তু মাত্রা অনুমান করব না।',
+  'assistant.rule.testPrompt': 'হ্যাঁ — দুটি উপায়। এখানে মানগুলি এইভাবে পাঠান: pH 6.2, organic carbon 0.8%, N 240, P 12, K 150 kg/ha — আমি প্রতিটি মান শ্রেণিবদ্ধ করে বুঝিয়ে দেব। অথবা Fertilizer ট্যাব খুলুন, ফসল ও মাটির অঞ্চল বেছে নিন, মাটি-পরীক্ষা অপশন ট্যাপ করুন, কার্ডের সংখ্যাগুলি লিখুন এবং “রিডিং সংরক্ষণ” চাপুন — অ্যাপ সেগুলি আপনার খেতে সংরক্ষণ করবে, সরকারি খুরাক সেই অনুযায়ী দেখাবে, আর পরের বারও মনে রাখবে।',
+  'assistant.rule.phAmendAcidic':
+    'এই ফসলের সীমায় pH বাড়াতে এই মাটিতে সাধারণ প্রতিকার চুন বা ডলোমাইট — পরিমাণ জানতে মাটি পরীক্ষা ও আপনার কৃষি বিজ্ঞান কেন্দ্রের পরামর্শ দরকার।',
+  'assistant.rule.phAmendAlkaline':
+    'এই ফসলের সীমায় pH কমাতে এই মাটিতে সাধারণ প্রতিকার জিপসাম — পরিমাণ জানতে মাটি পরীক্ষা ও আপনার কৃষি বিজ্ঞান কেন্দ্রের পরামর্শ দরকার।',
+  'assistant.rule.phAlts': 'এই pH-এ অ্যাপের তথ্য অনুযায়ী সবচেয়ে উপযোগী ফসল: {crops}।',
+  'assistant.rule.fertScheduleQuote':
+    'রাজ্য সূচি অনুযায়ী, {zone} অঞ্চলের {variety}-এর জন্য, {band} উর্বরতার মাটিতে: {npk}।',
+  'assistant.rule.fertScheduleMore':
+    'এই সূচির গোবর সার, মাটি-সংশোধন ও ভাগ করে প্রয়োগের নির্দেশ Fertilizer ট্যাবে দেখুন।',
+  'assistant.rule.fertScheduleNote':
+    'চূড়ান্ত পরিকল্পনা আপনার কৃষি বিজ্ঞান কেন্দ্রে নিশ্চিত করুন — তাঁরা আপনার খেতের ইতিহাস অনুযায়ী বদলাতে পারবেন।',
   'assistant.rule.soilType': 'আপনি এই খেতের মাটি {soil} হিসেবে লিখেছেন।',
   'assistant.rule.soilCarbon':
     'মাটির মানচিত্র অনুসারে আপনার উপরের মাটিতে প্রায় {oc}% জৈব কার্বন আছে।',
@@ -2568,6 +2716,8 @@ const as: Record<TranslationKey, string> = {
   'vision.name.tomatoYellowLeafCurlVirus': 'হালধীয়া পাত মেৰ খোৱা ভাইৰাছ',
   'vision.name.tomatoMosaicVirus': 'মʼজেইক ভাইৰাছ',
   'vision.name.riceBrownSpot': 'মটীয়া দাগ',
+  'vision.name.riceLeafScald': 'পাত জ্বলা',
+  'vision.name.riceSheathBlight': 'শীথ ব্লাইট',
   'vision.name.riceTungro': 'টুংগ্ৰো',
 
   'vision.error.modelUnavailable':
@@ -2648,14 +2798,29 @@ const as: Record<TranslationKey, string> = {
   'assistant.suggest.timing': 'কেতিয়া জলসিঞ্চন কৰিম?',
   'assistant.suggest.why': 'এই পৰামৰ্শ কিয়?',
   'assistant.suggest.moisture': 'মোৰ মাটি কিমান শুকান?',
+  'assistant.topic.today': 'আজি',
+  'assistant.topic.irrigation': 'জলসিঞ্চন',
+  'assistant.topic.soil': 'মাটি',
+  'assistant.topic.weather': 'বতৰ',
+  'assistant.topic.fertilizer': 'উৰ্বৰতা',
+  'assistant.topic.disease': 'ৰোগৰ আশংকা',
+  'assistant.topic.todayQuestion': 'আজি মই কি কৰিব লাগে?',
+  'assistant.topic.irrigationQuestion': 'কেতিয়া আৰু কিমান পানী দিব লাগে?',
+  'assistant.topic.soilQuestion': 'এতিয়া মোৰ মাটিৰ অৱস্থা কেনেকুৱা?',
+  'assistant.topic.weatherQuestion': 'আজিৰ বতৰে মোৰ পথাৰত কেনে প্ৰভাৱ পেলাইছে?',
+  'assistant.topic.fertilizerQuestion': 'মোৰ মাটিৰ উৰ্বৰতাৰ বিষয়ে কি জনা যায়?',
+  'assistant.topic.diseaseQuestion': 'বতৰে কোনটো ৰোগৰ আশংকা বঢ়াইছে?',
+  'assistant.briefing.today': '{farm}: {crop} আজিৰ পৰামৰ্শ হৈছে {status}।',
+  'assistant.briefing.noRecommendation': 'এতিয়ালৈ কোনো পৰামৰ্শ নাই।',
 
   'assistant.rule.empty': 'অনুগ্ৰহ কৰি এটা প্ৰশ্ন লিখক বা কওক।',
   'assistant.rule.referral':
-    'ঔষধ, স্প্ৰে, বীজ বা দামৰ বিষয়ে মই পৰামৰ্শ দিব নোৱাৰোঁ। অনুগ্ৰহ কৰি আপোনাৰ নিকটৱৰ্তী কৃষি বিজ্ঞান কেন্দ্ৰ বা কৃষি প্ৰসাৰ বিষয়াক এটা নমুনা দেখুৱাওক — তেওঁলোকে শস্য চাই ক’ব পাৰিব আৰু স্থানীয়ভাৱে কি অনুমোদিত সেয়া জানে। মই জলসিঞ্চনৰ সময়, পানীৰ পৰিমাণ, আৰু আপোনাৰ মাটিৰ pH ও উৰ্বৰতাৰ অনুমানত সহায় কৰিব পাৰোঁ।',
+    'ঔষধ, স্প্ৰে বা মাত্ৰাৰ নাম মই ক’ব নোৱাৰোঁ — ভুল পৰামৰ্শত ধন আৰু শস্য দুয়োটাই যাব পাৰে। ৰোগৰ আশংকা থাকিলে আজিৰ পৰ্দাৰ “পাতৰ ফটো চাওক” কাৰ্ডত পাতৰ এখন ফটো তোলক, আৰু লক্ষণ দেখা প’লে সেই ফটোখন আপোনাৰ নিকটৱৰ্তী কৃষি বিজ্ঞান কেন্দ্ৰ বা বীজ-ঔষধৰ দোকানত দেখুৱাওক — তেওঁলোকে শস্য চাই ক’ব পাৰিব আৰু স্থানীয়ভাৱে কি অনুমোদিত সেয়া জানে। মই জলসিঞ্চনৰ সময়, পানীৰ পৰিমাণ, মাটিৰ pH ও উৰ্বৰতা, আৰু অন্তৰ্ভুক্ত শস্যৰ চৰকাৰী সাৰৰ অনুসূচিত পৰিমাণত সহায় কৰিব পাৰোঁ।',
   'assistant.rule.capability':
-    'মই ক’ব পাৰোঁ আজি কিমান পানী দিব লাগে, কেতিয়া দিব লাগে, এপে কিয় এই পৰামৰ্শ দিছে, বতৰ আৰু বৰষুণ কেনে, আপোনাৰ মাটি কিমান শুকান, আপোনাৰ মাটিৰ pH ও উৰ্বৰতাৰ অনুমান, আৰু আপুনি কিমান পানী ৰাহি কৰিছে। মই কোনো ঔষধ, স্প্ৰে বা সাৰৰ সঠিক পৰিমাণ ক’ব নোৱাৰোঁ।',
+    'মই ক’ব পাৰোঁ আজি কিমান পানী দিব লাগে, কেতিয়া দিব লাগে, এপে কিয় এই পৰামৰ্শ দিছে, বতৰ আৰু বৰষুণ কেনে, আপোনাৰ মাটি কিমান শুকান, আপোনাৰ মাটিৰ pH ও উৰ্বৰতা, অন্তৰ্ভুক্ত শস্যৰ চৰকাৰী সাৰৰ অনুসূচি, আৰু আপুনি কিমান পানী ৰাহি কৰিছে। মই কোনো ঔষধ বা স্প্ৰেৰ নাম ক’ব নোৱাৰোঁ — কিন্তু ৰোগৰ আশংকাত ক’ব পাৰোঁ ক’ত চাব, লক্ষণ কেনেকুৱা দেখা যায়, আৰু পাতৰ ফটোৰ পৰীক্ষা কেনেকৈ চলাব।',
   'assistant.rule.greeting':
     'নমস্কাৰ। সোধক আজি কিমান পানী দিব, কেতিয়া জলসিঞ্চন কৰিব, বা এপে কিয় এই পৰামৰ্শ দিছে।',
+  'assistant.rule.today': 'আজি পথাৰত এই কাম কৰক: {status}।',
   'assistant.rule.amount': 'আজি {mm} মিমি দিয়ক — আপোনাৰ পথাৰৰ বাবে প্ৰায় {litres} লিটাৰ।',
   'assistant.rule.amountRun': 'অৰ্থাৎ প্ৰায় {minutes} মিনিট চলাব লাগিব।',
   'assistant.rule.amountNone': 'আজি জলসিঞ্চনৰ প্ৰয়োজন নাই।',
@@ -2675,7 +2840,22 @@ const as: Record<TranslationKey, string> = {
   'assistant.rule.disease': 'বতৰ এতিয়া {disease} ৰ বাবে {level}।',
   'assistant.rule.diseaseNone': 'এই শস্যৰ সাধাৰণ ৰোগৰ পক্ষে বতৰ এতিয়া অনুকূল নহয়।',
   'assistant.rule.diseaseCaveat':
-    'এয়া কেৱল বতৰৰ কথা — মই আপোনাৰ শস্য দেখা নাই, গতিকে কোনো ৰোগ হৈছে বুলি ক’ব নোৱাৰোঁ। লক্ষণ দেখিলে কৃষি বিজ্ঞান কেন্দ্ৰত নমুনা দেখুৱাওক।',
+    'এয়া কেৱল বতৰৰ কথা — মই আপোনাৰ শস্য দেখা নাই, গতিকে কোনো ৰোগ হৈছে বুলি ক’ব নোৱাৰোঁ।',
+  'assistant.rule.diseaseScout': 'পথাৰত থাকিলে {where} চাওক — ৰাতিপুৱা, পাত শুকান থাকিলে সৰ্বোত্তম।',
+  'assistant.rule.diseaseSigns': 'যি লক্ষণবোৰ বিচাৰিব: {what}',
+  'assistant.rule.diseasePhoto':
+    'নিশ্চিত নহয়? আজিৰ পৰ্দাৰ “পাতৰ ফটো চাওক” কাৰ্ডত পাতৰ ফটো তোলক — এপে সেয়া আপোনাৰ ফোনতে সাধাৰণ ৰোগৰ সৈতে মিলায়, ইণ্টাৰনেটৰ প্ৰয়োজন নাই।',
+  'assistant.rule.diseaseNext':
+    'এনে লক্ষণ পালে ফটোখন কৃষি বিজ্ঞান কেন্দ্ৰ বা বীজ-ঔষধৰ দোকানত দেখুৱাওক — তেওঁলোকে নিশ্চিত কৰি ক’ব যে আপোনাৰ শস্যৰ পৰ্যায়ত কি অনুমোদিত।',
+
+  // --- Latest leaf-photo check (V2.2) ---
+  'assistant.photo.match': 'ফটোখন {name}-ৰ ছবিৰ সৈতে মিল দেখা যায় ({percent}% সদৃশ)।',
+  'assistant.photo.tentative': 'ফটোখন {name}-ৰ সৈতে কিছু পৰিমাণে মিলে ({percent}% সদৃশ)।',
+  'assistant.photo.healthy': 'ফটোখন সুস্থ পাতৰ দৰে দেখা যায় ({percent}% সদৃশ)।',
+  'assistant.photo.otherPlant': 'ফটোখন {plant}-ৰ পাতৰ দৰে দেখা যায়, আপোনাৰ {crop} নহয়।',
+  'assistant.rule.photoAnswer': 'এয়া সাদৃশ্য, ৰোগনিৰ্ণয় নহয় — ৰোগ আছে বুলি এপে ক’ব নোৱাৰে।',
+  'assistant.rule.photoNext': 'পাতত লক্ষণ দেখিলে নিশ্চিত কৰিবলৈ পাতখন (বা ফটো) কৃষি বিজ্ঞান কেন্দ্ৰ বা বীজ-ঔষধৰ দোকানলৈ লৈ যাওক।',
+  'assistant.rule.photoNone': 'এতিয়ালৈ কোনো ফটোৰ পৰীক্ষা মোৰ হাতত নাই। আজিৰ পৰ্দাৰ “পাতৰ ফটো চাওক” কাৰ্ডত পাতৰ ফটো তোলক — এয়া আপোনাৰ ফোনতে চলে, ইণ্টাৰনেট নালাগে।',
   'assistant.rule.savedToday': 'আজি আপুনি প্ৰায় {litres} লিটাৰ ৰাহি কৰিছে।',
   'assistant.rule.savedTotal': 'আপোনাৰ লিপিবদ্ধ সকলো দিন মিলাই প্ৰায় {litres} লিটাৰ।',
   'assistant.rule.savedBasis':
@@ -2703,7 +2883,24 @@ const as: Record<TranslationKey, string> = {
   'assistant.rule.fertilityReading':
     'এই খেতীৰ বাবে আপোনাৰ নিজৰ মৃত্তিকা স্বাস্থ্য কাৰ্ড ৰিডিং: N {n}, P₂O₅ {p}, K₂O {k} কিলোগ্ৰাম/হেক্টৰ — সামগ্ৰিক উৰ্বৰতা: {band}।',
   'assistant.rule.fertilityAdvice':
-    'সাৰ, ইউৰিয়া, চুন, জিপচাম বা আন কোনো সংশোধকৰ সঠিক পৰিমাণ মই ক\'ব নোৱাৰোঁ — তাৰ বাবে মাটি পৰীক্ষা লাগিব। অনুগ্ৰহ কৰি মাটি বা পাতৰ নমুনা আপোনাৰ নিকটৱৰ্তী কৃষি বিজ্ঞান কেন্দ্ৰ বা কৃষি প্ৰসাৰ বিষয়াক দেখুৱাওক; তেওঁলোকে আপোনাৰ খেতিৰ বাবে সঠিক পৰিমাণ ক\'ব পাৰিব।',
+    'সাৰ, ইউৰিয়া, চুন, জিপচাম বা আন কোনো সংশোধকৰ সঠিক পৰিমাণ মই ক’ব নোৱাৰোঁ — তাৰ বাবে মাটি পৰীক্ষা লাগিব। অনুগ্ৰহ কৰি মাটি বা পাতৰ নমুনা আপোনাৰ নিকটৱৰ্তী কৃষি বিজ্ঞান কেন্দ্ৰ বা কৃষি প্ৰসাৰ বিষয়াক দেখুৱাওক; তেওঁলোকে আপোনাৰ খেতিৰ বাবে সঠিক পৰিমাণ ক’ব পাৰিব।',
+  'assistant.rule.testInterpreted': 'আপুনি দিয়া মাটি পৰীক্ষাৰ ফল মই পঢ়িলোঁ: pH {ph}, জৈৱ কাৰ্বন {oc}%, আৰু {values}। এইবোৰ খেতিৰ পৰীক্ষাৰ মান, সেয়ে এই খেতিৰ বাবে অঞ্চলৰ মানচিত্ৰৰ অনুমানতকৈ অধিক উপযোগী।',
+  'assistant.rule.testLow': 'কম পুষ্টি: {nutrients}। ইয়াৰ বাবে শস্যৰ বৃদ্ধি সীমিত হ’ব পাৰে; শস্যৰ পৰ্যায় অনুসৰি সাৰৰ পৰিকল্পনাত ইয়াক অগ্ৰাধিকাৰ দিয়ক।',
+  'assistant.rule.testNoLow': 'দিয়া N, P₂O₅ আৰু K₂O মানত কোনো কম ফল পোৱা নগ’ল।',
+  'assistant.rule.testHigh': 'বেছি পুষ্টি: {nutrients}। শস্য পৰিকল্পনা আৰু পৰৱৰ্তী পৰীক্ষাই সমৰ্থন নকৰালৈকে এইবোৰ আৰু নিদিব।',
+  'assistant.rule.testNextSteps': 'এতিয়া Fertilizer অংশত শস্য আৰু মাটিৰ অঞ্চল বাছক, শস্যৰ পৰ্যায় অনুসৰি ভাগ কৰি প্ৰয়োগ কৰক, আৰু স্থানীয় সূচীৰ সৈতে পৰিমাণ মিলাওক। মই ফল বুজাই দিব পাৰোঁ, কিন্তু পৰিমাণ অনুমান নকৰোঁ।',
+  'assistant.rule.testPrompt': 'হয় — দুটা উপায়। ইয়াত মানবোৰ এইদৰে পঠিয়াওক: pH 6.2, organic carbon 0.8%, N 240, P 12, K 150 kg/ha — মই প্ৰতিটো মান শ্ৰেণীবদ্ধ কৰি বুজাই দিম। নহ’লে Fertilizer টেব খোলক, শস্য আৰু মাটিৰ অঞ্চল বাছক, মাটি-পৰীক্ষা বিকল্প টেপ কৰক, কাৰ্ডৰ সংখ্যাবোৰ লিখক আৰু “ৰিডিং সাঁচক” টেপ কৰক — এপে সেয়া আপোনাৰ পথাৰত সাঁচি থ’ব, চৰকাৰী মাত্ৰা সেই অনুসৰি দেখুৱাব, আৰু পৰৱৰ্তী বাৰৰ বাবেও মনত ৰাখিব।',
+  'assistant.rule.phAmendAcidic':
+    'এই শস্যৰ সীমালৈ pH বঢ়াবলৈ এই মাটিত সাধাৰণ প্ৰতিকাৰ চুন বা ডলোমাইট — পৰিমাণ জানিবলৈ মাটি পৰীক্ষা আৰু আপোনাৰ কৃষি বিজ্ঞান কেন্দ্ৰৰ পৰামৰ্শ দৰকাৰ।',
+  'assistant.rule.phAmendAlkaline':
+    'এই শস্যৰ সীমালৈ pH কমাবলৈ এই মাটিত সাধাৰণ প্ৰতিকাৰ জিপচাম — পৰিমাণ জানিবলৈ মাটি পৰীক্ষা আৰু আপোনাৰ কৃষি বিজ্ঞান কেন্দ্ৰৰ পৰামৰ্শ দৰকাৰ।',
+  'assistant.rule.phAlts': 'এই pH-ত এপৰ তথ্য অনুসৰি আটাইতকৈ উপযোগী শস্য: {crops}।',
+  'assistant.rule.fertScheduleQuote':
+    'ৰাজ্য অনুসূচি অনুসৰি, {zone} অঞ্চলৰ {variety}-ৰ বাবে, {band} উৰ্বৰতাৰ মাটিত: {npk}।',
+  'assistant.rule.fertScheduleMore':
+    'এই অনুসূচিৰ গোবৰ সাৰ, মাটি-সংশোধন আৰু ভাগ কৰি প্ৰয়োগৰ নিৰ্দেশ Fertilizer টেবত চাওক।',
+  'assistant.rule.fertScheduleNote':
+    'চূড়ান্ত পৰিকল্পনা আপোনাৰ কৃষি বিজ্ঞান কেন্দ্ৰত নিশ্চিত কৰক — তেওঁলোকে আপোনাৰ পথাৰৰ ইতিহাস অনুসৰি সলনি কৰিব পাৰিব।',
   'assistant.rule.soilType': 'আপুনি এই খেতিৰ মাটি {soil} বুলি লিখিছে।',
   'assistant.rule.soilCarbon':
     'মাটিৰ মানচিত্ৰ অনুসৰি আপোনাৰ ওপৰৰ মাটিত প্ৰায় {oc}% জৈৱ কাৰ্বন আছে।',
@@ -3167,6 +3364,8 @@ const ur: Record<TranslationKey, string> = {
   'vision.name.tomatoYellowLeafCurlVirus': 'زرد پتہ مروڑ وائرس',
   'vision.name.tomatoMosaicVirus': 'موزیک وائرس',
   'vision.name.riceBrownSpot': 'بھورا دھبہ',
+  'vision.name.riceLeafScald': 'پتے کا جھلساؤ',
+  'vision.name.riceSheathBlight': 'شیٹھ بلائٹ',
   'vision.name.riceTungro': 'ٹنگرو',
 
   'vision.error.modelUnavailable':
@@ -3209,14 +3408,29 @@ const ur: Record<TranslationKey, string> = {
   'assistant.suggest.timing': 'سیرابی کب کروں؟',
   'assistant.suggest.why': 'یہ مشورہ کیوں؟',
   'assistant.suggest.moisture': 'میری مٹی کتنی خشک ہے؟',
+  'assistant.topic.today': 'آج',
+  'assistant.topic.irrigation': 'سیرابی',
+  'assistant.topic.soil': 'مٹی',
+  'assistant.topic.weather': 'موسم',
+  'assistant.topic.fertilizer': 'زرخیزی',
+  'assistant.topic.disease': 'بیماری کا خطرہ',
+  'assistant.topic.todayQuestion': 'مجھے آج کیا کرنا چاہیے؟',
+  'assistant.topic.irrigationQuestion': 'مجھے کب اور کتنا پانی دینا چاہیے؟',
+  'assistant.topic.soilQuestion': 'میری مٹی کی موجودہ حالت کیا ہے؟',
+  'assistant.topic.weatherQuestion': 'آج کا موسم میرے کھیت کو کیسے متاثر کر رہا ہے؟',
+  'assistant.topic.fertilizerQuestion': 'میری مٹی کی زرخیزی کے بارے میں کیا معلوم ہے؟',
+  'assistant.topic.diseaseQuestion': 'موسم کس بیماری کے خطرے کو بڑھا رہا ہے؟',
+  'assistant.briefing.today': '{farm}: {crop} آج کا مشورہ {status} ہے۔',
+  'assistant.briefing.noRecommendation': 'ابھی کوئی سفارش دستیاب نہیں ہے۔',
 
   'assistant.rule.empty': 'براہ کرم کوئی سوال لکھیں یا بولیں۔',
   'assistant.rule.referral':
-    'میں دوائیوں، اسپرے، کھاد کی مقدار، بیج یا قیمت کے بارے میں مشورہ نہیں دے سکتا۔ براہ کرم اپنے مقامی کرشی وگیان کیندر یا زرعی توسیعی افسر کو نمونہ دکھائیں — وہ آپ کی فصل دیکھ سکتے ہیں اور جانتے ہیں کہ مقامی طور پر کیا منظور ہے۔ میں سیرابی کے وقت اور پانی کی مقدار میں مدد کر سکتا ہوں۔',
+    'میں دوائی، اسپرے یا مقدار کا نام نہیں بتا سکتا — غلط مشورے سے پیسہ اور فصل دونوں ڈوب سکتے ہیں۔ بیماری کا شبہ ہو تو آج کی اسکرین کے “پتے کی تصویر دیکھیں” کارڈ میں پتے کی تصویر لیں، اور علامات نظر آئیں تو وہ تصویر اپنے مقامی کرشی وگیان کیندر یا بیج-دوائی کی دکان کو دکھائیں — وہ آپ کی فصل دیکھ سکتے ہیں اور جانتے ہیں کہ مقامی طور پر کیا منظور ہے۔ میں سیرابی کے وقت، پانی کی مقدار، مٹی کے pH اور زرخیزی، اور شامل فصلوں کی سرکاری کھاد کے شیڈول میں مدد کر سکتا ہوں۔',
   'assistant.rule.capability':
-    'میں بتا سکتا ہوں آج کتنا پانی دینا ہے، کب دینا ہے، ایپ یہ مشورہ کیوں دے رہی ہے، موسم اور بارش کیسی ہے، آپ کی مٹی کتنی خشک ہے، اور آپ نے کتنا پانی بچایا ہے۔ میں دوائیوں، اسپرے یا کھاد کے بارے میں مشورہ نہیں دے سکتا۔',
+    'میں بتا سکتا ہوں آج کتنا پانی دینا ہے، کب دینا ہے، ایپ یہ مشورہ کیوں دے رہی ہے، موسم اور بارش کیسی ہے، آپ کی مٹی کتنی خشک ہے، مٹی کا pH اور زرخیزی، شامل فصلوں کی سرکاری کھاد کا شیڈول، اور آپ نے کتنا پانی بچایا ہے۔ میں کوئی دوائی یا اسپرے کا نام نہیں بتا سکتا — مگر بیماری کے شبے میں بتا سکتا ہوں کہ کہاں دیکھنا ہے، علاماتیں کیسی ہوتی ہیں، اور پتے کی تصویر کی جانچ کیسے چلانی ہے۔',
   'assistant.rule.greeting':
     'آداب۔ پوچھیں آج کتنا پانی دینا ہے، کب سیرابی کرنی ہے، یا ایپ یہ مشورہ کیوں دے رہی ہے۔',
+  'assistant.rule.today': 'آج کھیت میں یہ کام کریں: {status}۔',
   'assistant.rule.amount': 'آج {mm} ملی میٹر دیں — آپ کے کھیت کے لیے تقریباً {litres} لیٹر۔',
   'assistant.rule.amountRun': 'یعنی تقریباً {minutes} منٹ چلانا ہوگا۔',
   'assistant.rule.amountNone': 'آج سیرابی کی ضرورت نہیں۔',
@@ -3236,7 +3450,22 @@ const ur: Record<TranslationKey, string> = {
   'assistant.rule.disease': 'موسم فی الحال {disease} کے لیے {level} ہے۔',
   'assistant.rule.diseaseNone': 'اس فصل کی عام بیماریوں کے لیے موسم فی الحال سازگار نہیں۔',
   'assistant.rule.diseaseCaveat':
-    'یہ صرف موسم کی بات ہے — میں نے آپ کی فصل نہیں دیکھی اور نہیں کہہ سکتا کہ کوئی بیماری موجود ہے۔ علامات نظر آئیں تو کرشی وگیان کیندر کو نمونہ دکھائیں۔',
+    'یہ صرف موسم کی بات ہے — میں نے آپ کی فصل نہیں دیکھی اور نہیں کہہ سکتا کہ کوئی بیماری موجود ہے۔',
+  'assistant.rule.diseaseScout': 'کھیت میں ہوں تو {where} دیکھیں — صبح، جب پتے خشک ہوں، سب سے بہتر ہے۔',
+  'assistant.rule.diseaseSigns': 'جو علاماتیں ڈھونڈنی ہیں: {what}',
+  'assistant.rule.diseasePhoto':
+    'یقین نہیں؟ آج کی اسکرین کے “پتے کی تصویر دیکھیں” کارڈ میں پتے کی تصویر لیں — ایپ اسے آپ کے فون پر ہی عام بیماریوں سے ملاتی ہے، انٹرنیٹ کی ضرورت نہیں۔',
+  'assistant.rule.diseaseNext':
+    'اگر ایسی علامات ملیں تو تصویر کرشی وگیان کیندر یا بیج-دوائی کی دکان کو دکھائیں — وہ تصدیق کر کے بتائیں گے کہ آپ کی فصل کے مرحلے کے لیے کیا منظور ہے۔',
+
+  // --- Latest leaf-photo check (V2.2) ---
+  'assistant.photo.match': 'تصویر {name} کی تصویروں سے ملتی جلتی لگتی ہے ({percent}% مشابہ)۔',
+  'assistant.photo.tentative': 'تصویر {name} سے کچھ ہی ملتی ہے ({percent}% مشابہ)۔',
+  'assistant.photo.healthy': 'تصویر صحت مند پتے جیسی لگتی ہے ({percent}% مشابہ)۔',
+  'assistant.photo.otherPlant': 'تصویر {plant} کے پتے جیسی لگتی ہے، آپ کی {crop} نہیں۔',
+  'assistant.rule.photoAnswer': 'یہ مشابہت ہے، تشخیص نہیں — ایپ یہ نہیں کہہ سکتی کہ بیماری موجود ہے۔',
+  'assistant.rule.photoNext': 'پتے پر علامات دکھیں تو تصدیق کے لیے پتا (یا تصویر) کرشی وگیان کیندر یا بیج-دوائی کی دکان لے جائیں۔',
+  'assistant.rule.photoNone': 'ابھی کوئی تصویر کی جانچ میرے پاس نہیں۔ آج کی اسکرین کے “پتے کی تصویر دیکھیں” کارڈ میں پتے کی تصویر لیں — یہ آپ کے فون پر چلتی ہے، انٹرنیٹ نہیں چاہیے۔',
   'assistant.rule.savedToday': 'آج آپ نے تقریباً {litres} لیٹر بچائے۔',
   'assistant.rule.savedTotal': 'آپ کے درج تمام دنوں میں تقریباً {litres} لیٹر۔',
   'assistant.rule.savedBasis':
@@ -3257,6 +3486,27 @@ const ur: Record<TranslationKey, string> = {
     'آپ کی فصل کے لیے pH {min} سے {max} موزوں ہے، اس لیے یہ اس طرح بنتا ہے: {verdict}۔',
   'assistant.rule.phAdvice':
     'کتنا چونا، جپسم یا کوئی اور اصلاحی چیز ڈالنی ہے، یہ میں نہیں بتا سکتا — اس کے لیے مٹی کی جانچ اور آپ کے مقامی کرشی وگیان کیندر کا مشورہ ضروری ہے۔',
+  'assistant.rule.phAmendAcidic':
+    'اس فصل کی حد تک pH بڑھانے کے لیے ان مٹیوں میں عام طریقہ چونا یا ڈولومائٹ ہے — مقدار کے لیے مٹی کی جانچ اور آپ کے کرشی وگیان کیندر کی رائے ضروری ہے۔',
+  'assistant.rule.phAmendAlkaline':
+    'اس فصل کی حد تک pH گھٹانے کے لیے ان مٹیوں میں عام طریقہ جپسم ہے — مقدار کے لیے مٹی کی جانچ اور آپ کے کرشی وگیان کیندر کی رائے ضروری ہے۔',
+  'assistant.rule.phAlts': 'اس pH پر ایپ کے ڈیٹا کے مطابق سب سے موزوں فصلیں: {crops}۔',
+  'assistant.rule.fertScheduleQuote':
+    'ریاستی شیڈول کے مطابق، {zone} علاقے کی {variety} کے لیے، {band} زرخیزی کی مٹی پر: {npk}۔',
+  'assistant.rule.fertScheduleMore':
+    'اس شیڈول کی گوبر کھاد، مٹی اصلاح اور تقسیم کے اوقات Fertilizer ٹیب پر دیکھیں۔',
+  'assistant.rule.fertScheduleNote':
+    'حتمی منصوبہ اپنے کرشی وگیان کیندر سے تصدیق کریں — وہ آپ کے کھیت کے حساب سے اسے بدل سکتے ہیں۔',
+  'assistant.rule.testInterpreted':
+    'میں نے آپ کی دی ہوئی مٹی جانچ کے نتائج پڑھے: pH {ph}، نامیاتی کاربن {oc}%، اور {values}۔ یہ کھیت کی جانچ کے اعداد ہیں، اس لیے علاقے کے نقشے کے اندازے سے زیادہ مفید ہیں۔',
+  'assistant.rule.testLow':
+    'کم غذائیت والے: {nutrients}۔ اس سے فصل کی بڑوتری متاثر ہو سکتی ہے؛ کھاد کی یو جانی فصل کے مرحلے کے مطابق بنائیں۔',
+  'assistant.rule.testNoLow': 'دیے گئے N، P₂O₅ اور K₂O میں کوئی کم نتیجہ نہیں ملا۔',
+  'assistant.rule.testHigh':
+    'زیادہ غذائیت والے: {nutrients}۔ فصل کی منصوبہ بندی اور اگلی جانچ کی حمایت کے بغیر ان میں اضافہ ن کریں۔',
+  'assistant.rule.testNextSteps':
+    'اب Fertilizer سیکشن میں اپنی فصل اور مٹی کا علاقہ چنیں، کھاد کو مراحل میں تقسیم کر کے دیں، اور مقامی شیڈول سے مقدار ملائیں۔ میں نتیجہ سمجھا سکتا ہوں، مگر مقدار کا اندازہ نہیں لگاؤں گا۔',
+  'assistant.rule.testPrompt': 'جی ہاں — دو طریقے ہیں۔ یہاں اعداد اس طرح بھیجیں: pH 6.2, organic carbon 0.8%, N 240, P 12, K 150 kg/ha — میں ہر عدد کی درجہ بندی کر کے سمجھا دوں گا۔ یا Fertilizer ٹیب کھولیں، فصل اور مٹی کا علاقہ چنیں، مٹی جانچ کا آپشن ٹیپ کریں، کارڈ کے اعداد لکھیں اور “ریڈنگ محفوظ کریں” ٹیپ کریں — ایپ انہیں آپ کے کھیت پر محفوظ رکھے گی، سرکاری خوراک اسی کے مطابق دکھائے گی، اور اگلی بار بھی یاد رکھے گی۔',
   'assistant.rule.soilType': 'آپ نے اس کھیت کی مٹی {soil} درج کی ہے۔',
   'assistant.rule.soilCarbon':
     'مٹی کے نقشے کے مطابق آپ کی اوپری مٹی میں تقریباً {oc}% نامیاتی کاربن ہے۔',

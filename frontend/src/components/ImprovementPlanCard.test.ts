@@ -33,7 +33,9 @@ import { ImprovementPlanCard } from './ImprovementPlanCard';
 const t: TranslateFn = (key, vars) => translate('en', key, vars);
 
 function render(issues: readonly FarmIssue[], topCount = TOP_ISSUE_COUNT): string {
-  return renderToStaticMarkup(createElement(ImprovementPlanCard, { issues, topCount, t }));
+  return renderToStaticMarkup(
+    createElement(ImprovementPlanCard, { issues, topCount, t, language: 'en' }),
+  );
 }
 
 /** Each rendered `<li>` for an issue carries both the base class and a modifier. */
@@ -221,6 +223,7 @@ describe('ImprovementPlanCard — in every language the app speaks', () => {
         createElement(ImprovementPlanCard, {
           issues: FIVE_ISSUES,
           topCount: 3,
+          language,
           t: (key, vars) => translate(language, key, vars),
         }),
       );
@@ -238,6 +241,7 @@ describe('ImprovementPlanCard — in every language the app speaks', () => {
         createElement(ImprovementPlanCard, {
           issues: [],
           topCount: 3,
+          language,
           t: (key, vars) => translate(language, key, vars),
         }),
       );
@@ -251,7 +255,12 @@ describe('ImprovementPlanCard — in every language the app speaks', () => {
     // this guards: the label vars go through the same table as the sentence.
     const bn: TranslateFn = (key, vars) => translate('bn', key, vars);
     const markup = renderToStaticMarkup(
-      createElement(ImprovementPlanCard, { issues: FIVE_ISSUES, topCount: 5, t: bn }),
+      createElement(ImprovementPlanCard, {
+        issues: FIVE_ISSUES,
+        topCount: 5,
+        language: 'bn',
+        t: bn,
+      }),
     );
     expect(markup).toContain(translate('bn', 'enum.soil.Sandy Loam'));
     expect(markup).not.toContain('Sandy Loam');

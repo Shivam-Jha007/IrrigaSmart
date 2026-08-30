@@ -50,12 +50,9 @@ export type VisionLabelId =
   | 'targetSpot'
   | 'tomatoYellowLeafCurlVirus'
   | 'tomatoMosaicVirus'
-  // Rice brown spot (Bipolaris oryzae) and tungro (a leafhopper-transmitted
-  // virus complex) have no published daily-aggregate infection window the way
-  // CROP_DISEASES.Rice's blast/bacterial-blight bands do, so they stay
-  // vision-only rather than being forced into an ill-fitting DiseaseProfile.
   | 'riceBrownSpot'
-  | 'riceTungro';
+  | 'riceLeafScald'
+  | 'riceSheathBlight';
 
 /**
  * What a class means.
@@ -211,33 +208,32 @@ export const VISION_CLASSES: Readonly<Record<string, VisionClass>> = {
   Tomato_healthy: { plant: 'Tomato', appCrop: 'Tomato', finding: { kind: 'healthy' } },
 
   // --- Rice: overlaps the app's Rice, and its design persona's own crop ----
-  // No healthy-rice folder exists in the training set this model was retrained
-  // on, so — unlike the other four plants — there is no Rice___healthy class
-  // and the healthy-count assertion in diseaseVision.test.ts stays at 5.
-  Rice___Bacterial_blight: {
+  Rice___Bacterial_leaf_blight: {
     plant: 'Rice',
     appCrop: 'Rice',
     finding: { kind: 'known', disease: 'riceBacterialLeafBlight' },
   },
-  Rice___Blast: {
+  Rice___Brown_spot: {
+    plant: 'Rice',
+    appCrop: 'Rice',
+    finding: { kind: 'visionOnly', label: 'riceBrownSpot' },
+  },
+  Rice___Leaf_blast: {
     plant: 'Rice',
     appCrop: 'Rice',
     finding: { kind: 'known', disease: 'riceBlast' },
   },
-  Rice___Brown_spot: {
+  Rice___Leaf_scald: {
     plant: 'Rice',
     appCrop: 'Rice',
-    // Bipolaris oryzae. No CROP_DISEASES.Rice entry — no published
-    // daily-aggregate temperature/humidity band for it — so vision-only.
-    finding: { kind: 'visionOnly', label: 'riceBrownSpot' },
+    finding: { kind: 'visionOnly', label: 'riceLeafScald' },
   },
-  Rice___Tungro: {
+  Rice___Sheath_blight: {
     plant: 'Rice',
     appCrop: 'Rice',
-    // A leafhopper-transmitted virus complex, not a fungus, and not weather-
-    // triggered the way the CROP_DISEASES bands model infection — vision-only.
-    finding: { kind: 'visionOnly', label: 'riceTungro' },
+    finding: { kind: 'visionOnly', label: 'riceSheathBlight' },
   },
+  Rice___healthy: { plant: 'Rice', appCrop: 'Rice', finding: { kind: 'healthy' } },
 };
 
 /**
@@ -327,6 +323,7 @@ export function lookupVisionClass(raw: string): VisionClass | null {
  * name to someone about to act on it is not.
  */
 export const MIN_CONFIDENCE = 0.7;
+export const MIN_TENTATIVE_CONFIDENCE = 0.25;
 
 /**
  * How a result should be presented, decided from the reading plus the farm's
@@ -336,6 +333,12 @@ export const MIN_CONFIDENCE = 0.7;
 export type VisionVerdict =
   /** Below MIN_CONFIDENCE — say so, ask for a better photo. */
   | { readonly kind: 'unsure'; readonly confidence: number }
+  | {
+      readonly kind: 'tentative';
+      readonly entry: VisionClass;
+      readonly confidence: number;
+      readonly plantHasHealthyClass: boolean;
+    }
   /** Confident, and the class belongs to the crop the farmer selected. */
   | {
       readonly kind: 'match';
@@ -404,19 +407,30 @@ export function verdictFor(
   const entry = lookupVisionClass(raw);
   if (!entry) return { kind: 'unknownClass', raw };
 
-  // Guard NaN explicitly: `NaN >= MIN_CONFIDENCE` is false, so a NaN would
-  // already land in `unsure`, but relying on that reads as an accident.
-  if (!Number.isFinite(confidence) || confidence < MIN_CONFIDENCE) {
-    return { kind: 'unsure', confidence: Number.isFinite(confidence) ? confidence : 0 };
+  if (!Number.isFinite(confidence)) {
+    return { kind: 'unsure', confidence: 0 };
+  }
+
+  const isOnCrop = crop !== null && entry.appCrop === crop;
+  if (isOnCrop && crop === 'Rice' && confidence >= MIN_TENTATIVE_CONFIDENCE) {
+    return {
+      kind: confidence >= MIN_CONFIDENCE ? 'match' : 'tentative',
+      entry,
+      confidence,
+      plantHasHealthyClass: plantHasHealthyClass(entry.plant),
+    };
+  }
+
+  if (confidence < MIN_CONFIDENCE) {
+    return { kind: 'unsure', confidence };
   }
 
   if (crop !== null && entry.appCrop !== crop) {
-    // A healthy class for someone else's plant is not a statement about this
-    // farm's crop, and must not be rendered as one.
     return entry.finding.kind === 'healthy'
       ? { kind: 'otherPlantHealthy', entry, confidence }
       : { kind: 'otherPlant', entry, confidence };
   }
+
   return {
     kind: 'match',
     entry,

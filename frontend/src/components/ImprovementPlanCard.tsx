@@ -1,5 +1,6 @@
 import { resolveIssueVars, type FarmIssue, type FarmIssueSeverity } from '../services';
-import { confidenceBadgeKey, type TranslateFn } from '../i18n';
+import { confidenceBadgeKey, localeFor, type Language, type TranslateFn } from '../i18n';
+import { speak, speechOutputSupported } from '../services/speech';
 
 /**
  * ImprovementPlanCard — the prioritised farm improvement plan (PRD §15).
@@ -41,6 +42,7 @@ interface Props {
   /** How many to show expanded; the rest go behind the expander. */
   topCount: number;
   t: TranslateFn;
+  language: Language;
 }
 
 /**
@@ -59,13 +61,27 @@ function severityModifier(severity: FarmIssueSeverity): string {
   return severity.toLowerCase();
 }
 
-function IssueItem({ issue, t }: { issue: FarmIssue; t: TranslateFn }) {
+function IssueItem({ issue, t, language }: { issue: FarmIssue; t: TranslateFn; language: Language }) {
   const vars = resolveIssueVars(issue, t);
+  const title = t(issue.titleKey, vars);
+  const explanation = t(issue.explanationKey, vars);
+  const actions = issue.actionKeys.map((key) => t(key, vars));
+  const spokenText = [title, explanation, t('improve.actions'), ...actions].join('. ');
 
   return (
     <li className={`improve-plan__item improve-plan__item--${severityModifier(issue.severity)}`}>
       <div className="improve-plan__item-head">
         <h4 className="improve-plan__item-title">{t(issue.titleKey, vars)}</h4>
+        <button
+          type="button"
+          className="improve-plan__speak"
+          onClick={() => speak(spokenText, localeFor(language))}
+          aria-label={t('assistant.readAloud')}
+          title={t('assistant.readAloud')}
+          disabled={!speechOutputSupported()}
+        >
+          🔊 <span>{t('assistant.readAloud')}</span>
+        </button>
         <span
           className={`improve-plan__severity improve-plan__severity--${severityModifier(issue.severity)}`}
         >
@@ -90,7 +106,7 @@ function IssueItem({ issue, t }: { issue: FarmIssue; t: TranslateFn }) {
   );
 }
 
-export function ImprovementPlanCard({ issues, topCount, t }: Props) {
+export function ImprovementPlanCard({ issues, topCount, t, language }: Props) {
   if (issues.length === 0) {
     return (
       <section className="improve-plan" aria-label={t('improve.title')}>
@@ -113,7 +129,7 @@ export function ImprovementPlanCard({ issues, topCount, t }: Props) {
 
       <ol className="improve-plan__list">
         {top.map((issue) => (
-          <IssueItem key={issue.id} issue={issue} t={t} />
+          <IssueItem key={issue.id} issue={issue} t={t} language={language} />
         ))}
       </ol>
 
@@ -124,7 +140,7 @@ export function ImprovementPlanCard({ issues, topCount, t }: Props) {
           </summary>
           <ol className="improve-plan__list improve-plan__list--rest">
             {rest.map((issue) => (
-              <IssueItem key={issue.id} issue={issue} t={t} />
+              <IssueItem key={issue.id} issue={issue} t={t} language={language} />
             ))}
           </ol>
         </details>
