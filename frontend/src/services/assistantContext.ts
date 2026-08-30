@@ -4,6 +4,8 @@ import {
   confidenceBadgeKey,
   cropLabelKey,
   diseaseNameKey,
+  diseaseWhatKey,
+  diseaseWhereKey,
   methodLabelKey,
   soilLabelKey,
   stageLabelKey,
@@ -12,6 +14,19 @@ import {
 } from '../i18n';
 import { buildFarmContext, isKnown } from './farmContext';
 import { detectFarmIssues, resolveIssueVars, TOP_ISSUE_COUNT } from './farmImprovement';
+import { summarizePhotoCheck } from './photoCheckSummary';
+import type { VisionResult } from './diseaseVision';
+import {
+  CROP_PH_RANGE,
+  phSuitability,
+} from './cropPhKnowledge';
+import {
+  fertilizerVarietiesFor,
+  getFertilizerRecommendation,
+  type FertilizerSoilZone,
+  type FertilityLevel,
+} from './fertilizerKnowledge';
+import type { CropName } from '../types';
 import type { AssistantContext } from './assistantRules';
 
 /**
@@ -64,6 +79,8 @@ export interface ContextInput {
   weather: WeatherData | null;
   today: DailyWeather | null;
   waterProgress: WaterProgress | null;
+  /** The most recent leaf-photo check on the Today screen, with its time. */
+  photoCheck?: { result: VisionResult; checkedAt: string } | null;
   language: string;
   t: TranslateFn;
 }
@@ -78,6 +95,7 @@ export function buildAssistantContext({
   weather,
   today,
   waterProgress,
+  photoCheck,
   language,
   t,
 }: ContextInput): AssistantContext {
@@ -144,7 +162,14 @@ export function buildAssistantContext({
   // Named only when the weather actually favours one. On a 'None' day, naming
   // the crop's most likely disease would put a disease name in front of a farmer
   // with nothing behind it — `FarmContext` withholds it for that reason.
-  if (isKnown(fc.disease.disease)) context.diseaseName = t(diseaseNameKey(fc.disease.disease.value));
+  if (isKnown(fc.disease.disease)) {
+    context.diseaseName = t(diseaseNameKey(fc.disease.disease.value));
+    // Where to look and what the signs look like travel WITH the name: the
+    // scouting answer is only useful attached to the disease it scouts for,
+    // and both come from the same Knowledge Base profile (docs/10 §10.5).
+    context.diseaseWhere = t(diseaseWhereKey(fc.disease.disease.value));
+    context.diseaseWhat = t(diseaseWhatKey(fc.disease.disease.value));
+  }
 
   if (isKnown(fc.irrigation.tomorrowStatus)) {
     context.tomorrowStatus = t(statusLabelKey(fc.irrigation.tomorrowStatus.value));
@@ -210,11 +235,127 @@ export function buildAssistantContext({
     context.organicCarbonPct = round1(fc.soil.organicCarbonPct.value);
   }
 
+  if (isKnown(fc.fertility.nitrogen)) context.fertilityN = round1(fc.fertility.nitrogen.value);
+  if (isKnown(fc.fertility.phosphorus)) context.fertilityP2O5 = round1(fc.fertility.phosphorus.value);
+  if (isKnown(fc.fertility.potassium)) context.fertilityK2O = round1(fc.fertility.potassium.value);
+  if (isKnown(fc.fertility.band)) context.fertilityBand = fc.fertility.band.value;
+  if (isKnown(fc.fertility.recordedAt)) context.fertilityProvenance = fc.fertility.recordedAt.provenance;
+  if (isKnown(fc.fertility.ph)) context.fertilityPh = round1(fc.fertility.ph.value);
+  if (isKnown(fc.fertility.ec)) context.fertilityEc = round1(fc.fertility.ec.value);
+  if (isKnown(fc.fertility.organicCarbonPct)) context.fertilityOrganicCarbonPct = round1(fc.fertility.organicCarbonPct.value);
+  if (isKnown(fc.fertility.sulphur)) context.fertilitySulphur = round1(fc.fertility.sulphur.value);
+  if (isKnown(fc.fertility.zinc)) context.fertilityZinc = round1(fc.fertility.zinc.value);
+  if (isKnown(fc.fertility.boron)) context.fertilityBoron = round1(fc.fertility.boron.value);
+  if (isKnown(fc.fertility.iron)) context.fertilityIron = round1(fc.fertility.iron.value);
+  if (isKnown(fc.fertility.manganese)) context.fertilityManganese = round1(fc.fertility.manganese.value);
+  if (isKnown(fc.fertility.copper)) context.fertilityCopper = round1(fc.fertility.copper.value);
+
   if (isKnown(fc.impact.savedTodayLiters)) {
     context.savedTodayLiters = Math.round(fc.impact.savedTodayLiters.value);
   }
   if (isKnown(fc.impact.savedLifetimeLiters)) {
     context.savedLifetimeLiters = Math.round(fc.impact.savedLifetimeLiters.value);
+  }
+
+  // --- Resolved official fertilizer schedule (State Agriculture Department) ---
+  //
+  // THE QUOTABLE EXCEPTION TO GUARDRAIL 2. The pH and carbon figures above are
+  // map estimates the prompt forbids quoting as exact values. These figures are
+  // different in kind: a transcription of the official State schedule the
+  // Fertilizer tab itself displays, resolved to the crop/variety/zone/band the
+  // farmer selected on that page. The lookup is deterministic — the same
+  // `getFertilizerRecommendation` the page calls — so the model can be handed
+  // these numbers and told to quote them verbatim with attribution, and the
+  // worst it can do is paraphrase an official figure.
+  //
+  // BAND RESOLUTION ORDER: the farmer's own Soil Health Card reading
+  // (USER_PROVIDED) first; without one, Medium — the booklet's own middle
+  // column and the Fertilizer page's default tap. A map-derived band is never
+  // invented here: the booklet's L/M/H key is a soil-test concept, and the
+  // 250 m map has no N/P/K prediction to classify.
+  //
+  // STALENESS: the selection stores variety + zone only. The crop is always
+  // the farm's CURRENT crop, so a crop change to an uncovered crop simply
+  // finds no table and emits nothing — no stale schedule can follow a crop
+  // change. A stored zone the new crop's table lacks likewise resolves to
+  // null and emits nothing.
+  if (profile && isKnown(fc.crop.name)) {
+    const crop = fc.crop.name.value;
+    const selection = profile.soil.fertilizerSelection;
+    const zones = ['Hill', 'Terai', 'GangeticAlluvium', 'VindhyaAlluviumRedLateritic', 'Coastal'];
+    const zone = selection && zones.includes(selection.zone) ? (selection.zone as FertilizerSoilZone) : undefined;
+    const varietyId =
+      selection && fertilizerVarietiesFor(crop).some((v) => v.varietyId === selection.varietyId)
+        ? selection.varietyId
+        : undefined;
+
+    if (zone && varietyId) {
+      const band: FertilityLevel = isKnown(fc.fertility.band)
+        ? (fc.fertility.band.value as FertilityLevel)
+        : 'Medium';
+      const rec = getFertilizerRecommendation(crop, varietyId, zone);
+      if (rec) {
+        context.fertScheduleVariety = rec.variety;
+        context.fertScheduleBand = t(`fert.fertility.${band}`);
+        context.fertScheduleZone = t(`fert.zone.${zone}`);
+        const dose = rec.zone.npk?.[band];
+        if (dose) {
+          context.fertScheduleNpk = `N ${dose.n}, P2O5 ${dose.p2o5}, K2O ${dose.k2o} kg/ha`;
+        } else {
+          context.fertScheduleNoDose = true;
+        }
+        if (rec.zone.manureOrBiofertilizer) context.fertScheduleManure = rec.zone.manureOrBiofertilizer;
+        if (rec.zone.soilAmeliorant) context.fertScheduleAmeliorant = rec.zone.soilAmeliorant;
+        if (rec.zone.sulphur) context.fertScheduleSulphur = rec.zone.sulphur;
+        if (rec.zone.micronutrients) context.fertScheduleMicronutrients = rec.zone.micronutrients;
+        if (rec.tableNote) context.fertScheduleTiming = rec.tableNote;
+      }
+    }
+  }
+
+  // --- Crop alternatives by pH suitability ---
+  //
+  // Deterministic ranking, same data the pH suitability card uses. Only built
+  // when a pH figure exists (either the map estimate or the farmer's own card
+  // reading — both beat guessing), and only including crops the pH data ranks
+  // 'suitable'. The model presents this list as options; it never re-ranks.
+  if (isKnown(fc.soil.ph)) {
+    const ph = fc.soil.ph.value;
+    const alts = (Object.keys(CROP_PH_RANGE) as CropName[])
+      .filter((crop) => phSuitability(crop, ph) === 'suitable')
+      .sort((a, b) => {
+        // Centre-distance, closest first: how far the pH sits from the middle
+        // of each crop's optimal band. Deterministic tie-break by band width
+        // (narrower = more precisely suited), then by name for stability.
+        const dist = (crop: CropName): number => {
+          const { min, max } = CROP_PH_RANGE[crop];
+          return ph < min ? min - ph : ph > max ? ph - max : 0;
+        };
+        const width = (crop: CropName): number => CROP_PH_RANGE[crop].max - CROP_PH_RANGE[crop].min;
+        return dist(a) - dist(b) || width(a) - width(b) || a.localeCompare(b);
+      })
+      .map((crop) => t(cropLabelKey(crop)));
+    // Capped: a near-neutral pH suits most crops, and "everything suits your
+    // soil" is not a recommendation — the five best-fitting are, and a shorter
+    // list is also a cheaper prompt.
+    if (alts.length > 0) context.phAltCrops = alts.slice(0, 5);
+  }
+
+  // --- Latest leaf-photo check (V2.2) ---
+  //
+  // PRE-WORDED by summarizePhotoCheck: the verdict sentence the assistant
+  // quotes is built from the same translation keys the card renders, so the
+  // "similar to, never has" boundary holds by construction on both paths.
+  // A check that produced no quotable reading (unsure, unknown class,
+  // another plant's healthy class) contributes nothing — the assistant says
+  // "no photo check yet" rather than paraphrasing a non-result.
+  if (photoCheck && profile) {
+    const summary = summarizePhotoCheck(photoCheck.result, profile.crop.name, t);
+    if (summary) {
+      context.photoVerdict = summary.verdict;
+      if (summary.plant) context.photoPlant = summary.plant;
+      context.photoCheckedAt = photoCheck.checkedAt;
+    }
   }
 
   // Last, because it is a summary of everything above rather than another field.

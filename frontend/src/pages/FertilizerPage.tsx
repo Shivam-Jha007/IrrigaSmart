@@ -108,8 +108,16 @@ export function FertilizerPage({ store }: Props) {
   const priorReading = defaultProfile?.soil.nutrientReading;
 
   const [crop, setCrop] = useState<CropName | ''>(defaultCrop ?? '');
-  const [varietyId, setVarietyId] = useState<string>('');
-  const [zone, setZone] = useState<FertilizerSoilZone | ''>('');
+  // Prefilled from the farmer's last saved selection (variety + zone), so a
+  // returning farmer sees the same schedule as last time AND the assistant can
+  // resolve that same schedule from storage. Not the farm's crop? The crop
+  // state above already defaults to the farm's crop, and the useEffects below
+  // drop a stored variety/zone the current tables do not recognise.
+  const savedSelection = defaultProfile?.soil.fertilizerSelection;
+  const [varietyId, setVarietyId] = useState<string>(savedSelection?.varietyId ?? '');
+  const [zone, setZone] = useState<FertilizerSoilZone | ''>(
+    (savedSelection?.zone as FertilizerSoilZone | undefined) ?? '',
+  );
   const [fertilityMode, setFertilityMode] = useState<'simple' | 'numbers'>(
     priorReading ? 'numbers' : 'simple',
   );
@@ -117,6 +125,23 @@ export function FertilizerPage({ store }: Props) {
   const [nInput, setNInput] = useState(priorReading ? String(priorReading.n) : '');
   const [pInput, setPInput] = useState(priorReading ? String(priorReading.p2o5) : '');
   const [kInput, setKInput] = useState(priorReading ? String(priorReading.k2o) : '');
+  const [phInput, setPhInput] = useState(priorReading?.ph !== undefined ? String(priorReading.ph) : '');
+  const [ecInput, setEcInput] = useState(priorReading?.ec !== undefined ? String(priorReading.ec) : '');
+  const [organicCarbonInput, setOrganicCarbonInput] = useState(
+    priorReading?.organicCarbonPct !== undefined ? String(priorReading.organicCarbonPct) : '',
+  );
+  const [sulphurInput, setSulphurInput] = useState(
+    priorReading?.sulphur !== undefined ? String(priorReading.sulphur) : '',
+  );
+  const [zincInput, setZincInput] = useState(priorReading?.zinc !== undefined ? String(priorReading.zinc) : '');
+  const [boronInput, setBoronInput] = useState(priorReading?.boron !== undefined ? String(priorReading.boron) : '');
+  const [ironInput, setIronInput] = useState(priorReading?.iron !== undefined ? String(priorReading.iron) : '');
+  const [manganeseInput, setManganeseInput] = useState(
+    priorReading?.manganese !== undefined ? String(priorReading.manganese) : '',
+  );
+  const [copperInput, setCopperInput] = useState(
+    priorReading?.copper !== undefined ? String(priorReading.copper) : '',
+  );
 
   const varieties = useMemo(() => (crop ? fertilizerVarietiesFor(crop) : []), [crop]);
   const zones = useMemo(
@@ -148,12 +173,46 @@ export function FertilizerPage({ store }: Props) {
     }
   }, [zones, zone]);
 
+  // Persist the resolved selection (variety + zone) whenever it is valid, so
+  // the assistant can resolve the same official schedule the farmer is looking
+  // at. Auto-save is right here — unlike the numeric reading, there is no
+  // mid-typing state: variety and zone are discrete taps, every intermediate
+  // value is itself a meaningful choice, and the effect guards below already
+  // normalise to a valid pair before this runs. Saving only when the crop is
+  // the farm's own crop ties the stored selection to the farm record it will
+  // be read against.
+  useEffect(() => {
+    if (!defaultProfile || !crop || !varietyId || !zone) return;
+    if (crop !== defaultProfile.crop.name) return;
+    void store.saveFertilizerSelection(defaultProfile.farm.id, {
+      varietyId,
+      zone,
+      recordedAt: new Date().toISOString(),
+    });
+  }, [store, defaultProfile, crop, varietyId, zone]);
+
   // Soil-test numbers, parsed. All three must be present and valid to classify
   // — a partial reading would silently drop a nutrient from the worst-of-three
   // rule and could report a fertility level better than the soil actually is.
   const parsedN = Number(nInput);
   const parsedP = Number(pInput);
   const parsedK = Number(kInput);
+  const optionalInputs = [
+    ['ph', phInput],
+    ['ec', ecInput],
+    ['organicCarbonPct', organicCarbonInput],
+    ['sulphur', sulphurInput],
+    ['zinc', zincInput],
+    ['boron', boronInput],
+    ['iron', ironInput],
+    ['manganese', manganeseInput],
+    ['copper', copperInput],
+  ] as const;
+  const parsedOptional = Object.fromEntries(
+    optionalInputs
+      .filter(([, input]) => input.trim() !== '' && Number.isFinite(Number(input)) && Number(input) >= 0)
+      .map(([key, input]) => [key, Number(input)]),
+  );
   const hasCompleteReading =
     nInput.trim() !== '' &&
     pInput.trim() !== '' &&
@@ -178,12 +237,13 @@ export function FertilizerPage({ store }: Props) {
   // state — from comparing the stored reading against what is in the boxes
   // right now, so editing a saved number immediately and correctly un-confirms
   // it without an effect to keep two facts in sync.
-  const alreadySaved =
-    hasCompleteReading &&
-    priorReading !== undefined &&
-    priorReading.n === parsedN &&
-    priorReading.p2o5 === parsedP &&
-    priorReading.k2o === parsedK;
+  const savedReadingMatches = priorReading !== undefined &&
+    optionalInputs.every(([key, input]) => {
+      const savedValue = priorReading[key];
+      return input.trim() === '' ? savedValue === undefined : savedValue === Number(input);
+    });
+  const alreadySaved = hasCompleteReading && savedReadingMatches && priorReading !== undefined &&
+    priorReading.n === parsedN && priorReading.p2o5 === parsedP && priorReading.k2o === parsedK;
 
   const saveReading = () => {
     if (!hasCompleteReading || !defaultProfile) return;
@@ -191,6 +251,7 @@ export function FertilizerPage({ store }: Props) {
       n: parsedN,
       p2o5: parsedP,
       k2o: parsedK,
+      ...parsedOptional,
       recordedAt: new Date().toISOString(),
     });
   };
@@ -369,7 +430,32 @@ export function FertilizerPage({ store }: Props) {
                   onChange={(e) => setKInput(e.target.value)}
                 />
               </label>
-              <p className="field__hint">{t('fert.npkInputHint')}</p>
+              <div className="fert-soil-card-grid">
+                {([
+                  ['pH', phInput, setPhInput, 'pH'],
+                  ['EC', ecInput, setEcInput, 'dS/m'],
+                  ['Organic carbon', organicCarbonInput, setOrganicCarbonInput, '%'],
+                  ['Sulphur (S)', sulphurInput, setSulphurInput, 'kg/ha'],
+                  ['Zinc (Zn)', zincInput, setZincInput, 'mg/kg'],
+                  ['Boron (B)', boronInput, setBoronInput, 'mg/kg'],
+                  ['Iron (Fe)', ironInput, setIronInput, 'mg/kg'],
+                  ['Manganese (Mn)', manganeseInput, setManganeseInput, 'mg/kg'],
+                  ['Copper (Cu)', copperInput, setCopperInput, 'mg/kg'],
+                ] as const).map(([label, value, setValue, unit]) => (
+                  <label className="field fert-npk-input" key={label}>
+                    <span className="field__label">{label}</span>
+                    <input
+                      className="field__input"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder={unit}
+                      value={value}
+                      onChange={(e) => setValue(e.target.value)}
+                    />
+                  </label>
+                ))}
+              </div>
+              <p className="field__hint">Enter any additional values shown on your Soil Health Card. S is kg/ha; micronutrients are mg/kg (ppm).</p>
               {!hasCompleteReading && (nInput || pInput || kInput) && (
                 <p className="field__hint">{t('fert.npkIncomplete')}</p>
               )}

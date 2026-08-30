@@ -1500,7 +1500,7 @@ exports[`decision engine — full result shape > delay 1`] = `
       "flowLitersPerMinute": 0,
       "volumeLiters": 0,
     },
-    "explanation": "Rain expected today is enough to meet your wheat's needs, so you can delay irrigation. On loamy soil this moisture stays available longer.",
+    "explanation": "Rain expected today is enough to meet your wheat's needs, so you can delay irrigation. Your loamy soil holds this moisture well.",
     "factors": [
       {
         "influence": "increases",

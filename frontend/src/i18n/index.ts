@@ -26,6 +26,9 @@ import { TRANSLATIONS, type TranslationKey } from './translations';
  */
 export type { TranslationKey } from './translations';
 
+/** Re-exported so UI components can take `language` as a prop without importing types/. */
+export type { Language } from '../types';
+
 /** Signature of the language-bound translate function passed through the UI. */
 export type TranslateFn = (key: TranslationKey, vars?: Record<string, string | number>) => string;
 

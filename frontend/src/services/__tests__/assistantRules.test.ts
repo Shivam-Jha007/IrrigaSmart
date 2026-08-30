@@ -93,6 +93,7 @@ describe('normalise', () => {
 
 describe('classify — intent routing', () => {
   it('classifies each core intent from an English question', () => {
+    expect(classify('What should I do today?')).toBe('today');
     expect(classify('How much water should I give today?')).toBe('amount');
     expect(classify('What time should I irrigate?')).toBe('timing');
     expect(classify('Why is the app advising this?')).toBe('why');
@@ -116,6 +117,14 @@ describe('classify — intent routing', () => {
     expect(classify('barish hogi?')).toBe('rain');
     expect(classify('kya mausam hai?')).toBe('weather');
     expect(classify('meri mitti kitni sukhi hai?')).toBe('moisture');
+  });
+
+  it('classifies the daily-action question in every supported script', () => {
+    expect(classify('What should I do today?')).toBe('today');
+    expect(classify('आज क्या करूं?')).toBe('today');
+    expect(classify('আজ কী করব?')).toBe('today');
+    expect(classify('আজি কি কৰিম?')).toBe('today');
+    expect(classify('آج کیا کروں؟')).toBe('today');
   });
 
   it('returns null for an empty question', () => {
@@ -174,6 +183,68 @@ describe('answerFromRules — figures are quoted, never invented', () => {
     expect(answerFromRules('how much water today?', undefined, t)).toBeNull();
     expect(answerFromRules('what time should I irrigate?', undefined, t)).toBeNull();
     expect(answerFromRules('is it going to rain?', undefined, t)).toBeNull();
+  });
+
+  it('answers what to do today from the complete engine recommendation', () => {
+    const answer = answerFromRules('what should I do today?', fullContext(), t);
+    expect(answer?.intent).toBe('today');
+    expect(answer?.answer).toContain('Irrigate Today');
+    expect(answer?.answer).toContain('12.4 mm');
+    expect(answer?.answer).toContain('18,500 litres');
+    expect(answer?.answer).toContain('5:00 am');
+    expect(answer?.answer).toContain('34 minutes');
+    expect(answer?.answer).toContain('22 mm short');
+  });
+
+  it('answers delay irrigation without exposing misleading zero values', () => {
+    const context: AssistantContext = {
+      ...fullContext(),
+      status: 'Delay Irrigation',
+      depthMm: 0,
+      volumeLiters: 0,
+      durationMinutes: 0,
+      explanation: "Rainfall can cover today's crop water demand.",
+    };
+    delete context.windowStart;
+    delete context.windowEnd;
+
+    const answer = answerFromRules('what should I do today?', context, t);
+    expect(answer?.answer).toContain('Delay Irrigation');
+    expect(answer?.answer).toContain('No irrigation is needed today.');
+    expect(answer?.answer).toContain("Rainfall can cover today's crop water demand.");
+    expect(answer?.answer).not.toContain('0 mm');
+    expect(answer?.answer).not.toContain('0 litres');
+    expect(answer?.answer).not.toContain('0 minutes');
+  });
+
+  it('interprets farmer-provided soil test values instead of only referring out', () => {
+    const answer = answerFromRules(
+      'I have test values: pH 6.2, organic carbon 0.8%, N 240, P 12, K 150 kg/ha',
+      undefined,
+      t,
+    );
+    expect(answer?.intent).toBe('fertility');
+    expect(answer?.answer).toContain('farmer-provided soil results');
+    expect(answer?.answer).toContain('N: 240 (Low)');
+    expect(answer?.answer).toContain('P2O5: 12 (Medium)');
+    expect(answer?.answer).toContain('K2O: 150 (Medium)');
+    expect(answer?.answer).toContain('low nutrient group is N');
+    expect(answer?.answer).toContain('select the matching crop and soil zone');
+  });
+
+  it('accepts the complete Soil Health Card field set', () => {
+    const answer = answerFromRules(
+      'soil test: pH 6.2, EC 0.3 dS/m, organic carbon 0.8%, N 240, P 12, K 150, S 10, Zn 1.2, B 0.5, Fe 8, Mn 5, Cu 0.4',
+      undefined,
+      t,
+    );
+    expect(answer?.answer).toContain('EC: 0.3 dS/m');
+    expect(answer?.answer).toContain('S: 10 kg/ha');
+    expect(answer?.answer).toContain('Zn: 1.2 mg/kg');
+    expect(answer?.answer).toContain('B: 0.5 mg/kg');
+    expect(answer?.answer).toContain('Fe: 8 mg/kg');
+    expect(answer?.answer).toContain('Mn: 5 mg/kg');
+    expect(answer?.answer).toContain('Cu: 0.4 mg/kg');
   });
 
   it('answers the amount question with the engine\'s own figures', () => {
@@ -257,6 +328,61 @@ describe('answerFromRules — figures are quoted, never invented', () => {
     // The caveat is the product boundary (docs/10 §10.2): the app has not seen
     // the crop, so no answer may claim a disease is present.
     expect(answer?.answer).toContain('cannot say any disease is present');
+  });
+
+  it('turns a disease-risk answer into scouting, not a dead end', () => {
+    // V2.2: where to look, what the signs look like, the on-phone photo check
+    // and a prepared referral — from the Knowledge Base profile of the same
+    // disease the weather named. No chemical, no diagnosis (docs/10 §10.2).
+    const context = {
+      ...fullContext(),
+      diseaseWhere: 'lower leaves first, moving upward',
+      diseaseWhat: 'Long grey-brown lesions with dark borders.',
+    };
+    const answer = answerFromRules('is the weather good for disease?', context, t);
+    expect(answer?.answer).toContain('lower leaves first');
+    expect(answer?.answer).toContain('Long grey-brown lesions');
+    expect(answer?.answer).toContain('Check a leaf photo');
+    expect(answer?.answer).toContain('Krishi Vigyan Kendra');
+  });
+
+  it('keeps the disease answer caveat-only when no disease is named', () => {
+    // A None day names no disease, so there is nothing to scout for: no
+    // where/what lines, and crucially no photo or referral boilerplate
+    // attached to a disease the weather did not name.
+    const none = fullContext();
+    delete none.diseaseName;
+    const answer = answerFromRules('is the weather good for disease?', none, t);
+    expect(answer?.answer).not.toContain('Check a leaf photo');
+  });
+
+  it('answers what the photo showed from the latest check, as a resemblance', () => {
+    // V2.2: the photo question routes to the photo result, not the weather
+    // risk — and the verdict sentence is quoted verbatim with its qualifier,
+    // because the wording is the boundary (docs/14).
+    const withPhoto = {
+      ...fullContext(),
+      photoVerdict: 'The photo looks similar to Maize Leaf Blight (76% similar).',
+    };
+    const answer = answerFromRules('what did the photo show?', withPhoto, t);
+    expect(answer?.intent).toBe('photo');
+    expect(answer?.answer).toContain('76% similar');
+    expect(answer?.answer).toContain('not a diagnosis');
+    expect(answer?.answer).toContain('Krishi Vigyan Kendra');
+  });
+
+  it('tells a farmer with no photo check how to take one', () => {
+    const answer = answerFromRules('what did the photo show?', fullContext(), t);
+    expect(answer?.intent).toBe('photo');
+    expect(answer?.answer).toContain('Check a leaf photo');
+  });
+
+  it('answers the photo question with no context at all', () => {
+    // Like referral and greeting: the how-to answer needs no farm data, so it
+    // must never fall through to the model.
+    const answer = answerFromRules('फोटो में क्या दिखाया?', undefined, t);
+    expect(answer?.intent).toBe('photo');
+    expect(answer?.answer).toContain('Check a leaf photo');
   });
 
   it('answers the savings question from the ledger figures', () => {
@@ -442,6 +568,39 @@ describe('answerFromRules — a pH figure is never spoken without its source', (
     }
   });
 
+  it('turns an out-of-range pH into direction and crop options, offline', () => {
+    // V2.2: the farmer's own complaint — "after saying the pH is out of range
+    // it should also say how to bring it into range, or what to grow instead."
+    // Numbers out of band (6.9 against 5.5-6.5) so the direction is computed,
+    // not the hand-set verdict string.
+    const answer = answerFromRules('what is my soil pH?', {
+      ...withSoil(),
+      soilPh: 6.9,
+      phSuitability: 'Significant pH issue',
+      phAltCrops: ['Groundnut', 'Onion', 'Tomato', 'Rice', 'Soybean'],
+    }, t);
+    expect(answer?.answer).toContain('gypsum');
+    expect(answer?.answer).toContain('Groundnut, Onion, Tomato');
+    expect(answer?.answer).toContain('Krishi Vigyan Kendra');
+    // A rate is still never named — '@' is the booklet's rate marker and the
+    // only place a quantity could hide in these lines.
+    expect(answer?.answer).not.toContain('@');
+    // The redundant no-quantity sentence is replaced by the direction line,
+    // which carries the same caveat.
+    expect(answer?.answer).not.toContain('cannot tell you how much lime');
+  });
+
+  it('gives the acidic-side direction when the pH is below the band', () => {
+    const answer = answerFromRules('is my soil pH ok for my crop?', {
+      ...withSoil(),
+      soilPh: 4.9,
+      phOptimalMin: 5.5,
+      phAltCrops: ['Potato'],
+    }, t);
+    expect(answer?.answer).toContain('lime or dolomite');
+    expect(answer?.answer).toContain('Potato');
+  });
+
   it('still states the reading and the caveat when the crop band is missing', () => {
     // A crop the pH table does not cover leaves no optimum band, so the verdict
     // sentence is dropped. The two sentences that carry Guardrail 1 are not.
@@ -537,8 +696,63 @@ describe('answerFromRules — a pH figure is never spoken without its source', (
   it('never states an exact quantity, even with a full estimate available', () => {
     // The one thing that must never change: no number of kg/ha, no "apply X",
     // ever appears — only the reading, the verdict, and the referral.
+    // (The one exception is the official State schedule, tested below, where
+    // the quantity is a quotation, not a computation.)
     const answer = answerFromRules('how much urea should I apply?', withSoil(), t);
     expect(answer?.answer).not.toMatch(/\d+\s*(kg|kilograms?|litres?|grams?)/i);
+  });
+
+  it('quotes the official schedule when the farm resolved one', () => {
+    // V2.2's quotable exception, on the offline path: the dose appears
+    // verbatim, attributed to the State schedule, with a pointer to the
+    // manure/timing lines on the Fertilizer tab — and the closing line
+    // confirms with the KVK rather than refusing.
+    const answer = answerFromRules('how to improve my soil?', {
+      ...withSoil(),
+      soilPh: 6.6,
+      phSuitability: 'Slightly outside the optimal range',
+      phAltCrops: ['Groundnut', 'Onion', 'Tomato'],
+      fertScheduleNpk: 'N 50, P2O5 25, K2O 25 kg/ha',
+      fertScheduleBand: 'Medium',
+      fertScheduleVariety: 'Kharif (monsoon) rice',
+      fertScheduleZone: 'Terai',
+    }, t);
+    expect(answer?.intent).toBe('fertility');
+    expect(answer?.answer).toContain('State schedule');
+    expect(answer?.answer).toContain('N 50, P2O5 25, K2O 25 kg/ha');
+    expect(answer?.answer).toContain('Kharif (monsoon) rice');
+    // The improvement plan: direction (6.6 is alkaline-side of 5.5-6.5),
+    // alternatives, and a confirm-with-KVK close — never a bare referral.
+    expect(answer?.answer).toContain('gypsum');
+    expect(answer?.answer).toContain('Groundnut, Onion, Tomato');
+    expect(answer?.answer).toContain('Confirm the final plan');
+    expect(answer?.answer).not.toContain('cannot tell you an exact amount');
+  });
+
+  it('routes the natural phrasings of the soil-improvement question to fertility', () => {
+    // The transcript complaint: "how to improve my soil?" fell through to the
+    // model because 'improve soil' (no "my") was the only phrase on the list.
+    expect(classify('how to improve my soil?')).toBe('fertility');
+    expect(classify('how do i improve the soil?')).toBe('fertility');
+  });
+
+  it('shows a farmer holding a Soil Health Card where to enter it', () => {
+    // "I have my soil test" with no numbers: the answer must teach both entry
+    // paths — paste the numbers in chat, or the Fertilizer tab's soil-test
+    // mode — instead of a referral that wastes the card they are holding.
+    const answer = answerFromRules('i have my soil health card', fullContext(), t);
+    expect(answer?.intent).toBe('fertility');
+    expect(answer?.answer).toContain('Fertilizer');
+    expect(answer?.answer).toContain('Save reading');
+    expect(answer?.answer).toContain('pH 6.2');
+  });
+
+  it('routes native-script soil-test mentions to the card guidance', () => {
+    // Without these terms the bare word for soil belongs to the moisture
+    // terms, and a Bengali farmer saying they have a test would be told how
+    // dry their soil is.
+    expect(classify('মাটির পরীক্ষা করিয়েছি')).toBe('fertility');
+    expect(classify('मेरे पास मिट्टी की जाँच है')).toBe('fertility');
   });
 
   it('answers fertility questions in the farmer’s language', () => {

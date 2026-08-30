@@ -228,6 +228,15 @@ export interface FarmContextFertility {
   nitrogen: Sourced<number | null>;
   phosphorus: Sourced<number | null>;
   potassium: Sourced<number | null>;
+  ph: Sourced<number | null>;
+  ec: Sourced<number | null>;
+  organicCarbonPct: Sourced<number | null>;
+  sulphur: Sourced<number | null>;
+  zinc: Sourced<number | null>;
+  boron: Sourced<number | null>;
+  iron: Sourced<number | null>;
+  manganese: Sourced<number | null>;
+  copper: Sourced<number | null>;
   /** The booklet's Low/Medium/High band the reading classifies into. */
   band: Sourced<FertilityLevel | null>;
   /** When the farmer entered this reading. */
@@ -627,6 +636,21 @@ export function buildFarmContext({
       farmer,
       reading?.recordedAt ?? null,
     ),
+    ph: maybe(reading?.ph, 'USER_PROVIDED', NO_FERTILITY, farmer, reading?.recordedAt ?? null),
+    ec: maybe(reading?.ec, 'USER_PROVIDED', NO_FERTILITY, farmer, reading?.recordedAt ?? null),
+    organicCarbonPct: maybe(
+      reading?.organicCarbonPct,
+      'USER_PROVIDED',
+      NO_FERTILITY,
+      farmer,
+      reading?.recordedAt ?? null,
+    ),
+    sulphur: maybe(reading?.sulphur, 'USER_PROVIDED', NO_FERTILITY, farmer, reading?.recordedAt ?? null),
+    zinc: maybe(reading?.zinc, 'USER_PROVIDED', NO_FERTILITY, farmer, reading?.recordedAt ?? null),
+    boron: maybe(reading?.boron, 'USER_PROVIDED', NO_FERTILITY, farmer, reading?.recordedAt ?? null),
+    iron: maybe(reading?.iron, 'USER_PROVIDED', NO_FERTILITY, farmer, reading?.recordedAt ?? null),
+    manganese: maybe(reading?.manganese, 'USER_PROVIDED', NO_FERTILITY, farmer, reading?.recordedAt ?? null),
+    copper: maybe(reading?.copper, 'USER_PROVIDED', NO_FERTILITY, farmer, reading?.recordedAt ?? null),
     // CALCULATED, not USER_PROVIDED: the band is this app's own classification
     // of the reading against the standard Soil Health Card bands
     // (`classifySoilFertility`), the same distinction `soil.phSuitability`

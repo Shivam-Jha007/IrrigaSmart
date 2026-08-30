@@ -120,6 +120,7 @@ export {
   type DiseaseReferenceImage,
   type ImageCredit,
 } from './diseaseReference';
+export { summarizePhotoCheck, type PhotoCheckSummary } from './photoCheckSummary';
 export {
   dayFor,
   dryingPotential,
@@ -225,9 +226,13 @@ export {
 export { detectSpokenLanguage } from './languageDetection';
 export {
   askAssistant,
+  assistantTopicActions,
+  farmBriefing,
   MAX_QUESTION_CHARS,
+  type AssistantAction,
   type AssistantAnswer,
   type AssistantSource,
+  type AssistantTopic,
   type AssistantTurn,
   type AskOptions,
 } from './assistantService';

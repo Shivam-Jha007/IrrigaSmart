@@ -119,6 +119,9 @@ Fields
 - Soil Name
 - Water Retention Category
 - Drainage Category
+- Measured Profile (V1.7) — optional per-coordinate ISRIC SoilGrids prediction; see `types/soil.ts` `MeasuredSoilProfile`.
+- Nutrient Reading (Fertilizer feature) — optional farmer-entered Soil Health Card N-P-K reading with optional pH, EC, organic carbon and micronutrient values. USER_PROVIDED.
+- Fertilizer Selection (V2.2) — optional `{ varietyId, zone, recordedAt }`: the variety and soil zone the farmer last chose on the Fertilizer tab, so the assistant can resolve the same official State schedule. USER_PROVIDED; stores no crop.
 
 Future versions may include additional physical properties.
 

@@ -1,14 +1,12 @@
-# 12_Product_Roadmap_v2.md
+# 11_Product_Roadmap_v2.md
 
 # IrrigaSmart
 
 ## Product Evolution Roadmap
 
-Version: 2.1
+Version: 2.0
 
-Status: Active
-
-Each version below carries its own status. A version is implementable only when it is marked **Approved for implementation**; versions marked *Planning* or *Deferred* must not be built (`CLAUDE.md` rule 5). Versions 1.1, 1.2 and 2.0 are implemented; Version 1.3 is approved; Versions 2.1 and 3.0 are not.
+Status: Planning
 
 ---
 
@@ -302,78 +300,6 @@ Guide the user through
 3. Choose Soil
 
 4. Receive Recommendation
-
----
-
-# Version 1.3 — Crop Protection Awareness
-
-Status: **Approved for implementation**
-
-Objective
-
-Warn farmers when the weather turns favourable for crop disease, using data the application already holds.
-
----
-
-## Feature 9 — Weather-Based Disease Risk
-
-### Objective
-
-Tell the farmer, in plain language, when recent and forecast weather create conditions in which a disease of their crop is likely to develop — early enough to inspect the field before symptoms are visible.
-
-This feature promotes the **weather-based** half of "Disease Risk Prediction" (previously listed under Version 3.0 — Intelligent Farm Assistant) into an approved, implementable version. Image-based diagnosis remains deferred; see Version 3.0.
-
-### Rationale
-
-Most economically important crop diseases are **weather-driven**. Infection requires a temperature band together with sustained leaf wetness or high humidity. Those three signals — temperature, humidity, rainfall — are already retrieved, normalised, and cached per day by the existing weather integration. No new data source, no new network request, and no model are required.
-
-This makes disease risk the cheapest possible extension of the platform and the one most consistent with Principle 1 — Trust Before Intelligence: the farmer can be told exactly which weather conditions triggered the warning.
-
-### Inputs
-
-All already present in the cached daily weather series and the farm profile:
-
-- Crop type
-- Daily maximum temperature
-- Daily mean relative humidity
-- Daily rainfall
-- Recent days and forecast days (the same window the irrigation plan uses)
-
-### Outputs
-
-- A **risk level** for the crop: None / Low / Moderate / High
-- The **disease** whose conditions are being met
-- An **explanation** naming the weather conditions responsible
-- **Preventive inspection guidance** — what to look at, and where on the plant
-
-### Behaviour
-
-- Risk is computed by deterministic rules, not a trained model. Identical inputs always produce an identical risk level.
-- Risk is computed from cached weather and therefore works fully offline.
-- Risk is **advisory only**. It never alters the irrigation recommendation, its status, or its water amount.
-- When no daily weather series is available, the feature reports that risk cannot be assessed rather than guessing.
-
-### Product Boundaries
-
-These boundaries are requirements, not implementation notes.
-
-- The application shall **not** name a pesticide, fungicide, or any chemical product.
-- The application shall **not** state a dose, concentration, or spray schedule.
-- The application shall **not** claim a disease is present. It reports only that weather conditions favour it, and advises inspection.
-- Guidance shall direct the farmer to their local agricultural extension officer for treatment decisions.
-
-Rationale: a wrong chemical recommendation causes direct financial and environmental harm, and the application has no way to observe the crop. This restriction is permanent and also applies to any future image-based feature.
-
-### Definition of Done
-
-- A farm with a supported crop and a cached daily weather series shows a disease risk level with an explanation.
-- The same inputs always produce the same risk level.
-- The risk card works offline.
-- The irrigation recommendation is unchanged by the presence of this feature.
-- All disease conditions used are traceable to a published source recorded in the Knowledge Base.
-
----
-
 # Version 2.0 — Farmer Companion
 
 Objective
@@ -440,6 +366,72 @@ Authentication is intentionally excluded from the MVP because it does not improv
 
 ---
 
+# Version 2.2 — Advisor Assistant
+
+Objective
+
+Turn the assistant from a rewording of the engine's output into a grounded farm advisor, without relaxing the boundaries that make its answers trustworthy.
+
+---
+
+## Feature — Quotable Official Fertilizer Schedule
+
+The assistant (model path) may state exact fertilizer doses, manure, amendment, sulphur, micronutrient and split-timing lines when — and only when — they are transcriptions of the State Agriculture Department (West Bengal) soil-test-based fertilizer schedule that the Fertilizer tab already displays, resolved to the crop, variety, soil zone and fertility band the farmer selected. The model quotes them verbatim with attribution; it may never scale, combine, re-derive or invent a figure.
+
+This amends the earlier assistant-level rule that the model may state no fertilizer or amendment quantity at all. The rule's purpose — no figure a farmer acts on that nothing in the app can reproduce — is preserved and strengthened by the change: the previous behaviour answered "how much fertilizer?" with a referral, while the app's own Fertilizer tab was displaying the exact official answer one screen away. The no-invention rule continues to cover everything outside a schedule line.
+
+The chemical boundary is unchanged (docs/10 §10.2): no fungicide, pesticide or insecticide name, ever, on any path. Schedule lines name no plant-protection product.
+
+---
+
+## Feature — Persisted Fertilizer Selection
+
+The variety and soil zone the farmer last selected on the Fertilizer tab persist on the farm's soil record (`fertilizerSelection`), alongside the existing `nutrientReading`. The selection is USER_PROVIDED and stores no crop: the assistant always resolves it against the farm's current crop, so a crop change can never leave a stale schedule attached.
+
+---
+
+## Feature — Crop Alternatives by pH
+
+When a pH figure exists (map estimate or the farmer's own reading), the assistant receives the app's crops ranked by pH suitability, computed by the same `CROP_PH_RANGE` data the pH suitability card uses. The ranking is deterministic code; the model presents it and never re-ranks.
+
+---
+
+## Feature — Scouting-First Disease Answers
+
+A disease or spray question ("what spray for purple blotch?") is no longer answered with a bare referral. Both answer paths now lead with the Knowledge Base's own scouting facts for the weather-named disease — where on the plant to look and what the signs look like (docs/10 §10.5) — then safe prevention practice (remove debris, improve drainage, avoid wetting leaves in the evening), then the on-device leaf-photo check ("Check a leaf photo" card, no internet), and end with a prepared referral: show the photo to the KVK or input dealer, who confirm and name what is approved for the crop stage.
+
+The chemical boundary is unchanged: no product name, no dose, and no claim a disease is present. The offline rules carry the same scouting lines in all five languages, so a farmer with no signal gets the same actionable answer.
+
+---
+
+## Feature — Soil-Improvement Plans and Card Onboarding
+
+"Your pH is out of range" is no longer the end of the answer. On both paths, a pH outside the crop's optimal band now produces a plan: the direction the pH must move, the usual correction family for that direction on these soils (lime or dolomite to raise pH, gypsum to lower it) with the amount-needs-a-soil-test caveat, and the pH-ranked crop alternatives as a second option. The offline fertility answer also quotes the resolved official schedule dose (with a pointer to the booklet's manure and timing lines on the Fertilizer tab) and closes with a confirm-with-KVK line instead of a refusal. "How do I improve my soil?" and its natural phrasings now route to this answer offline instead of falling through to the model.
+
+A farmer who says they have a Soil Health Card or lab report — in any of the five languages — is shown the two ways to use it: send the numbers in the chat (they are parsed and interpreted, including low/high N-P-K classification), or enter them in the Fertilizer tab's soil-test mode, where they persist on the farm and drive the official schedule's fertility band. The Urdu translations of the soil-test answer family, previously missing, are added with this feature.
+
+---
+
+## Feature — Photo-Result Awareness
+
+The assistant answers "what did the photo show?" from the most recent leaf-photo check on the Today screen, on both paths. The verdict sentence is PRE-WORDED by deterministic code (`photoCheckSummary`) from the same translation keys the card renders — "looks similar to X (N% similar)", never "has" — so the resemblance-not-diagnosis boundary holds by construction and neither the offline rule nor the model can re-word it into a claim. Non-results (unsure, unknown class, another plant's healthy class — docs/14 §5) contribute nothing; the assistant says no check has happened and how to take one. The result is session state, cleared when the selected farm changes, and never persisted.
+
+The `photo` intent is matched before `disease` so a photo question is never answered from the weather risk, and it is answered with no farm data at all — the how-to needs none.
+
+---
+
+## Feature — Truthful Delay Explanations
+
+The "Delay Irrigation" explanation used to end, for every soil, with "On {soil} soil this moisture stays available longer" — untrue for sandy soils, which hold the least water of any soil in the app. The sentence now branches (`LIGHT_SOILS` in `explanationText.ts`): light soils (Sandy, Sandy Loam) are told moisture drains quickly and to check the crop again tomorrow; water-holding soils are told the soil holds the moisture well. A dedicated test (`explanationText.test.ts`) walks every soil × language and fails if either half of the branch is applied to the wrong soil or if the old clause reappears.
+
+---
+
+## Feature — Reply Hygiene and Model
+
+Provenance tokens (`[USER_PROVIDED]` and the rest of the §7 vocabulary) are stripped mechanically from every model reply, so a farmer can never see a bracketed label a small model failed to paraphrase. The default Gemini model moves from Flash-Lite to Flash: replies now quote schedules and compose short action lists, and Flash-Lite's weaker instruction-following produced the flat generic answers this version exists to fix. Flash-Lite remains available via `GEMINI_MODEL`.
+
+---
+
 # Version 3.0 — Intelligent Farm Assistant
 
 Objective
@@ -478,31 +470,19 @@ Potential capabilities
 
 ---
 
-## Disease Diagnosis from Images
-
-Status: **Deferred — not approved for implementation**
-
-The weather-based half of disease risk was promoted to Version 1.3 (Feature 9) and is implemented. What remains here is **visual diagnosis**: identifying a disease from a photograph of an affected leaf or plant.
+## Disease Risk Prediction
 
 Potential inputs
 
-- Photograph of the affected plant
+- Humidity
+- Temperature
+- Rainfall
 - Crop type
-- Current weather-based risk level (Feature 9)
 
 Potential outputs
 
-- Candidate disease identification with a confidence level
-- Preventive and inspection guidance
-
-Open questions that must be resolved before this is approved
-
-- Field accuracy. Public plant-disease datasets are dominated by laboratory images on uniform backgrounds; published evaluations show accuracy collapsing on real field photographs. A model that is confidently wrong is worse than no model.
-- Offline behaviour. Image diagnosis cannot work offline unless the model runs on the device. Any online-only capability must degrade gracefully and must not weaken the offline guarantee.
-- Cost. The feature must have a permanently free path; it cannot depend on a paid image-recognition service.
-- Validation. Predictions cannot be shipped without review by a qualified plant pathologist.
-
-The Version 1.3 product boundaries apply here in full: no chemical names, no doses, no claim that a disease is present.
+- Disease probability
+- Preventive recommendations
 
 ---
 

@@ -1,6 +1,41 @@
-import type { TranslateFn } from '../i18n';
 import { ApiError, apiPost } from './apiClient';
+import type { TranslateFn, TranslationKey } from '../i18n';
 import { answerFromRules, type AssistantContext, type AssistantIntent } from './assistantRules';
+
+export type AssistantTopic = 'today' | 'irrigation' | 'soil' | 'weather' | 'fertilizer' | 'disease';
+
+export interface AssistantAction {
+  type: 'ask';
+  topic: AssistantTopic;
+  question: string;
+}
+
+const TOPIC_QUESTIONS: Record<AssistantTopic, TranslationKey> = {
+  today: 'assistant.topic.todayQuestion',
+  irrigation: 'assistant.topic.irrigationQuestion',
+  soil: 'assistant.topic.soilQuestion',
+  weather: 'assistant.topic.weatherQuestion',
+  fertilizer: 'assistant.topic.fertilizerQuestion',
+  disease: 'assistant.topic.diseaseQuestion',
+};
+
+export function assistantTopicActions(t: TranslateFn): AssistantAction[] {
+  return (Object.keys(TOPIC_QUESTIONS) as AssistantTopic[]).map((topic) => ({
+    type: 'ask',
+    topic,
+    question: t(TOPIC_QUESTIONS[topic]),
+  }));
+}
+
+export function farmBriefing(context: AssistantContext | undefined, t: TranslateFn): string | null {
+  if (!context?.farmName && !context?.status && context?.depthMm === undefined) return null;
+  const status = context.status ?? t('assistant.briefing.noRecommendation');
+  const crop = context.cropName ? ` ${context.cropName}.` : '';
+  const water = context.volumeLiters !== undefined
+    ? ` ${t('assistant.rule.amount', { mm: context.depthMm ?? 0, litres: Math.round(context.volumeLiters) })}`
+    : '';
+  return `${t('assistant.briefing.today', { farm: context.farmName ?? t('nav.today'), crop, status })}${water}`.trim();
+}
 
 /**
  * Assistant dispatcher (item 17).

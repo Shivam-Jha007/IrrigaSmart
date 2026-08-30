@@ -3,9 +3,11 @@ import type {
   AppNotification,
   Farm,
   Farmer,
+  FertilizerSelection,
   HistoryRecord,
   Recommendation,
   SoilNutrientReading,
+  SoilSensorReading,
   WaterLedgerEntry,
 } from '../types';
 import {
@@ -151,6 +153,8 @@ export interface AppStore extends AppData {
    * typed.
    */
   saveNutrientReading(farmId: string, reading: SoilNutrientReading): Promise<void>;
+  saveFertilizerSelection(farmId: string, selection: FertilizerSelection): Promise<void>;
+  saveSensorReading(farmId: string, reading: SoilSensorReading): Promise<void>;
 }
 
 export function useAppStore(): AppStore {
@@ -663,6 +667,33 @@ export function useAppStore(): AppStore {
     [profiles, refresh],
   );
 
+  const saveFertilizerSelection = useCallback(
+    async (farmId: string, selection: FertilizerSelection): Promise<void> => {
+      const profile = profiles.find((p) => p.farm.id === farmId);
+      if (!profile) return;
+      // Same re-read discipline as saveNutrientReading above, for the same
+      // reason: a stale write here would clobber a nutrientReading or measured
+      // profile that arrived while the farmer was on the Fertilizer page.
+      const current = await soilRepository.getById(profile.soil.id);
+      if (!current) return;
+      await soilRepository.save({ ...current, fertilizerSelection: selection });
+      await refresh();
+    },
+    [profiles, refresh],
+  );
+
+  const saveSensorReading = useCallback(
+    async (farmId: string, reading: SoilSensorReading): Promise<void> => {
+      const profile = profiles.find((p) => p.farm.id === farmId);
+      if (!profile) return;
+      const current = await soilRepository.getById(profile.soil.id);
+      if (!current) return;
+      await soilRepository.save({ ...current, sensorReading: reading });
+      await refresh();
+    },
+    [profiles, refresh],
+  );
+
   const generateForFarm = useCallback(
     async (farmId: string): Promise<RecommendationView | null> => {
       const profile = profiles.find((p) => p.farm.id === farmId);
@@ -924,5 +955,7 @@ export function useAppStore(): AppStore {
     logIrrigation,
     resetTodayIrrigation,
     saveNutrientReading,
+    saveFertilizerSelection,
+    saveSensorReading,
   };
 }

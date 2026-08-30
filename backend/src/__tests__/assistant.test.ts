@@ -78,6 +78,23 @@ describe('sanitizeReply — the chemical safety net', () => {
     expect(sanitizeReply('MANCOZEB').blocked).toBe(true);
     expect(sanitizeReply('Fungicide').blocked).toBe(true);
   });
+
+  it('strips provenance tokens a small model failed to paraphrase', () => {
+    // The prompt asks the model to express [USER_PROVIDED] and friends in
+    // words; when it prints the token instead, the farmer must never see it.
+    // Mechanical, like the chemical net, because a hope is not a guardrail.
+    const result = sanitizeReply(
+      'Your loamy soil [USER_PROVIDED] wins over the map [REGIONAL_ESTIMATE], and the forecast [FORECAST] may change.',
+    );
+    expect(result.blocked).toBe(false);
+    expect(result.text).not.toContain('[');
+    expect(result.text).toContain('Your loamy soil wins');
+  });
+
+  it('keeps ordinary square brackets that are not provenance tokens', () => {
+    const result = sanitizeReply('The dose is 50:25:25 [State schedule].');
+    expect(result.text).toContain('[State schedule]');
+  });
 });
 
 describe('parseRequest', () => {
@@ -238,9 +255,49 @@ describe('describeContext — absent fields leave no trace', () => {
     expect(line).toContain('NOT that the disease is present');
   });
 
+  it('carries the scouting detail with the disease it belongs to', () => {
+    // V2.2: a risk figure a farmer can act on today (where to look, what the
+    // signs look like) replaces a number they must interpret themselves. The
+    // detail rides the same fact line as the risk, so it can never be quoted
+    // detached from the disease it scouts for.
+    const line = describeContext(
+      context({
+        diseaseRiskLevel: 'Moderate',
+        diseaseName: 'Rice Blast',
+        diseaseWhere: 'leaves, then the nodes and the neck of the panicle',
+        diseaseWhat: 'Spindle-shaped spots with grey centres and brown borders.',
+      }),
+    ).find((fact) => fact.startsWith('Disease risk'));
+    expect(line).toContain('where to look: leaves, then the nodes');
+    expect(line).toContain('what the signs look like: Spindle-shaped spots');
+    // No disease named → no scouting detail either; it has nothing to attach to.
+    const bare = describeContext(context({ diseaseRiskLevel: 'Moderate' })).find((fact) =>
+      fact.startsWith('Disease risk'),
+    );
+    expect(bare).not.toContain('where to look');
+  });
+
   it('marks the slope as approximate', () => {
     const facts = describeContext(context({ slopePercent: 3.2 }));
     expect(facts.join('\n')).toContain('rough');
+  });
+
+  it('quotes a photo-check verdict as a resemblance, never a diagnosis', () => {
+    // V2.2: the leaf-photo verdict arrives pre-worded by the client because the
+    // wording IS the boundary. The fact line must carry the resemblance rule
+    // alongside the sentence, so no re-wording can quietly turn it into "the
+    // crop has X".
+    const line = describeContext(
+      context({
+        photoVerdict: 'The photo looks similar to Rice Blast (72% similar).',
+        photoPlant: 'rice',
+      }),
+    ).find((fact) => fact.includes('leaf-photo check'));
+    expect(line).toContain('The photo looks similar to Rice Blast (72% similar)');
+    expect(line).toContain('RESEMBLANCE, not a diagnosis');
+    expect(line).toContain('rice leaf');
+    // Absent when no check happened — a missing photo is not a photo fact.
+    expect(describeContext(context()).join('\n')).not.toContain('leaf-photo check');
   });
 
   it('describes soil moisture against its threshold', () => {
@@ -413,6 +470,58 @@ describe('describeContext — no estimate is handed over as a measurement', () =
     expect(() => describeContext(malformed)).not.toThrow();
     expect(describeContext(malformed).join('\n')).not.toContain('Improvements');
   });
+
+  it('states an official schedule dose as quotable with attribution', () => {
+    const facts = describeContext(
+      context({
+        fertScheduleNpk: 'N 50, P2O5 25, K2O 25 kg/ha',
+        fertScheduleBand: 'Medium',
+        fertScheduleVariety: 'Kharif (monsoon) rice',
+        fertScheduleZone: 'Terai',
+        fertScheduleManure: 'FYM @ 5 t/ha or green manuring with Dhaincha',
+        fertScheduleAmeliorant: 'Dolomite @ 1-2 t/ha',
+        fertScheduleTiming: '¼ N, full P & K as basal; ½ N at tillering',
+      }),
+    );
+    const joined = facts.join('\n');
+    expect(joined).toContain('OFFICIAL STATE SCHEDULE');
+    expect(joined).toContain('Kharif (monsoon) rice, Terai zone');
+    expect(joined).toContain('N 50, P2O5 25, K2O 25 kg/ha');
+    expect(joined).toContain('Quote these numbers exactly');
+    expect(joined).toContain('FYM @ 5 t/ha');
+    expect(joined).toContain('Dolomite @ 1-2 t/ha');
+    expect(joined).toContain('¼ N, full P & K as basal');
+  });
+
+  it('says a schedule gap is a gap, not a zero dose', () => {
+    const facts = describeContext(
+      context({ fertScheduleNoDose: true, fertScheduleVariety: 'Wheat', fertScheduleZone: 'Hill' }),
+    );
+    const line = facts.find((fact) => fact.includes('NO NPK dose'));
+    expect(line).toBeDefined();
+  });
+
+  it('omits the schedule block entirely when the farm resolved none', () => {
+    expect(describeContext(context()).join('\n')).not.toContain('OFFICIAL STATE SCHEDULE');
+  });
+
+  it('lists pH-suited crop alternatives in the order it was given', () => {
+    const facts = describeContext(context({ phAltCrops: ['Potato', 'Rice', 'Groundnut'] }));
+    const line = facts.find((fact) => fact.startsWith('Crops the app'));
+    expect(line).toContain('Potato, Rice, Groundnut');
+    expect(line).toContain('best first');
+  });
+
+  it('survives malformed schedule and alternatives fields from an untrusted client', () => {
+    const malformed = context({
+      phAltCrops: 'nope' as unknown as string[],
+      fertScheduleNpk: 42 as unknown as string,
+    });
+    expect(() => describeContext(malformed)).not.toThrow();
+    const joined = describeContext(malformed).join('\n');
+    expect(joined).not.toContain('Crops the app');
+    expect(joined).toContain('OFFICIAL STATE SCHEDULE'); // string fields pass through
+  });
 });
 
 describe('buildSystemPrompt', () => {
@@ -474,23 +583,52 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('Soil Health Card');
   });
 
-  it('forbids an amendment quantity even when a value is out of range', () => {
-    // Guardrail 2. "Your pH is low" invites "so how much lime?", and the app has
-    // no honest answer to that — only a pointer to a soil test and an officer.
+  it('forbids an amendment quantity of the model’s own even when a value is out of range', () => {
+    // Guardrail 2, restated for the schedule era: the model may quote the
+    // OFFICIAL STATE SCHEDULE verbatim, and it may still never invent a
+    // quantity of its own — the exception is narrow and named.
     expect(buildSystemPrompt(context())).toContain(
-      'Never state a quantity of lime, gypsum, sulphur',
+      'Never state a quantity of lime, gypsum, sulphur, fertiliser, manure or any soil amendment or chemical OF YOUR OWN',
     );
+    expect(buildSystemPrompt(context())).toContain('OFFICIAL STATE SCHEDULE');
   });
 
-  it('instructs the model to answer fertility questions with the app\'s estimate before the caution', () => {
-    // The behaviour change under test: a fertiliser/fertility question is no
-    // longer a bare refusal. The model must be told to lead with whatever
-    // pH/organic-carbon/flagged-issue figure the app has, and only then add the
-    // no-exact-quantity caution — never state the quantity itself.
+  it('instructs the model to lead with an official schedule when one is present', () => {
+    // The behaviour change under test: a fertiliser question on a covered crop
+    // is answered with the State schedule's own numbers, attributed — not with
+    // a refusal. The no-invention rule still covers everything else.
     const prompt = buildSystemPrompt(context());
     expect(prompt).toContain('DO THIS INSTEAD OF REFUSING');
-    expect(prompt).toContain('Answer with what the app actually has FIRST');
-    expect(prompt).toContain('you may never state a quantity yourself');
+    expect(prompt).toContain('If an OFFICIAL STATE SCHEDULE line is present below, lead with it');
+    expect(prompt).toContain('That IS the exact answer the farmer is asking for');
+  });
+
+  it('turns disease questions into scouting instead of a bare referral', () => {
+    // V2.2: "what spray for blight?" is answered with where to look, what the
+    // signs look like, the on-phone photo check and a prepared referral —
+    // never a chemical, never a claim the disease is present.
+    const prompt = buildSystemPrompt(context());
+    expect(prompt).toContain('NEVER A BARE REFERRAL AND NEVER A CHEMICAL');
+    expect(prompt).toContain('Lead with scouting');
+    expect(prompt).toContain('Check a leaf photo');
+    expect(prompt).toContain('End with a prepared referral, not a dead end');
+  });
+
+  it('tells the model to quote a photo verdict as worded when one exists', () => {
+    const prompt = buildSystemPrompt(context());
+    expect(prompt).toContain('latest leaf-photo check');
+    expect(prompt).toContain('quote its verdict sentence as worded');
+  });
+
+  it('turns an out-of-range pH into a plan and onboards a Soil Health Card', () => {
+    // The two behaviours behind the farmer's transcript complaint: a pH
+    // mismatch must produce direction + alternatives (not just the number and
+    // a referral), and a farmer holding a card must be told how to enter it.
+    const prompt = buildSystemPrompt(context());
+    expect(prompt).toContain('give the farmer a plan, not just the number');
+    expect(prompt).toContain('lime or dolomite to raise pH, gypsum to lower it');
+    expect(prompt).toContain('show them the two ways to use it');
+    expect(prompt).toContain('Save reading');
   });
 
   it('keeps the farmer’s own answer above the map', () => {
@@ -518,9 +656,9 @@ describe('geminiModel', () => {
     else process.env.GEMINI_MODEL = original;
   });
 
-  it('defaults to the model the free tier grants the most requests on', () => {
+  it('defaults to Flash, not Flash-Lite, since replies quote schedules and list actions', () => {
     delete process.env.GEMINI_MODEL;
-    expect(geminiModel()).toBe('gemini-flash-lite-latest');
+    expect(geminiModel()).toBe('gemini-2.5-flash');
   });
 
   it('lets a deployment move models without a code change', () => {
@@ -539,6 +677,6 @@ describe('geminiModel', () => {
     // Render writes an empty string for a declared-but-unfilled variable, which
     // is the shape most likely to reach production by accident.
     process.env.GEMINI_MODEL = '   ';
-    expect(geminiModel()).toBe('gemini-flash-lite-latest');
+    expect(geminiModel()).toBe('gemini-2.5-flash');
   });
 });
