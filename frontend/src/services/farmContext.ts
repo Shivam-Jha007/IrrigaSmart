@@ -188,12 +188,20 @@ export interface FarmContextWater {
   soilWaterBasis: Sourced<'soilgrids' | 'table' | null>;
   /** Fraction of the root zone covered by profile layers, 0-1. */
   soilWaterCoverage: Sourced<number | null>;
-  /** Electrical conductivity of the irrigation water, dS/m (PRD §22). */
-  qualityEc: Sourced<null>;
+  /** Electrical conductivity of the irrigation water (ECw), dS/m (PRD §22). */
+  qualityEc: Sourced<number | null>;
   /** pH of the irrigation water (PRD §22). */
-  qualityPh: Sourced<null>;
+  qualityPh: Sourced<number | null>;
   /** Sodium adsorption ratio of the irrigation water (PRD §22). */
-  qualitySar: Sourced<null>;
+  qualitySar: Sourced<number | null>;
+  /** Boron of the irrigation water, mg/L (V2.2). */
+  qualityBoron: Sourced<number | null>;
+  /** Bicarbonate of the irrigation water, meq/L (V2.2). */
+  qualityBicarbonate: Sourced<number | null>;
+  /** Saturation-extract soil salinity (ECe), dS/m (V2.2). */
+  soilEce: Sourced<number | null>;
+  /** Exchangeable sodium percentage of the soil, % (V2.2). */
+  soilEsp: Sourced<number | null>;
 }
 
 /**
@@ -312,11 +320,12 @@ const NO_PLAN = 'no multi-day plan was available';
 const NO_WINDOW = 'irrigation is not advised today, so there is no window';
 
 /**
- * PRD §22 water quality. One shared reason: none of the three has a source, and
- * the fix for all three is the same missing input form.
+ * PRD §22 water quality. One shared reason: none of these fields has a source
+ * other than the farmer's own lab report, and the fix for all of them is the
+ * same optional test section in the farm form (V2.2).
  */
 const NO_WATER_QUALITY =
-  'the app has no irrigation-water test input, so quality is unmeasured (PRD §22)';
+  'no soil or water test has been entered for this farm, so quality is unmeasured (PRD §22)';
 
 /** PRD §26-27 energy and emissions. */
 const NO_PUMP =
@@ -595,9 +604,23 @@ export function buildFarmContext({
       basisOrigin,
       null,
     ),
-    qualityEc: unknown(NO_WATER_QUALITY),
-    qualityPh: unknown(NO_WATER_QUALITY),
-    qualitySar: unknown(NO_WATER_QUALITY),
+    // Water and soil quality (V2.2): USER_PROVIDED throughout — the farmer
+    // typed these off their own lab slips. ECe prefers the dedicated quality
+    // reading and falls back to the Soil Health Card's EC figure, which is the
+    // same quantity (saturation extract, dS/m).
+    qualityEc: maybe(profile?.farm.waterQuality?.ecwDsm, 'USER_PROVIDED', NO_WATER_QUALITY, farmer, profile?.farm.waterQuality?.recordedAt ?? null),
+    qualityPh: maybe(profile?.farm.waterQuality?.ph, 'USER_PROVIDED', NO_WATER_QUALITY, farmer, profile?.farm.waterQuality?.recordedAt ?? null),
+    qualitySar: maybe(profile?.farm.waterQuality?.sar, 'USER_PROVIDED', NO_WATER_QUALITY, farmer, profile?.farm.waterQuality?.recordedAt ?? null),
+    qualityBoron: maybe(profile?.farm.waterQuality?.boronMgl, 'USER_PROVIDED', NO_WATER_QUALITY, farmer, profile?.farm.waterQuality?.recordedAt ?? null),
+    qualityBicarbonate: maybe(profile?.farm.waterQuality?.bicarbonateMeql, 'USER_PROVIDED', NO_WATER_QUALITY, farmer, profile?.farm.waterQuality?.recordedAt ?? null),
+    soilEce: maybe(
+      profile?.soil.qualityReading?.eceDsm ?? profile?.soil.nutrientReading?.ec,
+      'USER_PROVIDED',
+      NO_WATER_QUALITY,
+      farmer,
+      profile?.soil.qualityReading?.recordedAt ?? profile?.soil.nutrientReading?.recordedAt ?? null,
+    ),
+    soilEsp: maybe(profile?.soil.qualityReading?.espPct, 'USER_PROVIDED', NO_WATER_QUALITY, farmer, profile?.soil.qualityReading?.recordedAt ?? null),
   };
 
   // --- disease ---

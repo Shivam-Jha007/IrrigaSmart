@@ -17,8 +17,8 @@ import type { VisionVerdict } from './diseaseVisionMap';
  * SAME verdict into the one or two sentences the assistant quotes. Two reasons
  * it is not inline in either place:
  *
- *  1. THE WORDING IS THE BOUNDARY. "Looks similar to", similarity percent, no
- *     name below the confidence threshold, no all-clear for another plant's
+ *  1. THE WORDING IS THE BOUNDARY. The finding named plainly, no percentages,
+ *     no name below the confidence threshold, no all-clear for another plant's
  *     healthy class (docs/14 §5: `Corn_(maize)___healthy` is where this model
  *     puts leaves it does not recognise) — every one of those rules must hold
  *     in the assistant's answer exactly as they hold in the card. Building
@@ -38,15 +38,10 @@ import type { VisionVerdict } from './diseaseVisionMap';
  */
 
 export interface PhotoCheckSummary {
-  /** The verdict sentence, e.g. "The photo looks similar to Rice Blast (72% similar)." */
+  /** The verdict sentence, e.g. "The photo shows Rice Blast." */
   verdict: string;
   /** Crop of the photographed plant, set only when it differs from the farm's. */
   plant?: string;
-}
-
-/** Whole-number similarity, floor rather than round: 69.8% must not read as 70%. */
-function percentText(confidence: number): string {
-  return String(Math.floor(confidence * 100));
 }
 
 /**
@@ -104,14 +99,14 @@ export function summarizePhotoCheck(
 
   // match / tentative, healthy or named — the two kinds with a real reading.
   if (verdict.entry.finding.kind === 'healthy') {
-    return { verdict: t('assistant.photo.healthy', { percent: percentText(verdict.confidence) }) };
+    return { verdict: t('assistant.photo.healthy') };
   }
 
   const name = t(nameKeyFor(verdict.entry));
   return {
     verdict:
       verdict.kind === 'tentative'
-        ? t('assistant.photo.tentative', { name, percent: percentText(verdict.confidence) })
-        : t('assistant.photo.match', { name, percent: percentText(verdict.confidence) }),
+        ? t('assistant.photo.tentative', { name })
+        : t('assistant.photo.match', { name }),
   };
 }

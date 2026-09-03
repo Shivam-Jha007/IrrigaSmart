@@ -5,7 +5,6 @@ import type {
   Farmer,
   FertilizerSelection,
   HistoryRecord,
-  Recommendation,
   SoilNutrientReading,
   SoilSensorReading,
   WaterLedgerEntry,
@@ -113,8 +112,6 @@ export interface AppStore extends AppData {
   deleteFarm(farmId: string): Promise<void>;
   /** Generate a fresh recommendation for a farm, persisting it to history. */
   generateForFarm(farmId: string): Promise<RecommendationView | null>;
-  /** History records for a farm, newest first, with their recommendations. */
-  loadHistory(farmId: string): Promise<Array<{ record: HistoryRecord; recommendation: Recommendation | undefined }>>;
   /**
    * Per-farm overviews for the enhanced dashboard (roadmap Feature 3).
    * Reads stored recommendations and the weather cache only — never fetches.
@@ -474,7 +471,7 @@ export function useAppStore(): AppStore {
         sameCoordinate(existing.soil.measured, draft.latitude, draft.longitude)
           ? existing.soil.measured
           : undefined;
-      const soil = buildSoil(soilId, draft.soilType, reusable);
+      const soil = buildSoil(soilId, draft.soilType, reusable, draft.qualityTests);
       // Terrain is reused on the same terms and for the same reason: the ground
       // does not tilt because a farmer renamed their field, but a moved pin puts
       // the farm on a different hillside.
@@ -494,6 +491,7 @@ export function useAppStore(): AppStore {
         irrigationMethod: draft.irrigationMethod,
         primaryCropId: cropId,
         ...(reusableTerrain ? { terrain: reusableTerrain } : {}),
+        ...(draft.waterTests ? { waterQuality: draft.waterTests } : {}),
       };
 
       await cropRepository.save(crop);
@@ -860,16 +858,9 @@ export function useAppStore(): AppStore {
     );
   }, [profiles]);
 
-  const loadHistory = useCallback(async (farmId: string) => {
-    const records = await getHistoryByFarm(farmId);
-    records.sort((a, b) => b.generatedDate.localeCompare(a.generatedDate));
-    return Promise.all(
-      records.map(async (record) => ({
-        record,
-        recommendation: await recommendationRepository.getById(record.recommendationId),
-      })),
-    );
-  }, []);
+  // loadHistory was removed with the History tab (V2.2). The history STORE
+  // and its writers are untouched: records still feed farm summaries and the
+  // once-a-day recommendation guard in generateForFarm.
 
   const updateSettings = useCallback(async (next: Settings) => {
     await persistSettings(next);
@@ -944,7 +935,6 @@ export function useAppStore(): AppStore {
     deleteFarm,
     generateForFarm,
     loadFarmSummaries,
-    loadHistory,
     updateSettings,
     updateFarmer,
     enableNotifications,

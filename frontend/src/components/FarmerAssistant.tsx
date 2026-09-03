@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Language } from '../types';
+import { getAssistantChat, saveAssistantChat, type AssistantChatMessage } from '../storage';
 import { localeFor, translate, type TranslateFn, type TranslationKey } from '../i18n';
 import {
   alternatesFor,
@@ -11,6 +12,7 @@ import {
   speak,
   startListening,
   stopSpeaking,
+  type AssistantActionTarget,
   type AssistantContext,
   type AssistantSource,
   type AssistantTopic,
@@ -48,6 +50,12 @@ interface Props {
   context: AssistantContext | undefined;
   language: Language;
   t: TranslateFn;
+  /**
+   * Opens an app destination named by an answer's deep-link button. Optional
+   * because the panel also renders on screens with nothing to navigate (the
+   * pre-onboarding dashboard); without it the button simply does not appear.
+   */
+  onNavigate?: (target: AssistantActionTarget) => void;
 }
 
 interface Message {
@@ -56,6 +64,8 @@ interface Message {
   text: string;
   /** Only on assistant messages, for the badge. */
   source?: AssistantSource;
+  /** Only on rule answers whose advice has a screen for it. */
+  action?: AssistantActionTarget;
 }
 
 /** Suggested openers, so the farmer never faces an empty box. */
@@ -66,7 +76,7 @@ const SUGGESTION_KEYS = [
   'assistant.suggest.moisture',
 ] as const;
 
-export function FarmerAssistant({ context, language, t }: Props) {
+export function FarmerAssistant({ context, language, t, onNavigate }: Props) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -85,6 +95,62 @@ export function FarmerAssistant({ context, language, t }: Props) {
   const topicActions = assistantTopicActions(t);
   const briefing = farmBriefing(context, t);
   const topicLabel = (topic: AssistantTopic) => t(`assistant.topic.${topic}` as TranslationKey);
+
+  /**
+   * Context-aware openers (V2.2 interactive pack). The static four remain the
+   * floor; each live fact the assistant knows promotes its own question to the
+   * front, so the chips always name what is most worth asking about TODAY. A
+   * disease the weather favours outranks everything; a saved schedule and a
+   * photo check follow; never more than five chips.
+   */
+  const suggestions: TranslationKey[] = [];
+  if (context?.diseaseName && context.diseaseRiskLevel && context.diseaseRiskLevel !== 'None') {
+    suggestions.push('assistant.topic.diseaseQuestion');
+  }
+  if (context?.fertScheduleNpk) suggestions.push('assistant.topic.fertilizerQuestion');
+  if (context?.photoVerdict) suggestions.push('assistant.suggest.photo');
+  for (const key of SUGGESTION_KEYS) {
+    if (!suggestions.includes(key)) suggestions.push(key);
+  }
+  const visibleSuggestions = suggestions.slice(0, 5);
+
+  // Restore the previous conversation once on mount (V2.2). Ids are
+  // regenerated (they were never more than render keys) and nextId moves past
+  // them. If the farmer sends a message before IndexedDB answers, their
+  // message wins and the stored transcript is skipped — never spliced after
+  // it, which would read as a reply to nothing.
+  const hydrated = useRef(false);
+  useEffect(() => {
+    void getAssistantChat().then((stored) => {
+      if (!hydrated.current && stored.length > 0) {
+        setMessages(
+          stored.map((message: AssistantChatMessage, index) => ({
+            id: index + 1,
+            role: message.role,
+            text: message.text,
+            ...(message.source !== undefined ? { source: message.source } : {}),
+            ...(message.action !== undefined ? { action: message.action } : {}),
+          })),
+        );
+        nextId.current = stored.length + 1;
+      }
+      hydrated.current = true;
+    });
+  }, []);
+
+  // Persist after every change, best-effort (the store never throws). The
+  // cap lives in the store; the guard skips the empty pre-hydration render.
+  useEffect(() => {
+    if (!hydrated.current || messages.length === 0) return;
+    void saveAssistantChat(
+      messages.map(({ role, text, source, action }) => ({
+        role,
+        text,
+        ...(source !== undefined ? { source } : {}),
+        ...(action !== undefined ? { action } : {}),
+      })),
+    );
+  }, [messages]);
 
   // Keep the newest message in view.
   useEffect(() => {
@@ -168,7 +234,13 @@ export function FarmerAssistant({ context, language, t }: Props) {
         });
         setMessages((prev) => [
           ...prev,
-          { id: nextId.current++, role: 'assistant', text: answer.text, source: answer.source },
+          {
+            id: nextId.current++,
+            role: 'assistant',
+            text: answer.text,
+            source: answer.source,
+            ...(answer.action !== undefined ? { action: answer.action } : {}),
+          },
         ]);
       } finally {
         // askAssistant never throws — it returns an 'unavailable' answer instead
@@ -329,7 +401,7 @@ export function FarmerAssistant({ context, language, t }: Props) {
               {briefing && <p className="assistant__briefing">{briefing}</p>}
               <p className="assistant__introText">{t('assistant.intro')}</p>
               <div className="assistant__suggestions">
-                {SUGGESTION_KEYS.map((key) => (
+                {visibleSuggestions.map((key) => (
                   <button
                     key={key}
                     type="button"
@@ -349,6 +421,17 @@ export function FarmerAssistant({ context, language, t }: Props) {
               className={`assistant__msg assistant__msg--${message.role}`}
             >
               <p className="assistant__msgText">{message.text}</p>
+              {message.role === 'assistant' && message.action && onNavigate && (
+                <button
+                  type="button"
+                  className="assistant__action"
+                  onClick={() => onNavigate(message.action as AssistantActionTarget)}
+                >
+                  {message.action === 'fertilizer'
+                    ? t('assistant.action.fertilizer')
+                    : message.action}
+                </button>
+              )}
               {message.role === 'assistant' && (
                 <div className="assistant__msgFoot">
                   {message.source && (

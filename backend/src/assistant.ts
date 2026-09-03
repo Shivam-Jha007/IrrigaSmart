@@ -50,6 +50,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
+import { retrieve, type KnowledgeEntry } from './knowledgeCorpus.js';
 
 /** Anthropic model id. Pinned deliberately: an unexpected model change alters advice. */
 const MODEL = 'claude-opus-5';
@@ -179,12 +180,11 @@ export interface AssistantContext {
   // --- Latest leaf-photo check (V2.2, on-device model) ---
   //
   // A PRE-WORDED summary of the most recent photo the farmer checked on the
-  // Today screen. The verdict's careful phrasing — "looks similar to", never
-  // "has"; similarity %, never probability — is a product boundary, and it is
-  // enforced on the client, in the sentence itself, so neither answer path can
-  // re-word it into a diagnosis claim.
+  // Today screen. The verdict names the finding plainly, with no percentages
+  // and no re-wording allowed: neither answer path may turn it into a figure
+  // or a treatment suggestion.
 
-  /** Pre-translated verdict sentence, e.g. "The photo looks similar to Rice Blast (72% similar)." */
+  /** Pre-translated verdict sentence, e.g. "The photo shows Rice Blast." */
   photoVerdict?: string;
   /** Which crop the checked photo was of, when it differed from the farm's. */
   photoPlant?: string;
@@ -231,6 +231,28 @@ export interface AssistantContext {
   soilMoistureProvenance?: string;
   /** Pre-translated top farm issues, highest severity first. */
   topIssues?: string[];
+
+  // --- Water & soil quality tests (V2.2) ---
+  //
+  // The farmer's own lab reports, USER_PROVIDED. ECw and ECe together gate the
+  // engine's leaching uplift; the rest are management constraints the
+  // improvement plan flags — the model may quote the figures and interpret
+  // them against the FAO-29 limits, never turn them into a dose or product.
+
+  /** Irrigation-water salinity (ECw), dS/m. */
+  waterEcw?: number;
+  /** Water sodium adsorption ratio. */
+  waterSar?: number;
+  /** Water boron, mg/L. */
+  waterBoron?: number;
+  /** Water bicarbonate, meq/L. */
+  waterBicarbonate?: number;
+  /** Water pH. */
+  waterPh?: number;
+  /** Soil saturation-extract salinity (ECe), dS/m. */
+  soilEce?: number;
+  /** Soil exchangeable sodium percentage, %. */
+  soilEsp?: number;
 
   // --- Soil fertility: the farmer's own Soil Health Card reading ---
   //
@@ -405,7 +427,10 @@ export function sanitizeReply(text: string): { text: string; blocked: boolean } 
  * labelled fact follows, because a rule that appears only sometimes is a rule
  * the model learns to treat as optional.
  */
-export function buildSystemPrompt(context: AssistantContext | undefined): string {
+export function buildSystemPrompt(
+  context: AssistantContext | undefined,
+  knowledge: readonly KnowledgeEntry[] = [],
+): string {
   const languageName = LANGUAGE_NAMES[context?.language ?? 'en'] ?? 'English';
 
   const lines: string[] = [
@@ -439,7 +464,7 @@ export function buildSystemPrompt(context: AssistantContext | undefined): string
     '',
     'WHAT YOU MUST NOT DO.',
     '- Never name a fungicide, pesticide, insecticide or any plant-protection chemical, and never give a dose, concentration or spray schedule. You cannot see the crop, so naming a product would mean guessing at a diagnosis you have not made, and a wrong spray costs the farmer money and can harm the crop.',
-    '- Never state that a disease is present. The app can only say that the weather favours a disease, or that a photo looks similar to one. Phrase it that way.',
+    '- The leaf-photo check may name a condition outright (e.g. "The photo shows Rice Blast") — when it does, report the finding plainly, in the same words. Never attach a percentage, probability, "confidence" or similar figure to it, and never soften it back into a hedge.',
     '- Outside the OFFICIAL STATE SCHEDULE lines, never state an exact quantity of fertiliser, urea, lime, gypsum, sulphur, manure or any other soil amendment or chemical that you worked out yourself.',
     '- For pest and disease questions, follow ON DISEASE AND PEST QUESTIONS below instead of giving a bare referral. For seed choice, market prices or government schemes, say this is outside what the app can advise and point the farmer to their local Krishi Vigyan Kendra (KVK) or agriculture extension officer.',
     '- Do not invent local details you were not given: village names, prices, dates or scheme names.',
@@ -449,8 +474,8 @@ export function buildSystemPrompt(context: AssistantContext | undefined): string
     '- Add prevention that is always safe to state: remove infected plant debris, improve drainage, avoid wetting the leaves in the evening, keep plant spacing for air movement. Present these as good practice, never as a cure.',
     '- Then the photo check: the app has a "Check a leaf photo" card on the Today screen that compares a leaf photo against common diseases entirely on the phone, no internet needed. Tell the farmer to use it.',
     '- End with a prepared referral, not a dead end: if they find the signs, show the photo to the local Krishi Vigyan Kendra or input dealer, who will confirm and name what is approved for the crop stage.',
-    '- If a "latest leaf-photo check" fact is present below, the farmer has already used the photo check — quote its verdict sentence as worded ("looks similar to X, N% similar"), remind them it is a resemblance rather than a diagnosis, and if it resembles a disease, add the scouting facts from the weather section so they know what to confirm on the leaf. If no photo fact is present, tell them the card exists on the Today screen.',
-    '- Still never name a chemical or product, never give a dose, and never say the disease is present (see WHAT YOU MUST NOT DO).',
+    '- If a "latest leaf-photo check" fact is present below, the farmer has already used the photo check — report its verdict sentence as worded, plainly. Never attach a percentage or confidence figure to it, and if it names a condition, add the scouting facts from the weather section so they know what to confirm on the leaf. If no photo fact is present, tell them the card exists on the Today screen.',
+    '- Still never name a chemical or product, never give a dose, and never attach a percentage or confidence figure to any finding (see WHAT YOU MUST NOT DO).',
     '',
     'ON FERTILITY AND SOIL-HEALTH QUESTIONS (how much fertiliser, is my soil deficient, should I add lime, how do I improve my soil, what could I grow instead), DO THIS INSTEAD OF REFUSING.',
     '- If an OFFICIAL STATE SCHEDULE line is present below, lead with it: name the dose, the manure and amendment lines, and the split timing, attributed to the State schedule. That IS the exact answer the farmer is asking for.',
@@ -464,6 +489,7 @@ export function buildSystemPrompt(context: AssistantContext | undefined): string
     "- Answer the actual question first, in the first sentence, using the app's own figures whenever it has any that bear on the question — an estimate with its caveat stated is more useful to a farmer than an instant refusal.",
     '- Explain reasoning in terms the farmer can check against what they can see: rain that fell, how dry the soil is, how hot it is.',
     '- If the farmer disagrees with the advice, take it seriously. They can see the field and you cannot. Explain what the app assumed, and say that their own reading of the soil should win when the two conflict.',
+    '- When an APP KNOWLEDGE section follows, ground your answer in it: state the facts it gives rather than your general memory, and name the source it cites when the fact is the heart of the answer. If it does not cover what was asked, say so plainly and answer from the farm figures where you can — never blend your general memory into a sourced claim.',
   ];
 
   const facts = describeContext(context);
@@ -474,6 +500,19 @@ export function buildSystemPrompt(context: AssistantContext | undefined): string
       '',
       'NO FARM DATA came with this question. Answer generally, and say you cannot see their specific figures right now.',
     );
+  }
+
+  // --- Retrieved app knowledge (V2.2 RAG foundation) ---
+  //
+  // Entries the deterministic retriever matched to this question, each with its
+  // source. The "ground your answer in it" rule lives in WHAT YOU SHOULD DO;
+  // the section itself is omitted entirely when nothing matched, because an
+  // empty section header invites the model to imagine its contents.
+  if (knowledge.length > 0) {
+    lines.push('', 'APP KNOWLEDGE (checked against this question, with sources):');
+    for (const entry of knowledge) {
+      lines.push(`- ${entry.text} [${entry.source}]`);
+    }
   }
 
   return lines.join('\n');
@@ -604,6 +643,28 @@ export function describeContext(context: AssistantContext | undefined): string[]
     );
   }
 
+  // --- Water & soil quality tests (V2.2) ---
+  //
+  // The farmer's own lab numbers, quoted with their safe limits from FAO-29
+  // (the same source the engine's leaching step and the improvement detector
+  // use) so the model interprets rather than guesses. ECw+ECe together also
+  // explain any leaching uplift already folded into today's advised depth.
+  {
+    const quality: string[] = [];
+    if (context.waterEcw !== undefined) quality.push(`water salinity ECw ${context.waterEcw} dS/m (usable up to ~0.7 for most crops; higher needs leaching)`);
+    if (context.soilEce !== undefined) quality.push(`soil salinity ECe ${context.soilEce} dS/m (above 2.0 counts as saline)`);
+    if (context.waterSar !== undefined) quality.push(`water sodium SAR ${context.waterSar} (above 3.0 risks sodium build-up)`);
+    if (context.soilEsp !== undefined) quality.push(`soil sodium ESP ${context.soilEsp}% (above 5% closes soil pores)`);
+    if (context.waterBoron !== undefined) quality.push(`water boron ${context.waterBoron} mg/L (above 0.7 is toxic to sensitive crops)`);
+    if (context.waterBicarbonate !== undefined) quality.push(`water bicarbonate ${context.waterBicarbonate} meq/L (above 1.5 clogs drip emitters with white scale)`);
+    if (context.waterPh !== undefined) quality.push(`water pH ${context.waterPh}`);
+    if (quality.length > 0) {
+      facts.push(
+        `Soil and water tests the farmer entered [USER_PROVIDED]: ${quality.join('; ')}. Interpret these against the limits given (FAO-29); you may explain what a breach means for watering practice, but never name a corrective product or dose — that is the local KVK's call.`,
+      );
+    }
+  }
+
   // --- Soil chemistry: the figures a farmer is most likely to mistake for a
   // lab result, so each one names what produced it in the same breath. ---
 
@@ -655,15 +716,15 @@ export function describeContext(context: AssistantContext | undefined): string[]
 
   // --- Latest leaf-photo check (V2.2) ---
   //
-  // The verdict arrives PRE-WORDED by the client ("looks similar to X, N%
-  // similar") because that phrasing is a product boundary, and the model must
-  // re-quote it, not re-word it, into a diagnosis. photoPlant is included in
+  // The verdict arrives PRE-WORDED by the client ("The photo shows X") because
+  // that wording is a product boundary, and the model must re-quote it, not
+  // re-word it, and not attach any percentage to it. photoPlant is included in
   // the same line for the same reason the scouting detail is: a reading about
   // a different plant explains itself or it misleads.
   if (context.photoVerdict !== undefined) {
     const plant = context.photoPlant ? ` (the photo looked like a ${context.photoPlant} leaf)` : '';
     facts.push(
-      `Result of the farmer's latest leaf-photo check, from the app's on-device photo model: ${context.photoVerdict}${plant}. It is a RESEMBLANCE, not a diagnosis — quote it as worded, never turn it into "the crop has" anything, and never name a treatment.`,
+      `Result of the farmer's latest leaf-photo check, from the app's on-device photo model: ${context.photoVerdict}${plant}. Quote it as worded, plainly and confidently — never attach a percentage, probability or "confidence" figure to it, never soften it into a hedge, and never name a treatment.`,
     );
   }
 
@@ -878,7 +939,7 @@ async function askAnthropic(request: AssistantRequest): Promise<{ answer: string
     response = await anthropic.messages.create({
       model: MODEL,
       max_tokens: MAX_TOKENS,
-      system: buildSystemPrompt(request.context),
+      system: buildSystemPrompt(request.context, retrieve(request.question)),
       messages: buildMessages(request),
     });
   } catch (error) {
@@ -931,7 +992,7 @@ async function askGemini(request: AssistantRequest): Promise<{ answer: string; m
         parts: [{ text: typeof message.content === 'string' ? message.content : '' }],
       })),
       config: {
-        systemInstruction: buildSystemPrompt(request.context),
+        systemInstruction: buildSystemPrompt(request.context, retrieve(request.question)),
         maxOutputTokens: MAX_TOKENS,
       },
     });

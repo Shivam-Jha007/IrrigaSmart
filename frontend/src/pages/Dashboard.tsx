@@ -1,17 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AppStore } from '../app/useAppStore';
 import type { FarmSummary, RecommendationView, WaterProgress } from '../app/appTypes';
 import type { AppNotification, DailyWeather, WeatherData } from '../types';
 import { DbBlockedError, getCachedWeather } from '../storage';
 import {
-  buildAssistantContext,
   buildFarmContext,
   detectFarmIssues,
   localDayString,
   TOP_ISSUE_COUNT,
+  type AssistantEngineInputs,
   type VisionResult,
 } from '../services';
-import { FarmerAssistant } from '../components/FarmerAssistant';
 import { RecommendationCard } from '../components/RecommendationCard';
 import { WeatherSummary } from '../components/WeatherSummary';
 import { FarmCard } from '../components/FarmCard';
@@ -40,9 +39,15 @@ import { WaterChecklist } from '../components/WaterChecklist';
 interface Props {
   store: AppStore;
   onGoToFarms(): void;
+  /**
+   * Receives the engine outputs for the shell-level chat panel (V2.2). The
+   * shell builds the assistant's context from these plus the live store, so
+   * facts changed on other tabs reach the bot without a visit back here.
+   */
+  onAssistantInputs(inputs: AssistantEngineInputs): void;
 }
 
-export function Dashboard({ store, onGoToFarms }: Props) {
+export function Dashboard({ store, onGoToFarms, onAssistantInputs }: Props) {
   const {
     farmer,
     profiles,
@@ -188,6 +193,27 @@ export function Dashboard({ store, onGoToFarms }: Props) {
     buildFarmContext({ profile: selectedProfile, view, weather, today, waterProgress }),
   );
 
+  // What the shell-level chat panel needs from this screen (V2.2): the
+  // selected farm and the engine outputs, MEMOIZED so the report effect fires
+  // only when one of them actually changed. The profile itself is deliberately
+  // NOT sent — the shell reads it from the live store, so a fertilizer
+  // selection saved on the Fertilizer tab is in the bot's context immediately.
+  const assistantInputs = useMemo<AssistantEngineInputs>(
+    () => ({
+      farmId: selectedProfile?.farm.id ?? null,
+      view,
+      weather,
+      today,
+      waterProgress,
+      photoCheck: lastPhoto,
+    }),
+    [selectedProfile, view, weather, today, waterProgress, lastPhoto],
+  );
+
+  useEffect(() => {
+    onAssistantInputs(assistantInputs);
+  }, [assistantInputs, onAssistantInputs]);
+
   if (profiles.length === 0) {
     return (
       <div className="page dashboard">
@@ -198,14 +224,9 @@ export function Dashboard({ store, onGoToFarms }: Props) {
             {t('dashboard.addFarm')}
           </button>
         </div>
-        {/* Offered before the first farm exists too: "what can you do?" and
-            "which spray should I use?" are both answerable with no farm data,
-            and the second one especially should never wait for onboarding. */}
-        <FarmerAssistant
-          context={undefined}
-          language={store.settings.preferredLanguage}
-          t={t}
-        />
+        {/* The chat panel itself now lives at the app-shell level (V2.2), so
+            the pre-onboarding questions it used to answer here are still
+            answerable — the floating circle is present on this screen too. */}
       </div>
     );
   }
@@ -354,7 +375,6 @@ export function Dashboard({ store, onGoToFarms }: Props) {
             {selectedProfile && (
               <DiseasePhotoCard
                 crop={selectedProfile.crop.name}
-                language={store.settings.preferredLanguage}
                 t={t}
                 onResult={(result) =>
                   setLastPhoto(
@@ -366,24 +386,11 @@ export function Dashboard({ store, onGoToFarms }: Props) {
           </div>
         </div>
       )}
-
-      {/* The assistant knows what this farm is doing: its context is the same
-          engine output the cards above render. It floats because a farmer must
-          be able to ask without losing their place in the decision. */}
-      <FarmerAssistant
-        context={buildAssistantContext({
-          profile: selectedProfile,
-          view,
-          weather,
-          today,
-          waterProgress,
-          photoCheck: lastPhoto,
-          language: store.settings.preferredLanguage,
-          t,
-        })}
-        language={store.settings.preferredLanguage}
-        t={t}
-      />
+      {/* The assistant panel is rendered by the app shell (V2.2): it used to
+          live here, but its own deep-link buttons send the farmer to other
+          tabs, and a chat that vanishes the moment its advice is followed
+          could not answer the follow-up. Its context is reported upward from
+          this component — the same engine output the cards above render. */}
     </div>
   );
 }

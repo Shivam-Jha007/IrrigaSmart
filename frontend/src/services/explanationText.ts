@@ -327,3 +327,29 @@ export function buildExplanation(parts: ExplanationParts, language: Language): s
       return templates.irrigate(vocab, parts);
   }
 }
+
+/**
+ * The V2.2 salinity-leaching sentence, appended to an Irrigate Today
+ * explanation when the farmer's water and soil tests triggered a leaching
+ * uplift. Its own factory rather than a template: it applies to one status
+ * only, and the numbers (leaching fraction, extra mm) come from the engine's
+ * own computation, not from the ExplanationParts vocabulary.
+ */
+const LEACHING_SENTENCE: Record<Language, (lrFraction: number, extraMm: number) => string> = {
+  en: (lr, extra) =>
+    ` Your water and soil tests show salt build-up, so ${Math.round(lr * 100)}% extra water (${extra.toFixed(1)} mm) is included to wash salts below the roots (FAO-29).`,
+  hi: (lr, extra) =>
+    ` आपकी पानी और मिट्टी की जाँच में लवण जमाव है, इसलिए जड़ों से नीचे लवण धोने के लिए ${Math.round(lr * 100)}% अतिरिक्त पानी (${extra.toFixed(1)} मिमी) जोड़ा गया है (FAO-29)।`,
+  bn: (lr, extra) =>
+    ` আপনার জল ও মাটির পরীক্ষায় লবণ জমা দেখা যাচ্ছে, তাই শিকড়ের নিচে লবণ ধুয়ে দিতে ${Math.round(lr * 100)}% বাড়তি জল (${extra.toFixed(1)} মিমি) যোগ করা হয়েছে (FAO-29)।`,
+  // Assamese renders through the English templates (see VOCAB above).
+  as: (lr, extra) =>
+    ` Your water and soil tests show salt build-up, so ${Math.round(lr * 100)}% extra water (${extra.toFixed(1)} mm) is included to wash salts below the roots (FAO-29).`,
+  ur: (lr, extra) =>
+    ` آپ کی پانی اور مٹی کی جانچ میں نمکیات کا جمع ہے، اس لیے جڑوں کے نیچے نمکیات دھونے کے لیے ${Math.round(lr * 100)}% اضافی پانی (${extra.toFixed(1)} ملی میٹر) شامل کیا گیا ہے (FAO-29)۔`,
+};
+
+/** The leaching sentence for one language (V2.2; see LEACHING_SENTENCE). */
+export function leachingSentence(language: Language, lrFraction: number, extraMm: number): string {
+  return (LEACHING_SENTENCE[language] ?? LEACHING_SENTENCE.en)(lrFraction, extraMm);
+}

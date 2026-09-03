@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CropName, Language } from '../types';
+import type { CropName } from '../types';
 import {
   cropLabelKey,
   diseaseNameKey,
-  localeFor,
   visionErrorKey,
   visionLabelNameKey,
   visionPlantKey,
@@ -26,15 +25,15 @@ import {
  * Photo leaf check (V1.7 item 16).
  *
  * Sits beside DiseaseRiskCard. That card reasons from weather and says a disease
- * is FAVOURED; this one looks at a leaf the farmer is holding and says what it
- * RESEMBLES. Neither diagnoses, and this component's job is largely to keep the
- * second from being mistaken for the first.
+ * is FAVOURED; this one looks at a leaf the farmer is holding and names what
+ * the on-device model found on it — plainly, and with no percentages.
  *
  * Four deliberate choices, all from docs/12 §Product Boundaries and the
  * roadmap's own note that a confidently wrong model is worse than none:
  *
- *  1. Nothing is claimed to be present. Every result reads "looks similar to
- *     photos of X", and the percentage is labelled similarity, not probability.
+ *  1. The finding is named plainly ("This is X") and no percentage is shown.
+ *     A number the farmer cannot check reads as precision this model does not
+ *     have, and it invited reading the figure as a probability of disease.
  *  2. Low confidence shows NO disease name at all. Not a hedged name — none.
  *  3. Uncovered crops (six of ten, since the retrain added rice) are told so up
  *     front, and the picker is not offered. The list of covered crops is derived
@@ -50,7 +49,6 @@ import {
 
 interface Props {
   readonly crop: CropName;
-  readonly language: Language;
   readonly t: TranslateFn;
   /**
    * Called once per completed check with the result (or undefined for a failed
@@ -69,7 +67,7 @@ type State =
   | { readonly phase: 'done'; readonly result: VisionResult }
   | { readonly phase: 'failed'; readonly key: TranslationKey };
 
-export function DiseasePhotoCard({ crop, language, t, onResult }: Props) {
+export function DiseasePhotoCard({ crop, t, onResult }: Props) {
   const [state, setState] = useState<State>({ phase: 'idle' });
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -187,7 +185,6 @@ export function DiseasePhotoCard({ crop, language, t, onResult }: Props) {
                 verdict={state.result.verdict}
                 rawClass={state.result.reading.rawClass}
                 crop={crop}
-                language={language}
                 t={t}
               />
             )}
@@ -215,20 +212,18 @@ export function DiseasePhotoCard({ crop, language, t, onResult }: Props) {
  * Split out from the card so each branch is readable on its own — the five
  * outcomes say materially different things and blending them into one paragraph
  * with conditionals is how a hedge turns into a claim. `otherPlantHealthy` is the
- * proof: it used to share the healthy branch, and the result was a 96%-confident
- * "looks similar to healthy leaves" printed under a photo of a diseased onion.
+ * proof: it used to share the healthy branch, and the result was a confident
+ * "healthy" printed under a photo of a diseased onion.
  */
 function Outcome({
   verdict,
   rawClass,
   crop,
-  language,
   t,
 }: {
   readonly verdict: VisionVerdict;
   readonly rawClass: string;
   readonly crop: CropName;
-  readonly language: Language;
   readonly t: TranslateFn;
 }) {
   if (verdict.kind === 'unsure') {
@@ -265,8 +260,7 @@ function Outcome({
     );
   }
 
-  const { entry, confidence } = verdict;
-  const percent = formatPercent(confidence, language);
+  const { entry } = verdict;
   const nameKey = entry.finding.kind === 'healthy' ? null : nameKeyFor(entry.finding);
   const referenceImages =
     verdict.kind === 'match' ? referenceImagesFor(rawClass, entry) : [];
@@ -284,7 +278,7 @@ function Outcome({
 
       {entry.finding.kind === 'healthy' ? (
         <>
-          <p className="photo-card__reading">{t('vision.healthy', { percent })}</p>
+          <p className="photo-card__reading">{t('vision.healthy')}</p>
           {/* A healthy leaf is not a healthy field. Saying so is the difference
               between a useful answer and false reassurance. */}
           <p className="photo-card__tips">{t('vision.healthyCaveat')}</p>
@@ -292,7 +286,7 @@ function Outcome({
       ) : (
         <>
           <p className="photo-card__reading">
-            {t('vision.similarTo', { name: t(nameKey as TranslationKey), percent })}
+            {t('vision.similarTo', { name: t(nameKey as TranslationKey) })}
           </p>
           {verdict.kind === 'match' && !verdict.plantHasHealthyClass && (
             <p className="photo-card__tips">
@@ -348,10 +342,9 @@ function Outcome({
  * credibility problem.
  *
  * `healthy` is excluded at the type level rather than given a name here: a
- * healthy leaf is not a condition, and it needs the percentage woven into its
- * own sentence ("looks healthy, N% similar") instead of being substituted into
- * "looks similar to {name}". The caller must branch on it, and this signature
- * makes forgetting to a compile error.
+ * healthy leaf is not a condition, and it reads as its own sentence rather
+ * than being substituted into "This is {name}". The caller must branch on it,
+ * and this signature makes forgetting to a compile error.
  */
 function nameKeyFor(finding: Exclude<VisionFinding, { kind: 'healthy' }>): TranslationKey {
   return finding.kind === 'known'
@@ -359,18 +352,3 @@ function nameKeyFor(finding: Exclude<VisionFinding, { kind: 'healthy' }>): Trans
     : visionLabelNameKey(finding.label);
 }
 
-/**
- * Similarity as a whole number, in the user's numerals.
- *
- * Rounded down rather than nearest: 69.8% must not display as "70%" when 70 is
- * the threshold the app just applied. Locale-aware so Hindi and Bengali get
- * their own digits, matching how percentages already render elsewhere.
- */
-function formatPercent(confidence: number, language: Language): string {
-  const whole = Math.floor(confidence * 100);
-  try {
-    return new Intl.NumberFormat(localeFor(language)).format(whole);
-  } catch {
-    return String(whole);
-  }
-}

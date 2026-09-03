@@ -85,6 +85,28 @@ export interface ContextInput {
   t: TranslateFn;
 }
 
+/**
+ * The engine outputs the Dashboard reports up to the shell-level chat panel
+ * (V2.2). The shell — not the Dashboard — turns these plus the LIVE store
+ * profiles into the assistant's context, so a fact the farmer changes on
+ * another tab (their saved fertilizer selection, a renamed farm) reaches the
+ * bot immediately instead of on the next visit to Today.
+ *
+ * `farmId` is reported rather than the profile itself: the profile must be
+ * read from the store at build time, or the panel would quote a stale copy of
+ * a record the farmer has since edited.
+ */
+export interface AssistantEngineInputs {
+  /** The farm the Dashboard has selected, or null before one is chosen. */
+  farmId: string | null;
+  view: RecommendationView | null;
+  weather: WeatherData | null;
+  today: DailyWeather | null;
+  waterProgress: WaterProgress | null;
+  /** The most recent leaf-photo check, with its time. */
+  photoCheck?: { result: VisionResult; checkedAt: string } | null;
+}
+
 function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }
@@ -345,10 +367,11 @@ export function buildAssistantContext({
   //
   // PRE-WORDED by summarizePhotoCheck: the verdict sentence the assistant
   // quotes is built from the same translation keys the card renders, so the
-  // "similar to, never has" boundary holds by construction on both paths.
-  // A check that produced no quotable reading (unsure, unknown class,
-  // another plant's healthy class) contributes nothing — the assistant says
-  // "no photo check yet" rather than paraphrasing a non-result.
+  // plain finding, no percentages and no name below the threshold hold by
+  // construction on both paths. A check that produced no quotable reading
+  // (unsure, unknown class, another plant's healthy class) contributes
+  // nothing — the assistant says "no photo check yet" rather than
+  // paraphrasing a non-result.
   if (photoCheck && profile) {
     const summary = summarizePhotoCheck(photoCheck.result, profile.crop.name, t);
     if (summary) {
@@ -373,6 +396,20 @@ export function buildAssistantContext({
       .slice(0, TOP_ISSUE_COUNT)
       .map((issue) => t(issue.titleKey, resolveIssueVars(issue, t)));
   }
+
+  // --- Water & soil quality tests (V2.2) ---
+  //
+  // Copied unrounded like the fertility figures: these ARE the farmer's own
+  // numbers, and the backend quotes them with their FAO-29 limits.
+  if (isKnown(fc.water.qualityEc)) context.waterEcw = fc.water.qualityEc.value;
+  if (isKnown(fc.water.qualitySar)) context.waterSar = fc.water.qualitySar.value;
+  if (isKnown(fc.water.qualityBoron)) context.waterBoron = fc.water.qualityBoron.value;
+  if (isKnown(fc.water.qualityBicarbonate)) {
+    context.waterBicarbonate = fc.water.qualityBicarbonate.value;
+  }
+  if (isKnown(fc.water.qualityPh)) context.waterPh = fc.water.qualityPh.value;
+  if (isKnown(fc.water.soilEce)) context.soilEce = fc.water.soilEce.value;
+  if (isKnown(fc.water.soilEsp)) context.soilEsp = fc.water.soilEsp.value;
 
   return context;
 }

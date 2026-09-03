@@ -191,6 +191,11 @@ const FIRING: Record<FarmIssueId, () => FarmContext> = {
     contextWith((c) => {
       c.crop.name = user<CropName>('Onion');
     }),
+  // The farmer's own water report: SAR 4.2 against the FAO-29 limit of 3.
+  'water-quality': () =>
+    contextWith((c) => {
+      c.water.qualitySar = user(4.2);
+    }),
 };
 
 const ALL_IDS = Object.keys(FIRING) as FarmIssueId[];
@@ -639,9 +644,9 @@ describe('every sentence this module can produce', () => {
 
   const everyIssue = ALL_IDS.map((id) => issueById(FIRING[id](), id));
 
-  it('covers all nine detectors', () => {
-    expect(everyIssue).toHaveLength(9);
-    expect(new Set(everyIssue.map((issue) => issue.id)).size).toBe(9);
+  it('covers all ten detectors', () => {
+    expect(everyIssue).toHaveLength(10);
+    expect(new Set(everyIssue.map((issue) => issue.id)).size).toBe(10);
   });
 
   it('is fully interpolated in all five languages', () => {
@@ -776,5 +781,69 @@ describe('detectFarmIssues on a real farm profile', () => {
       waterProgress: null,
     });
     expect(detectFarmIssues(fc)).toEqual([]);
+  });
+});
+
+// --- WATER (V2.2) ---
+
+describe('water-quality', () => {
+  it('stays silent when every test value is inside its limit', () => {
+    const fc = contextWith((c) => {
+      c.water.qualityEc = user(0.4);
+      c.water.qualitySar = user(2.1);
+      c.water.qualityBoron = user(0.3);
+      c.water.qualityBicarbonate = user(1.0);
+      c.water.soilEsp = user(3);
+    });
+    expect(ids(fc)).toEqual([]);
+  });
+
+  it('stays silent when no test has been entered at all', () => {
+    // The pre-V2.2 state of every farm in the app: no water/soil chemistry.
+    expect(ids(emptyContext())).toEqual([]);
+  });
+
+  it('reports a single breach at MEDIUM with the values in the sentence', () => {
+    const issue = issueById(FIRING['water-quality'](), 'water-quality');
+    expect(issue.category).toBe('WATER');
+    expect(issue.severity).toBe('MEDIUM');
+    expect(issue.confidence).toBe('High');
+    expect(issue.vars.breaches).toBe('sar 4.2');
+  });
+
+  it('escalates to HIGH when one report trips three limits at once', () => {
+    // Saline water is rarely only saline: a realistic bad report carries
+    // sodium, boron and scale-forming bicarbonate together.
+    const fc = contextWith((c) => {
+      c.water.qualitySar = user(5.5);
+      c.water.qualityBoron = user(1.2);
+      c.water.qualityBicarbonate = user(2.6);
+    });
+    const issue = issueById(fc, 'water-quality');
+    expect(issue.severity).toBe('HIGH');
+    expect(issue.vars.breaches).toBe('sar 5.5, boron 1.2, bicarbonate 2.6');
+  });
+
+  it('escalates to HIGH for water this crop cannot be leached against', () => {
+    // Onion's FAO-29 tolerance is the lowest in the app (threshold 1.3 dS/m):
+    // ECw >= 5*1.3/2 = 3.25 leaves the leaching formula nothing to work with.
+    const fc = contextWith((c) => {
+      c.crop.name = user<CropName>('Onion');
+      c.water.qualityEc = user(3.5);
+    });
+    const issue = issueById(fc, 'water-quality');
+    expect(issue.severity).toBe('HIGH');
+    expect(issue.vars.breaches).toBe('ecw 3.5');
+  });
+
+  it('does not flag usable saline water on a tolerant crop', () => {
+    // Cotton's threshold is 7.7: the SAME 3.5 dS/m water that is unusable for
+    // onion is merely "leach it" for cotton — and the detector trusts the
+    // crop-specific table, not a blanket threshold.
+    const fc = contextWith((c) => {
+      c.crop.name = user<CropName>('Cotton');
+      c.water.qualityEc = user(3.5);
+    });
+    expect(ids(fc)).toEqual([]);
   });
 });

@@ -432,6 +432,33 @@ Provenance tokens (`[USER_PROVIDED]` and the rest of the §7 vocabulary) are str
 
 ---
 
+## Feature — Interactive Answer Pack
+
+The offline "what should I do today?" answer is now an action list: alongside the water figure it names the dashboard's top flagged issue, the weather-favoured disease with its where-to-look hint, and the saved official schedule when one resolved — every line a fact the dashboard already shows, so the two can never disagree, and every line omitted when its fact is absent. The chat panel's opener chips become context-aware (disease question promoted when the weather favours one, dose question when a schedule is saved, photo question after a check), and answers whose advice has a screen carry a deep-link button — the today-answer with a resolved schedule gets "Open the Fertilizer tab".
+
+The chat panel itself moved from the Dashboard to the app shell, floating above every tab: a farmer who follows the bot's advice ("open the Fertilizer tab") can still ask the follow-up question when they get there. The Dashboard reports the engine outputs (selected farm, recommendation, weather, water progress, latest photo check) upward; the shell builds the bot's context from those plus the LIVE store profiles, so a fertilizer selection saved on the Fertilizer tab is in the bot's context immediately — location-independent by construction. The conversation persists across app restarts (IndexedDB v6, `assistantChat` store): a single transcript, capped at the newest 60 messages, restored on panel mount, written best-effort after every message so a storage failure costs history, never the chat. A suitable-pH "how do I improve my soil?" now leads with the soil's state and the good news that nothing needs correcting, with the soil test as the next step rather than a refusal.
+
+---
+
+## Feature — Knowledge Corpus (RAG Foundation)
+
+The assistant route now retrieves from a knowledge corpus (`backend/src/knowledgeCorpus.ts`) transcribed from the app's own vetted sources: FAO-56 crop water behaviour, the extension-sourced crop pH optima, the disease scouting profiles with their infection windows, and the soil behaviour profiles. Retrieval is deterministic keyword scoring with multi-script keywords (Roman, Devanagari, Bengali/Assamese, Urdu), capped at three entries; matched entries are injected into the system prompt as an APP KNOWLEDGE section with each source named, and the model is instructed to ground its answer in them and cite the source rather than answer from general memory. An unmatched question retrieves nothing and the section is omitted — never an empty header. The §10.2 chemical restriction binds the corpus itself (tested), and extending it requires transcribing from the app's vetted data first: the module invents nothing.
+
+---
+
+## Feature — Soil & Water Tests in the Farm Form
+
+The farm form gains an optional "I have soil / water test data" section (collapsed on a new farm, open when editing a farm that carries values, all fields independent and all in five languages): soil ECe and ESP, and irrigation-water ECw, SAR, boron, bicarbonate and pH. Every value is USER_PROVIDED and persists on the farm and soil records.
+
+What each parameter DOES is decided by whether a defensible formula exists, not by symmetry:
+
+- **ECw + ECe → the decision engine.** A new Step 6a (Decision Logic) applies the FAO-29 leaching requirement `LR = ECw / (5·ECe_threshold(crop) − ECw)` against per-crop tolerances transcribed from FAO-29 Table 1 (Maas & Hoffman: onion 1.3 dS/m … cotton 7.7), raising the irrigate-today depth by `1/(1−LR)` when the farmer's own ECe confirms the field is actually saline (≥ 2.0 dS/m; the Soil Health Card's EC field counts as ECe). The explanation gains one FAO-29-attributed sentence naming the fraction and the extra mm. Water too saline for the crop (LR > 0.9 or a non-positive denominator) adds no depth — it becomes an issue instead.
+- **SAR, ESP, boron, bicarbonate, water pH → the improvement plan and the assistant.** A single `water-quality` detector (one card, not six — a real report trips several limits at once) flags breaches of the FAO-29 limits with the values in the sentence, escalating to HIGH for unusable water or three-plus breaches. The assistant receives every figure with its limit and may interpret, never prescribe a corrective product or dose.
+
+Farms without tests see byte-for-byte the pre-V2.2 recommendation (tested).
+
+---
+
 # Version 3.0 — Intelligent Farm Assistant
 
 Objective

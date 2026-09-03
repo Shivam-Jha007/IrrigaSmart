@@ -31,7 +31,6 @@ function render(crop: CropName, language: Language): string {
   return renderToStaticMarkup(
     createElement(DiseasePhotoCard, {
       crop,
-      language,
       t: (key, vars) => translate(language, key, vars),
     }),
   );
