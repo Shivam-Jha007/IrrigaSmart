@@ -160,6 +160,39 @@ describe('classify — intent routing', () => {
     expect(classify('کون سا اسپرے کروں؟')).toBe('referral');
   });
 
+  it('routes a fertiliser DOSE question to fertility, not the spray referral', () => {
+    // The V2.2 bug this guards: 'dose' lived in REFERRAL_TERMS, so "what dose
+    // of NPK?" on the Fertilizer tab got the plant-protection referral. Since
+    // the official schedule became quotable, dose language is fertility
+    // language — in every script the farmer types it in.
+    expect(classify('what dose of npk should i give my rice?')).toBe('fertility');
+    expect(classify('urea dose kitni?')).toBe('fertility');
+    expect(classify('धान के लिए खुराक क्या हो?')).toBe('fertility');
+    expect(classify('চালের ডোজ কত?')).toBe('fertility');
+  });
+
+  it('still refers a plant-protection dose question through its own words', () => {
+    // Removing 'dose' from referral must not open a gap: a spray/medicine dose
+    // question carries 'spray'/'medicine', which referral still wins with.
+    expect(classify('what dose of spray for leaf spot?')).toBe('referral');
+    expect(classify('medicine dose kitni du?')).toBe('referral');
+  });
+
+  it('answers a bare dose question with the resolved schedule, offline', () => {
+    // The Fertilizer-tab experience this fixes: "what dose should I give?"
+    // with a saved selection must return the official numbers, not a referral.
+    const answer = answerFromRules('what dose should i give?', {
+      ...fullContext(),
+      fertScheduleNpk: 'N 50, P2O5 25, K2O 25 kg/ha',
+      fertScheduleBand: 'Medium',
+      fertScheduleVariety: 'Kharif (monsoon) rice',
+      fertScheduleZone: 'Terai',
+    }, t);
+    expect(answer?.intent).toBe('fertility');
+    expect(answer?.answer).toContain('N 50, P2O5 25, K2O 25 kg/ha');
+    expect(answer?.answer).not.toContain('cannot name medicines');
+  });
+
   it('does not let a short common word steal a real question', () => {
     // "help me" is a capability term; a question about water that happens to
     // open politely must still be an amount question.
@@ -194,6 +227,39 @@ describe('answerFromRules — figures are quoted, never invented', () => {
     expect(answer?.answer).toContain('5:00 am');
     expect(answer?.answer).toContain('34 minutes');
     expect(answer?.answer).toContain('22 mm short');
+  });
+
+  it('turns the today-answer into an action list with the dashboard\'s own facts', () => {
+    // V2.2 interactive pack: with a flagged issue, a weather-favoured disease
+    // and a resolved schedule in context, the offline today-answer names all
+    // three — each one a fact the dashboard already shows, so the two cannot
+    // disagree — and carries the Fertilizer deep-link only because the
+    // schedule line is present.
+    const answer = answerFromRules('what should I do today?', {
+      ...fullContext(),
+      diseaseWhere: 'lower leaves first, moving upward',
+      topIssues: ['Surface method on sloping land'],
+      fertScheduleNpk: 'N 50, P2O5 25, K2O 25 kg/ha',
+    }, t);
+    expect(answer?.answer).toContain('Surface method on sloping land');
+    expect(answer?.answer).toContain('Maize Leaf Blight');
+    expect(answer?.answer).toContain('lower leaves first');
+    expect(answer?.answer).toContain('Fertilizer tab');
+    expect(answer?.action).toBe('fertilizer');
+  });
+
+  it('keeps the today-answer quiet about facts it does not have', () => {
+    // No issue, no disease name, no schedule: nothing appended, no action.
+    // A bare today-answer must not grow boilerplate lines about absent facts.
+    const answer = answerFromRules('what should I do today?', without(
+      'topIssues',
+      'diseaseName',
+      'fertScheduleNpk',
+    ), t);
+    expect(answer?.answer).not.toContain('Also worth a look');
+    expect(answer?.answer).not.toContain('favours');
+    expect(answer?.answer).not.toContain('Fertilizer tab');
+    expect(answer?.action).toBeUndefined();
   });
 
   it('answers delay irrigation without exposing misleading zero values', () => {
@@ -356,18 +422,18 @@ describe('answerFromRules — figures are quoted, never invented', () => {
     expect(answer?.answer).not.toContain('Check a leaf photo');
   });
 
-  it('answers what the photo showed from the latest check, as a resemblance', () => {
+  it('answers what the photo showed from the latest check, plainly and without percentages', () => {
     // V2.2: the photo question routes to the photo result, not the weather
-    // risk — and the verdict sentence is quoted verbatim with its qualifier,
-    // because the wording is the boundary (docs/14).
+    // risk — and the verdict sentence is quoted verbatim, because the wording
+    // is the boundary (docs/14). No percentage may ride along.
     const withPhoto = {
       ...fullContext(),
-      photoVerdict: 'The photo looks similar to Maize Leaf Blight (76% similar).',
+      photoVerdict: 'The photo shows Maize Leaf Blight.',
     };
     const answer = answerFromRules('what did the photo show?', withPhoto, t);
     expect(answer?.intent).toBe('photo');
-    expect(answer?.answer).toContain('76% similar');
-    expect(answer?.answer).toContain('not a diagnosis');
+    expect(answer?.answer).toContain('The photo shows Maize Leaf Blight.');
+    expect(answer?.answer).not.toContain('%');
     expect(answer?.answer).toContain('Krishi Vigyan Kendra');
   });
 
@@ -654,29 +720,46 @@ describe('answerFromRules — a pH figure is never spoken without its source', (
    * `referral`-only routing.
    */
   it('states the pH and carbon estimate before the no-quantity caution', () => {
+    // withSoil() has a SUITABLE pH (6.3 in 5.5-6.5), so since V2.2 the close
+    // is the soil-test next step rather than the old "cannot tell you" — the
+    // ordering claim (figures first, referral last) is what still holds.
     const answer = answerFromRules('how much fertiliser should I add?', withSoil(), t);
     expect(answer?.intent).toBe('fertility');
     expect(answer?.answer).toContain('6.3');
     expect(answer?.answer).toContain('1.8%');
-    const caution = answer?.answer.indexOf('cannot tell you an exact amount') ?? -1;
+    const closing = answer?.answer.indexOf('Soil Health Card test') ?? -1;
     const phFigure = answer?.answer.indexOf('6.3') ?? -1;
     expect(phFigure).toBeGreaterThanOrEqual(0);
-    expect(caution).toBeGreaterThan(phFigure);
+    expect(closing).toBeGreaterThan(phFigure);
   });
 
-  it('always appends the no-exact-quantity caution, whatever estimate exists', () => {
+  it('tells a farmer whose pH suits the crop that nothing needs correcting', () => {
+    // The transcript complaint: suitable pH + uncovered crop still read like
+    // the old refusal ("I cannot tell you an exact amount…") when the honest
+    // answer is that nothing needs correcting and a soil test is the next
+    // step for an exact plan.
     const answer = answerFromRules('how much lime should I add?', withSoil(), t);
-    expect(answer?.answer).toContain('cannot tell you an exact amount');
-    expect(answer?.answer).toContain('Krishi Vigyan Kendra');
+    expect(answer?.answer).toContain('nothing to correct');
+    expect(answer?.answer).toContain('Soil Health Card');
+    expect(answer?.answer).not.toContain('cannot tell you an exact amount');
+    // Still no quantity, whatever the framing.
+    expect(answer?.answer).not.toMatch(/\d+\s*(kg|kilograms?|litres?|grams?)/i);
   });
 
-  it('surfaces a flagged fertility issue ahead of the raw pH figure', () => {
+  it('surfaces a flagged fertility issue, after the soil state it is about', () => {
+    // Reordered in V2.2: the pH reading leads (it is the direct answer to
+    // "improve my soil"); the flagged issue follows rather than opening the
+    // answer with a negative, which was the transcript complaint.
     const context = {
       ...withSoil(),
       topIssues: ['Soil pH is below what rice prefers'],
     };
     const answer = answerFromRules('how much urea should I use?', context, t);
     expect(answer?.answer).toContain('Soil pH is below what rice prefers');
+    const phFigure = answer?.answer.indexOf('6.3') ?? -1;
+    const issue = answer?.answer.indexOf('Soil pH is below') ?? -1;
+    expect(phFigure).toBeGreaterThanOrEqual(0);
+    expect(issue).toBeGreaterThan(phFigure);
   });
 
   it('says plainly there is no estimate when the farm has none, then still cautions', () => {

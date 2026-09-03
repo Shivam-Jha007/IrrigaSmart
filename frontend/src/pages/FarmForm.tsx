@@ -25,6 +25,45 @@ import {
 } from '../i18n';
 
 /**
+ * Parse the optional lab-test boxes into the draft's quality payloads.
+ * A box is contributed only when non-empty AND finite AND non-negative —
+ * half-typed or cleared fields are simply absent, matching how the types
+ * model "this figure was not on the report". Returns nothing at all when no
+ * box produced a value, so the draft carries no empty reading objects.
+ */
+function buildQualityTests(
+  values: FormValues,
+): { qualityTests?: FarmDraft['qualityTests']; waterTests?: FarmDraft['waterTests'] } {
+  const parsed = (raw: string): number | undefined => {
+    if (raw.trim() === '') return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : undefined;
+  };
+  const ece = parsed(values.ece);
+  const esp = parsed(values.esp);
+  const ecw = parsed(values.ecw);
+  const sar = parsed(values.sar);
+  const boron = parsed(values.boron);
+  const bicarbonate = parsed(values.bicarbonate);
+  const waterPh = parsed(values.waterPh);
+  const recordedAt = new Date().toISOString();
+  const qualityTests =
+    ece === undefined && esp === undefined ? undefined : { recordedAt, ...(ece !== undefined ? { eceDsm: ece } : {}), ...(esp !== undefined ? { espPct: esp } : {}) };
+  const waterTests =
+    ecw === undefined && sar === undefined && boron === undefined && bicarbonate === undefined && waterPh === undefined
+      ? undefined
+      : {
+          recordedAt,
+          ...(ecw !== undefined ? { ecwDsm: ecw } : {}),
+          ...(sar !== undefined ? { sar } : {}),
+          ...(boron !== undefined ? { boronMgl: boron } : {}),
+          ...(bicarbonate !== undefined ? { bicarbonateMeql: bicarbonate } : {}),
+          ...(waterPh !== undefined ? { ph: waterPh } : {}),
+        };
+  return { ...(qualityTests ? { qualityTests } : {}), ...(waterTests ? { waterTests } : {}) };
+}
+
+/**
  * FarmForm — create or edit a farm (docs/05_UI_UX_Spec.md Farm Management).
  *
  * Captures only farmer-provided inputs; agronomic/soil attributes are derived
@@ -62,6 +101,15 @@ interface FormValues {
   growthStage: FarmDraft['growthStage'];
   soilType: FarmDraft['soilType'];
   irrigationMethod: FarmDraft['irrigationMethod'];
+  // Optional lab tests (V2.2), as strings while editing like the other
+  // numerics. Empty string = field absent on the report.
+  ece: string;
+  esp: string;
+  ecw: string;
+  sar: string;
+  boron: string;
+  bicarbonate: string;
+  waterPh: string;
 }
 
 function toFormValues(profile?: FarmProfile): FormValues {
@@ -77,9 +125,20 @@ function toFormValues(profile?: FarmProfile): FormValues {
       growthStage: 'Mid Season',
       soilType: 'Clay',
       irrigationMethod: 'Drip',
+      ece: '',
+      esp: '',
+      ecw: '',
+      sar: '',
+      boron: '',
+      bicarbonate: '',
+      waterPh: '',
     };
   }
   const { farm, crop, soil } = profile;
+  const quality = soil.qualityReading;
+  const water = farm.waterQuality;
+  const num = (value: number | undefined): string =>
+    value === undefined ? '' : String(value);
   return {
     id: farm.id,
     name: farm.name,
@@ -92,6 +151,13 @@ function toFormValues(profile?: FarmProfile): FormValues {
     growthStage: crop.growthStage,
     soilType: soil.name,
     irrigationMethod: farm.irrigationMethod,
+    ece: num(quality?.eceDsm),
+    esp: num(quality?.espPct),
+    ecw: num(water?.ecwDsm),
+    sar: num(water?.sar),
+    boron: num(water?.boronMgl),
+    bicarbonate: num(water?.bicarbonateMeql),
+    waterPh: num(water?.ph),
   };
 }
 
@@ -105,6 +171,13 @@ export function FarmForm({ initial, onSave, onCancel, t }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<LocationSearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
+  // Open by default only when editing a farm that already carries tests —
+  // a farmer adding a farm sees the simple form; a farmer who once entered
+  // lab values sees them the moment they reopen the form.
+  const hasStoredTests = Boolean(
+    initial && (initial.soil.qualityReading || initial.farm.waterQuality),
+  );
+  const [testsOpen, setTestsOpen] = useState(hasStoredTests);
 
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((v) => ({ ...v, [key]: value }));
@@ -202,6 +275,7 @@ export function FarmForm({ initial, onSave, onCancel, t }: Props) {
       return;
     }
 
+    const { qualityTests, waterTests } = buildQualityTests(values);
     const draft: FarmDraft = {
       ...(values.id ? { id: values.id } : {}),
       name: values.name.trim(),
@@ -214,6 +288,8 @@ export function FarmForm({ initial, onSave, onCancel, t }: Props) {
       growthStage: values.growthStage,
       soilType: values.soilType,
       irrigationMethod: values.irrigationMethod,
+      ...(qualityTests ? { qualityTests } : {}),
+      ...(waterTests ? { waterTests } : {}),
     };
 
     setSaving(true);
@@ -432,6 +508,113 @@ export function FarmForm({ initial, onSave, onCancel, t }: Props) {
           ))}
         </select>
       </label>
+
+      {/* Optional lab tests (V2.2). Collapsed by default on a new farm so the
+          required path stays short; open when editing a farm that carries
+          values. Every box is optional and independent — a report may carry
+          only ECw, or only boron, and the rest stay absent rather than zero. */}
+      <div className="farm-form__tests">
+        <button
+          type="button"
+          className="btn btn--ghost btn--block"
+          aria-expanded={testsOpen}
+          onClick={() => setTestsOpen((open) => !open)}
+        >
+          {testsOpen ? '▾' : '▸'} {t('form.testsToggle')}
+        </button>
+        {testsOpen && (
+          <>
+            <p className="farm-form__tests-hint">{t('form.testsHint')}</p>
+            <h3 className="farm-form__tests-title">{t('form.testsSoilTitle')}</h3>
+            <div className="field-row">
+              <label className="field">
+                <span className="field__label">{t('form.ece')}</span>
+                <input
+                  className="field__input"
+                  type="text"
+                  inputMode="decimal"
+                  value={values.ece}
+                  onChange={(e) => set('ece', e.target.value)}
+                  placeholder="e.g. 2.4"
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">{t('form.esp')}</span>
+                <input
+                  className="field__input"
+                  type="text"
+                  inputMode="decimal"
+                  value={values.esp}
+                  onChange={(e) => set('esp', e.target.value)}
+                  placeholder="e.g. 6"
+                />
+              </label>
+            </div>
+            <h3 className="farm-form__tests-title">{t('form.testsWaterTitle')}</h3>
+            <div className="field-row">
+              <label className="field">
+                <span className="field__label">{t('form.ecw')}</span>
+                <input
+                  className="field__input"
+                  type="text"
+                  inputMode="decimal"
+                  value={values.ecw}
+                  onChange={(e) => set('ecw', e.target.value)}
+                  placeholder="e.g. 0.9"
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">{t('form.sar')}</span>
+                <input
+                  className="field__input"
+                  type="text"
+                  inputMode="decimal"
+                  value={values.sar}
+                  onChange={(e) => set('sar', e.target.value)}
+                  placeholder="e.g. 4"
+                />
+              </label>
+            </div>
+            <div className="field-row">
+              <label className="field">
+                <span className="field__label">{t('form.boron')}</span>
+                <input
+                  className="field__input"
+                  type="text"
+                  inputMode="decimal"
+                  value={values.boron}
+                  onChange={(e) => set('boron', e.target.value)}
+                  placeholder="e.g. 0.5"
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">{t('form.bicarbonate')}</span>
+                <input
+                  className="field__input"
+                  type="text"
+                  inputMode="decimal"
+                  value={values.bicarbonate}
+                  onChange={(e) => set('bicarbonate', e.target.value)}
+                  placeholder="e.g. 2"
+                />
+              </label>
+            </div>
+            <div className="field-row">
+              <label className="field">
+                <span className="field__label">{t('form.waterPh')}</span>
+                <input
+                  className="field__input"
+                  type="text"
+                  inputMode="decimal"
+                  value={values.waterPh}
+                  onChange={(e) => set('waterPh', e.target.value)}
+                  placeholder="e.g. 7.2"
+                />
+              </label>
+            </div>
+          </>
+        )}
+      </div>
 
       {error && <p className="form-error">{error}</p>}
 

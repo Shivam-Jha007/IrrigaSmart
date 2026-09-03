@@ -120,10 +120,12 @@ Tabs include:
 
 - Dashboard
 - Farms
-- History
+- Fertilizer
 - Settings
 
 Navigation should always remain visible.
+
+Post-MVP amendment (V2.2): the **History tab was removed** — farmers did not use the record list. History records are still written on every recommendation and still feed the farm cards and the once-a-day recommendation guard; only the browsing screen is gone. The Fertilizer tab (soil-test-based dosing) was added in its place.
 
 ---
 
@@ -179,18 +181,7 @@ Capabilities
 
 # History Screen
 
-Purpose
-
-Allow users to review previous recommendations.
-
-Each record should display:
-
-- Date
-- Recommendation
-- Water Amount
-- Explanation
-
-History should be searchable in future versions.
+Removed in V2.2: the History tab and its browsing screen no longer exist (see Navigation). The underlying history records continue to be stored — they feed the dashboard's farm cards and prevent duplicate same-day recommendations — and the screen can be restored from them if record browsing is ever wanted again.
 
 ---
 

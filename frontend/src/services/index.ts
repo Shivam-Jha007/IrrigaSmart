@@ -230,13 +230,14 @@ export {
   farmBriefing,
   MAX_QUESTION_CHARS,
   type AssistantAction,
+  type AssistantActionTarget,
   type AssistantAnswer,
   type AssistantSource,
   type AssistantTopic,
   type AssistantTurn,
   type AskOptions,
 } from './assistantService';
-export { buildAssistantContext, type ContextInput } from './assistantContext';
+export { buildAssistantContext, type AssistantEngineInputs, type ContextInput } from './assistantContext';
 export {
   alternatesFor,
   chooseVoice,

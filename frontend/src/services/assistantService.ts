@@ -64,11 +64,16 @@ export function farmBriefing(context: AssistantContext | undefined, t: Translate
 /** Where an answer came from. Shown to the farmer so the two are never confused. */
 export type AssistantSource = 'rules' | 'claude' | 'unavailable';
 
+/** An app destination an answer points at, rendered as a button by the panel. */
+export type AssistantActionTarget = 'fertilizer';
+
 export interface AssistantAnswer {
   text: string;
   source: AssistantSource;
   /** Set when the rules answered, for tests and for the UI's offline badge. */
   intent?: AssistantIntent;
+  /** Set when the answer's advice has a screen for it (offline rules only). */
+  action?: AssistantActionTarget;
 }
 
 export interface AssistantTurn {
@@ -131,7 +136,12 @@ export async function askAssistant({
   // 1. The device's own knowledge. No network, no key, no wait.
   const rule = answerFromRules(trimmed, context, t);
   if (rule) {
-    return { text: rule.answer, source: 'rules', intent: rule.intent };
+    return {
+      text: rule.answer,
+      source: 'rules',
+      intent: rule.intent,
+      ...(rule.action !== undefined ? { action: rule.action } : {}),
+    };
   }
 
   // 2. Offline and the rules fell short — say so instead of hanging on a fetch

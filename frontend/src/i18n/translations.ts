@@ -27,6 +27,20 @@ const en = {
   'nav.fertilizer': 'Fertilizer',
   'nav.settings': 'Settings',
 
+  // --- Optional lab tests in the farm form (V2.2) ---
+  'form.testsToggle': 'I have soil / water test data (optional)',
+  'form.testsSoilTitle': 'Soil test',
+  'form.testsWaterTitle': 'Irrigation water test',
+  'form.testsHint':
+    'Only if you have lab results. Water salinity (ECw) with a salty soil (ECe) makes the app add wash-off water automatically.',
+  'form.ece': 'Soil salinity ECe (dS/m)',
+  'form.esp': 'Soil sodium ESP (%)',
+  'form.ecw': 'Water salinity ECw (dS/m)',
+  'form.sar': 'Water sodium SAR',
+  'form.boron': 'Water boron (mg/L)',
+  'form.bicarbonate': 'Water bicarbonate (meq/L)',
+  'form.waterPh': 'Water pH',
+
   'dashboard.greeting': 'Namaste, {name}',
   'dashboard.addFirstFarm': "Add your first farm to see today's irrigation recommendation.",
   'dashboard.addFarm': 'Add a farm',
@@ -404,10 +418,10 @@ const en = {
   'disease.what.onionDownyMildew': 'Pale oval patches with a violet-grey furry growth.',
 
   // Photo check (V1.7 item 16). Every string here obeys docs/12 §Product
-  // Boundaries: no chemical, no dose, no claim that a disease is PRESENT. The
-  // model compares a photo to its training photos, and that is exactly what the
-  // wording says — "looks similar to", never "you have". The referral to the
-  // extension officer appears in every outcome, healthy included.
+  // Boundaries: no chemical, no dose, and no percentages — the finding is
+  // named plainly, never with a confidence figure the farmer cannot check.
+  // The referral to the extension officer appears in every outcome, healthy
+  // included.
   'vision.title': 'Check a leaf photo',
   'vision.onDevice': 'Works offline',
   'vision.lede':
@@ -424,10 +438,9 @@ const en = {
   'vision.again': 'Check another photo',
   'vision.previewAlt': 'The leaf photo you chose',
   'vision.healthyName': 'a healthy leaf',
-  // "Similar to", with the percentage described as visual similarity rather
-  // than as a probability that the farmer has the disease.
-  'vision.similarTo': 'This leaf looks similar to photos of {name} ({percent}% similar).',
-  'vision.healthy': 'This leaf looks similar to healthy leaves ({percent}% similar).',
+  // The finding named plainly — no percentage, no "similar to" hedge.
+  'vision.similarTo': 'This is {name}.',
+  'vision.healthy': 'This leaf is healthy.',
   'vision.healthyCaveat':
     'That covers this one leaf only. Keep checking other plants, especially lower and inner leaves.',
   'vision.unsure':
@@ -597,6 +610,14 @@ const en = {
   'assistant.rule.greeting':
     'Namaste. Ask me how much water to give today, when to irrigate, or why the app advises it.',
   'assistant.rule.today': 'Today’s farm action is: {status}.',
+  // --- V2.2 interactive pack: the offline today-answer's extra actions ---
+  'assistant.rule.todayIssue': 'Also worth a look: {issue}.',
+  'assistant.rule.todayDisease':
+    'The weather favours {disease} today ({level}) — while you are out there, glance at {where}.',
+  'assistant.rule.todaySchedule':
+    'Your saved fertilizer schedule for this crop is ready on the Fertilizer tab.',
+  'assistant.suggest.photo': 'What did the leaf photo show?',
+  'assistant.action.fertilizer': 'Open the Fertilizer tab',
   'assistant.rule.amount': 'Give {mm} mm today — about {litres} litres for your field.',
   'assistant.rule.amountRun': 'That is about {minutes} minutes of running time.',
   'assistant.rule.amountNone': 'No irrigation is needed today.',
@@ -624,13 +645,12 @@ const en = {
   'assistant.rule.diseaseNext':
     'If you do find signs like these, show the photo to your Krishi Vigyan Kendra or input dealer — they will confirm it and tell you what is approved for your crop stage.',
 
-  // --- Latest leaf-photo check (V2.2). Pre-worded verdicts: "similar to",
-  // similarity percent, never a diagnosis. ---
-  'assistant.photo.match': 'The photo looks similar to {name} ({percent}% similar).',
-  'assistant.photo.tentative': 'The photo only weakly resembles {name} ({percent}% similar).',
-  'assistant.photo.healthy': 'The photo looks like a healthy leaf ({percent}% similar).',
+  // --- Latest leaf-photo check (V2.2). Pre-worded verdicts: the finding
+  // named plainly, no percentages. ---
+  'assistant.photo.match': 'The photo shows {name}.',
+  'assistant.photo.tentative': 'The photo may show {name}.',
+  'assistant.photo.healthy': 'The photo shows a healthy leaf.',
   'assistant.photo.otherPlant': 'The photo looks like a {plant} leaf, not your {crop}.',
-  'assistant.rule.photoAnswer': 'That is a resemblance, not a diagnosis — the app cannot say the disease is present.',
   'assistant.rule.photoNext': 'If the leaf does show signs, take it (or the photo) to your Krishi Vigyan Kendra or input dealer for confirmation.',
   'assistant.rule.photoNone': 'I do not have a photo check to report yet. Take a leaf photo in the “Check a leaf photo” card on the Today screen — it works on your phone, no internet needed.',
   'assistant.rule.savedToday': 'You saved about {litres} litres today.',
@@ -686,6 +706,11 @@ const en = {
     'The manure, amendment and split-timing lines for this schedule are on the Fertilizer tab.',
   'assistant.rule.fertScheduleNote':
     'Confirm the final plan with your local Krishi Vigyan Kendra — they can adjust it for your field’s history.',
+  // --- V2.2: the suitable-soil case gets good news, not a refusal ---
+  'assistant.rule.fertilitySuitable':
+    'Good news: your soil’s pH already suits this crop — there is nothing to correct with lime or gypsum.',
+  'assistant.rule.fertilityTestNext':
+    'For an exact fertiliser plan, take a Soil Health Card test — your local Krishi Vigyan Kendra can turn its figures into a dose for your field.',
   'assistant.rule.soilType': 'You recorded this field’s soil as {soil}.',
   'assistant.rule.soilCarbon':
     'The soil map estimates about {oc}% organic carbon in your topsoil.',
@@ -808,6 +833,11 @@ const en = {
     'The app carries the state fertilizer schedule for six crops and {crop} is not one of them. It will not fill that gap with a guessed amount.',
   'improve.fertTable.action':
     'Ask your Krishi Vigyan Kendra or agriculture extension officer for the schedule for {crop}, and take your soil test result with you.',
+  'improve.waterQuality.title': 'Your water or soil test shows a quality problem',
+  'improve.waterQuality.explain':
+    'Your own test results show values above safe limits: {breaches}. These affect how water soaks in and how the crop takes it up — extra water alone does not fix them.',
+  'improve.waterQuality.action':
+    'Take your test report to your Krishi Vigyan Kendra: they can suggest a corrective practice (gypsum use, mixing water sources, drainage) suited to your soil and crop.',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -826,6 +856,20 @@ const hi: Record<TranslationKey, string> = {
   'nav.history': 'रिकॉर्ड',
   'nav.fertilizer': 'खाद',
   'nav.settings': 'सेटिंग्स',
+
+  // --- Optional lab tests in the farm form (V2.2) ---
+  'form.testsToggle': 'मेरे पास मिट्टी / पानी की जाँच है (वैकल्पिक)',
+  'form.testsSoilTitle': 'मिट्टी परीक्षण',
+  'form.testsWaterTitle': 'सिंचाई जल परीक्षण',
+  'form.testsHint':
+    'केवल तब भरें जब लैब के परिणाम हों। खारी मिट्टी (ECe) पर खारा पानी (ECw) देने पर ऐप स्वतः लवण-धावन पानी जोड़ता है।',
+  'form.ece': 'मिट्टी लवणता ECe (dS/m)',
+  'form.esp': 'मिट्टी सोडियम ESP (%)',
+  'form.ecw': 'जल लवणता ECw (dS/m)',
+  'form.sar': 'जल सोडियम SAR',
+  'form.boron': 'जल बोरॉन (mg/L)',
+  'form.bicarbonate': 'जल बाइकार्बोनेट (meq/L)',
+  'form.waterPh': 'जल pH',
 
   'dashboard.greeting': 'नमस्ते, {name}',
   'dashboard.addFirstFarm': 'आज की सिंचाई सिफ़ारिश देखने के लिए अपना पहला खेत जोड़ें।',
@@ -1200,8 +1244,8 @@ const hi: Record<TranslationKey, string> = {
   'vision.again': 'दूसरी फ़ोटो जाँचें',
   'vision.previewAlt': 'आपकी चुनी हुई पत्ती की फ़ोटो',
   'vision.healthyName': 'स्वस्थ पत्ती',
-  'vision.similarTo': 'यह पत्ती {name} की फ़ोटो जैसी दिखती है ({percent}% समानता)।',
-  'vision.healthy': 'यह पत्ती स्वस्थ पत्तियों जैसी दिखती है ({percent}% समानता)।',
+  'vision.similarTo': 'यह {name} है।',
+  'vision.healthy': 'यह पत्ती स्वस्थ है।',
   'vision.healthyCaveat':
     'यह केवल इसी एक पत्ती के बारे में है। दूसरे पौधे भी देखते रहें, खासकर नीचे और भीतर की पत्तियाँ।',
   'vision.unsure':
@@ -1351,6 +1395,14 @@ const hi: Record<TranslationKey, string> = {
   'assistant.rule.greeting':
     'नमस्ते। पूछिए कि आज कितना पानी देना है, कब सिंचाई करनी है, या ऐप ऐसा क्यों कहता है।',
   'assistant.rule.today': 'आज खेत में यह करना है: {status}।',
+  // --- V2.2 interactive pack ---
+  'assistant.rule.todayIssue': 'एक नज़र इस पर भी डालें: {issue}।',
+  'assistant.rule.todayDisease':
+    'आज मौसम {disease} के अनुकूल है ({level}) — खेत में हों तो {where} देख लें।',
+  'assistant.rule.todaySchedule':
+    'इस फ़सल की सहेजी हुई उर्वरक अनुसूची Fertilizer टैब पर तैयार है।',
+  'assistant.suggest.photo': 'पत्ते की फ़ोटो में क्या दिखा?',
+  'assistant.action.fertilizer': 'Fertilizer टैब खोलें',
   'assistant.rule.amount': 'आज {mm} मिमी दें — आपके खेत के लिए लगभग {litres} लीटर।',
   'assistant.rule.amountRun': 'यानी लगभग {minutes} मिनट चलाना होगा।',
   'assistant.rule.amountNone': 'आज सिंचाई की ज़रूरत नहीं है।',
@@ -1379,11 +1431,10 @@ const hi: Record<TranslationKey, string> = {
     'अगर ऐसे लक्षण मिलें तो फ़ोटो कृषि विज्ञान केंद्र या बीज-दवा दुकान को दिखाएँ — वे पक्का करेंगे और बताएँगे कि आपकी फ़सल के चरण के लिए क्या मान्य है।',
 
   // --- Latest leaf-photo check (V2.2) ---
-  'assistant.photo.match': 'फ़ोटो {name} से मिलती-जुलती लगती है ({percent}% समान)।',
-  'assistant.photo.tentative': 'फ़ोटो {name} से केवल हल्की-सी मिलती है ({percent}% समान)।',
-  'assistant.photo.healthy': 'फ़ोटो स्वस्थ पत्ते जैसी लगती है ({percent}% समान)।',
+  'assistant.photo.match': 'फ़ोटो में {name} दिखता है।',
+  'assistant.photo.tentative': 'फ़ोटो में शायद {name} है।',
+  'assistant.photo.healthy': 'फ़ोटो में स्वस्थ पत्ता दिखता है।',
   'assistant.photo.otherPlant': 'फ़ोटो {plant} के पत्ते जैसी लगती है, आपकी {crop} नहीं।',
-  'assistant.rule.photoAnswer': 'यह समानता है, निदान नहीं — ऐप नहीं कह सकता कि रोग है ही।',
   'assistant.rule.photoNext': 'अगर पत्ते पर लक्षण दिखें तो उसे (या फ़ोटो) पक्का कराने कृषि विज्ञान केंद्र या बीज-दवा दुकान ले जाएँ।',
   'assistant.rule.photoNone': 'अभी कोई फ़ोटो जाँच मेरे पास नहीं है। आज की स्क्रीन पर “पत्ते की फ़ोटो जाँचें” कार्ड में पत्ते की फ़ोटो लें — यह आपके फ़ोन पर चलती है, इंटरनेट नहीं चाहिए।',
   'assistant.rule.savedToday': 'आज आपने लगभग {litres} लीटर बचाए।',
@@ -1431,6 +1482,10 @@ const hi: Record<TranslationKey, string> = {
     'इस अनुसूची की गोबर खाद, मिट्टी-संशोधन और विभाजन-समय की पंक्तियाँ Fertilizer टैब पर देखें।',
   'assistant.rule.fertScheduleNote':
     'अंतिम योजना अपने कृषि विज्ञान केंद्र से पक्की करें — वे आपके खेत के इतिहास के हिसाब से उसे बदल सकते हैं।',
+  'assistant.rule.fertilitySuitable':
+    'शुभ समाचार: आपकी मिट्टी का pH इस फ़सल के लिए पहले से ठीक है — चूना या जिप्सम से कुछ ठीक करने की ज़रूरत नहीं।',
+  'assistant.rule.fertilityTestNext':
+    'सटीक खाद योजना के लिए मृदा स्वास्थ्य कार्ड की जाँच कराएँ — आपका कृषि विज्ञान केंद्र उसके आँकड़ों से आपके खेत की खुराक बता देगा।',
   'assistant.rule.soilType': 'आपने इस खेत की मिट्टी {soil} दर्ज की है।',
   'assistant.rule.soilCarbon':
     'मृदा नक़्शे के अनुसार आपकी ऊपरी मिट्टी में लगभग {oc}% जैविक कार्बन है।',
@@ -1553,6 +1608,11 @@ const hi: Record<TranslationKey, string> = {
     'ऐप में राज्य की खाद तालिका छह फ़सलों के लिए है और {crop} उनमें नहीं है। यह कमी किसी अंदाज़े की मात्रा से नहीं भरी जाएगी।',
   'improve.fertTable.action':
     '{crop} के लिए खाद की तालिका अपने कृषि विज्ञान केंद्र या कृषि विस्तार अधिकारी से पूछें, और मिट्टी की जाँच की रिपोर्ट साथ ले जाएँ।',
+  'improve.waterQuality.title': 'आपकी पानी या मिट्टी की जाँच में गुणवत्ता की समस्या है',
+  'improve.waterQuality.explain':
+    'आपके अपने जाँच परिणामों में कुछ मान सुरक्षित सीमा से ऊपर हैं: {breaches}। इनका असर पानी के सोखने और फ़सल के सेवन पर पड़ता है — केवल ज़्यादा पानी इसे ठीक नहीं करता।',
+  'improve.waterQuality.action':
+    'अपनी जाँच रिपोर्ट कृषि विज्ञान केंद्र ले जाएँ: वे आपकी मिट्टी और फ़सल के अनुसार सुधार (जिप्सम, पानी मिलाना, जल निकासी) बता सकते हैं।',
 };
 
 const bn: Record<TranslationKey, string> = {
@@ -1569,6 +1629,20 @@ const bn: Record<TranslationKey, string> = {
   'nav.history': 'রেকর্ড',
   'nav.fertilizer': 'সার',
   'nav.settings': 'সেটিংস',
+
+  // --- Optional lab tests in the farm form (V2.2) ---
+  'form.testsToggle': 'আমার কাছে মাটি / জলের পরীক্ষা আছে (ঐচ্ছিক)',
+  'form.testsSoilTitle': 'মাটি পরীক্ষা',
+  'form.testsWaterTitle': 'সেচ জলের পরীক্ষা',
+  'form.testsHint':
+    'শুধু ল্যাবের ফল থাকলে দিন। নোনা মাটিতে (ECe) নোনা জল (ECw) দিলে অ্যাপ নিজে থেকেই লবণ ধোয়ার জল যোগ করে।',
+  'form.ece': 'মাটির লবণতা ECe (dS/m)',
+  'form.esp': 'মাটির সোডিয়াম ESP (%)',
+  'form.ecw': 'জলের লবণতা ECw (dS/m)',
+  'form.sar': 'জলের সোডিয়াম SAR',
+  'form.boron': 'জলের বোরন (mg/L)',
+  'form.bicarbonate': 'জলের বাইকার্বোনেট (meq/L)',
+  'form.waterPh': 'জলের pH',
 
   'dashboard.greeting': 'নমস্কার, {name}',
   'dashboard.addFirstFarm': 'আজকের সেচ সুপারিশ দেখতে আপনার প্রথম জমি যোগ করুন।',
@@ -1940,8 +2014,8 @@ const bn: Record<TranslationKey, string> = {
   'vision.again': 'আরেকটি ফটো পরীক্ষা করুন',
   'vision.previewAlt': 'আপনার বেছে নেওয়া পাতার ফটো',
   'vision.healthyName': 'স্বাস্থ্যকর পাতা',
-  'vision.similarTo': 'এই পাতাটি {name}-এর ফটোর মতো দেখতে ({percent}% মিল)।',
-  'vision.healthy': 'এই পাতাটি স্বাস্থ্যকর পাতার মতো দেখতে ({percent}% মিল)।',
+  'vision.similarTo': 'এটি {name}।',
+  'vision.healthy': 'এই পাতাটি সুস্থ।',
   'vision.healthyCaveat':
     'এটি কেবল এই একটি পাতার বিষয়ে। অন্য গাছপালাও দেখতে থাকুন, বিশেষ করে নিচের ও ভিতরের পাতাগুলো।',
   'vision.unsure':
@@ -2093,6 +2167,14 @@ const bn: Record<TranslationKey, string> = {
   'assistant.rule.greeting':
     'নমস্কার। জিজ্ঞাসা করুন আজ কত জল দেবেন, কখন সেচ দেবেন, বা অ্যাপ কেন এই পরামর্শ দিচ্ছে।',
   'assistant.rule.today': 'আজ খেতে এই কাজটি করুন: {status}।',
+  // --- V2.2 interactive pack ---
+  'assistant.rule.todayIssue': 'একবার এটাও দেখে নিন: {issue}।',
+  'assistant.rule.todayDisease':
+    'আজ আবহাওয়া {disease}-এর অনুকূল ({level}) — খেতে থাকলে {where} দেখে নিন।',
+  'assistant.rule.todaySchedule':
+    'এই ফসলের সংরক্ষিত সারের অনুসূচি Fertilizer ট্যাবে প্রস্তুত।',
+  'assistant.suggest.photo': 'পাতার ছবিতে কী দেখা গেল?',
+  'assistant.action.fertilizer': 'Fertilizer ট্যাব খুলুন',
   'assistant.rule.amount': 'আজ {mm} মিমি দিন — আপনার খেতের জন্য প্রায় {litres} লিটার।',
   'assistant.rule.amountRun': 'অর্থাৎ প্রায় {minutes} মিনিট চালাতে হবে।',
   'assistant.rule.amountNone': 'আজ সেচের দরকার নেই।',
@@ -2121,11 +2203,10 @@ const bn: Record<TranslationKey, string> = {
     'এমন লক্ষণ পেলে ছবিটি কৃষি বিজ্ঞান কেন্দ্র বা বীজ-ওষুধের দোকানে দেখান — তাঁরা নিশ্চিত করে বলবেন আপনার ফসলের পর্যায়ে কী অনুমোদিত।',
 
   // --- Latest leaf-photo check (V2.2) ---
-  'assistant.photo.match': 'ছবিটি {name}-এর ছবির সঙ্গে মিলতে দেখাচ্ছে ({percent}% সদৃশ)।',
-  'assistant.photo.tentative': 'ছবিটি {name}-এর সঙ্গে খানিকটাই মেলে ({percent}% সদৃশ)।',
-  'assistant.photo.healthy': 'ছবিটি সুস্থ পাতার মতো দেখাচ্ছে ({percent}% সদৃশ)।',
+  'assistant.photo.match': 'ছবিতে {name} দেখা যাচ্ছে।',
+  'assistant.photo.tentative': 'ছবিতে সম্ভবত {name}।',
+  'assistant.photo.healthy': 'ছবিতে সুস্থ পাতা দেখা যাচ্ছে।',
   'assistant.photo.otherPlant': 'ছবিটি {plant}-এর পাতার মতো দেখাচ্ছে, আপনার {crop} নয়।',
-  'assistant.rule.photoAnswer': 'এটি সাদৃশ্য, রোগনির্ণয় নয় — রোগ আছে বলা অ্যাপের পক্ষে সম্ভব নয়।',
   'assistant.rule.photoNext': 'পাতায় লক্ষণ দেখলে নিশ্চিত করতে পাতাটি (বা ছবি) কৃষি বিজ্ঞান কেন্দ্র বা বীজ-ওষুধের দোকানে নিয়ে যান।',
   'assistant.rule.photoNone': 'এখনও কোনও ছবির পরীক্ষা আমার কাছে নেই। আজকের পর্দার “পাতার ছবি দেখুন” কার্ডে পাতার ছবি তুলুন — এটি আপনার ফোনেই চলে, ইন্টারনেট লাগে না।',
   'assistant.rule.savedToday': 'আজ আপনি প্রায় {litres} লিটার বাঁচিয়েছেন।',
@@ -2173,6 +2254,10 @@ const bn: Record<TranslationKey, string> = {
     'এই সূচির গোবর সার, মাটি-সংশোধন ও ভাগ করে প্রয়োগের নির্দেশ Fertilizer ট্যাবে দেখুন।',
   'assistant.rule.fertScheduleNote':
     'চূড়ান্ত পরিকল্পনা আপনার কৃষি বিজ্ঞান কেন্দ্রে নিশ্চিত করুন — তাঁরা আপনার খেতের ইতিহাস অনুযায়ী বদলাতে পারবেন।',
+  'assistant.rule.fertilitySuitable':
+    'সুখবর: আপনার মাটির pH এই ফসলের জন্য এমনিতেই ঠিক আছে — চুন বা জিপসাম দিয়ে কিছু ঠিক করার দরকার নেই।',
+  'assistant.rule.fertilityTestNext':
+    'সঠিক সার পরিকল্পনার জন্য মৃত্তিকা স্বাস্থ্য কার্ডের পরীক্ষা করান — আপনার কৃষি বিজ্ঞান কেন্দ্র তার মান থেকে আপনার খেতের খুরাক বলে দেবে।',
   'assistant.rule.soilType': 'আপনি এই খেতের মাটি {soil} হিসেবে লিখেছেন।',
   'assistant.rule.soilCarbon':
     'মাটির মানচিত্র অনুসারে আপনার উপরের মাটিতে প্রায় {oc}% জৈব কার্বন আছে।',
@@ -2295,6 +2380,11 @@ const bn: Record<TranslationKey, string> = {
     'অ্যাপে রাজ্যের সারের তালিকা ছয়টি ফসলের জন্য আছে এবং {crop} তার মধ্যে নেই। এই ফাঁক কোনো অনুমানের পরিমাণ দিয়ে ভরা হবে না।',
   'improve.fertTable.action':
     '{crop}-এর সারের তালিকা আপনার কৃষি বিজ্ঞান কেন্দ্র বা কৃষি বিস্তার আধিকারিকের কাছে জিজ্ঞেস করুন, আর মাটি পরীক্ষার ফল সঙ্গে নিয়ে যান।',
+  'improve.waterQuality.title': 'আপনার জল বা মাটির পরীক্ষায় গুণমানের সমস্যা ধরা পড়েছে',
+  'improve.waterQuality.explain':
+    'আপনার নিজের পরীক্ষার ফলে কিছু মান নিরাপদ সীমার উপরে: {breaches}। এগুলির প্রভাব পড়ে জল শোষণ আর ফসলের গ্রহণে — শুধু বেশি জল দিলে এটা ঠিক হয় না।',
+  'improve.waterQuality.action':
+    'পরীক্ষার রিপোর্ট কৃষি বিজ্ঞান কেন্দ্রে নিয়ে যান: তাঁরা আপনার মাটি ও ফসল অনুযায়ী সংশোধন (জিপসাম, জল মেশানো, জল নিকাশি) বলতে পারবেন।',
 };
 
 const as: Record<TranslationKey, string> = {
@@ -2309,6 +2399,20 @@ const as: Record<TranslationKey, string> = {
   'nav.history': 'ইতিহাস',
   'nav.fertilizer': 'সাৰ',
   'nav.settings': 'ছেটিংছ',
+
+  // --- Optional lab tests in the farm form (V2.2) ---
+  'form.testsToggle': 'মোৰ হাতত মাটি / পানীৰ পৰীক্ষা আছে (ইচ্ছাধীন)',
+  'form.testsSoilTitle': 'মাটি পৰীক্ষা',
+  'form.testsWaterTitle': 'জলসিঞ্চন পানীৰ পৰীক্ষা',
+  'form.testsHint':
+    'কেৱল লেবৰ ফলাফল থাকিলে দিয়ক। নিমখীয়া মাটিত (ECe) নিমখীয়া পানী (ECw) দিলে এপে নিজেই লৱণ ধোৱা পানী যোগ কৰে।',
+  'form.ece': 'মাটিৰ লৱণতা ECe (dS/m)',
+  'form.esp': 'মাটিৰ ছ’ডিয়াম ESP (%)',
+  'form.ecw': 'পানীৰ লৱণতা ECw (dS/m)',
+  'form.sar': 'পানীৰ ছ’ডিয়াম SAR',
+  'form.boron': 'পানীৰ ব’ৰন (mg/L)',
+  'form.bicarbonate': 'পানীৰ বাইকাৰ্বনেট (meq/L)',
+  'form.waterPh': 'পানীৰ pH',
 
   'dashboard.greeting': 'নমস্কাৰ, {name}',
   'dashboard.addFirstFarm': 'আজিৰ জলসিঞ্চনৰ পৰামৰ্শ চাবলৈ আপোনাৰ প্ৰথমখন খেতি যোগ কৰক।',
@@ -2669,8 +2773,8 @@ const as: Record<TranslationKey, string> = {
   'vision.again': 'আন এখন ফটো পৰীক্ষা কৰক',
   'vision.previewAlt': 'আপুনি বাছনি কৰা পাতৰ ফটো',
   'vision.healthyName': 'সুস্থ পাত',
-  'vision.similarTo': 'এই পাতখন {name}-ৰ ফটোৰ দৰে দেখা যায় ({percent}% মিল)।',
-  'vision.healthy': 'এই পাতখন সুস্থ পাতৰ দৰে দেখা যায় ({percent}% মিল)।',
+  'vision.similarTo': 'এইটো {name}।',
+  'vision.healthy': 'এই পাতখন সুস্থ।',
   'vision.healthyCaveat':
     'ই কেৱল এই এখন পাতৰ বিষয়ে। আন গছবোৰো চাই থাকক, বিশেষকৈ তলৰ আৰু ভিতৰৰ পাতবোৰ।',
   'vision.unsure':
@@ -2821,6 +2925,14 @@ const as: Record<TranslationKey, string> = {
   'assistant.rule.greeting':
     'নমস্কাৰ। সোধক আজি কিমান পানী দিব, কেতিয়া জলসিঞ্চন কৰিব, বা এপে কিয় এই পৰামৰ্শ দিছে।',
   'assistant.rule.today': 'আজি পথাৰত এই কাম কৰক: {status}।',
+  // --- V2.2 interactive pack ---
+  'assistant.rule.todayIssue': 'এবাৰ এইটোও চাই লওক: {issue}।',
+  'assistant.rule.todayDisease':
+    'আজি বতৰ {disease}-ৰ অনুকূল ({level}) — পথাৰত থাকিলে {where} চাই লওক।',
+  'assistant.rule.todaySchedule':
+    'এই শস্যৰ সাঁচি থোৱা সাৰৰ অনুসূচি Fertilizer টেবত সাজু।',
+  'assistant.suggest.photo': 'পাতৰ ফটোত কি দেখা গ’ল?',
+  'assistant.action.fertilizer': 'Fertilizer টেব খোলক',
   'assistant.rule.amount': 'আজি {mm} মিমি দিয়ক — আপোনাৰ পথাৰৰ বাবে প্ৰায় {litres} লিটাৰ।',
   'assistant.rule.amountRun': 'অৰ্থাৎ প্ৰায় {minutes} মিনিট চলাব লাগিব।',
   'assistant.rule.amountNone': 'আজি জলসিঞ্চনৰ প্ৰয়োজন নাই।',
@@ -2849,11 +2961,10 @@ const as: Record<TranslationKey, string> = {
     'এনে লক্ষণ পালে ফটোখন কৃষি বিজ্ঞান কেন্দ্ৰ বা বীজ-ঔষধৰ দোকানত দেখুৱাওক — তেওঁলোকে নিশ্চিত কৰি ক’ব যে আপোনাৰ শস্যৰ পৰ্যায়ত কি অনুমোদিত।',
 
   // --- Latest leaf-photo check (V2.2) ---
-  'assistant.photo.match': 'ফটোখন {name}-ৰ ছবিৰ সৈতে মিল দেখা যায় ({percent}% সদৃশ)।',
-  'assistant.photo.tentative': 'ফটোখন {name}-ৰ সৈতে কিছু পৰিমাণে মিলে ({percent}% সদৃশ)।',
-  'assistant.photo.healthy': 'ফটোখন সুস্থ পাতৰ দৰে দেখা যায় ({percent}% সদৃশ)।',
+  'assistant.photo.match': 'ফটোত {name} দেখা যায়।',
+  'assistant.photo.tentative': 'ফটোত সম্ভৱত {name}।',
+  'assistant.photo.healthy': 'ফটোত সুস্থ পাত দেখা যায়।',
   'assistant.photo.otherPlant': 'ফটোখন {plant}-ৰ পাতৰ দৰে দেখা যায়, আপোনাৰ {crop} নহয়।',
-  'assistant.rule.photoAnswer': 'এয়া সাদৃশ্য, ৰোগনিৰ্ণয় নহয় — ৰোগ আছে বুলি এপে ক’ব নোৱাৰে।',
   'assistant.rule.photoNext': 'পাতত লক্ষণ দেখিলে নিশ্চিত কৰিবলৈ পাতখন (বা ফটো) কৃষি বিজ্ঞান কেন্দ্ৰ বা বীজ-ঔষধৰ দোকানলৈ লৈ যাওক।',
   'assistant.rule.photoNone': 'এতিয়ালৈ কোনো ফটোৰ পৰীক্ষা মোৰ হাতত নাই। আজিৰ পৰ্দাৰ “পাতৰ ফটো চাওক” কাৰ্ডত পাতৰ ফটো তোলক — এয়া আপোনাৰ ফোনতে চলে, ইণ্টাৰনেট নালাগে।',
   'assistant.rule.savedToday': 'আজি আপুনি প্ৰায় {litres} লিটাৰ ৰাহি কৰিছে।',
@@ -2901,6 +3012,10 @@ const as: Record<TranslationKey, string> = {
     'এই অনুসূচিৰ গোবৰ সাৰ, মাটি-সংশোধন আৰু ভাগ কৰি প্ৰয়োগৰ নিৰ্দেশ Fertilizer টেবত চাওক।',
   'assistant.rule.fertScheduleNote':
     'চূড়ান্ত পৰিকল্পনা আপোনাৰ কৃষি বিজ্ঞান কেন্দ্ৰত নিশ্চিত কৰক — তেওঁলোকে আপোনাৰ পথাৰৰ ইতিহাস অনুসৰি সলনি কৰিব পাৰিব।',
+  'assistant.rule.fertilitySuitable':
+    'ভালা খবৰ: আপোনাৰ মাটিৰ pH এই শস্যৰ বাবে আগৰেয়েই ঠিক আছে — চুন বা জিপচামেৰে কিবা ঠিক কৰাৰ প্ৰয়োজন নাই।',
+  'assistant.rule.fertilityTestNext':
+    'সঠিক সাৰৰ পৰিকল্পনাৰ বাবে মৃত্তিকা স্বাস্থ্য কাৰ্ডৰ পৰীক্ষা কৰাওক — আপোনাৰ কৃষি বিজ্ঞান কেন্দ্ৰই সেই মানৰ পৰা আপোনাৰ পথাৰৰ মাত্ৰা কৈ দিব।',
   'assistant.rule.soilType': 'আপুনি এই খেতিৰ মাটি {soil} বুলি লিখিছে।',
   'assistant.rule.soilCarbon':
     'মাটিৰ মানচিত্ৰ অনুসৰি আপোনাৰ ওপৰৰ মাটিত প্ৰায় {oc}% জৈৱ কাৰ্বন আছে।',
@@ -3023,6 +3138,11 @@ const as: Record<TranslationKey, string> = {
     'এপত ৰাজ্যৰ সাৰৰ তালিকা ছয়টা শস্যৰ বাবে আছে আৰু {crop} তাৰ ভিতৰত নাই। এই খালী ঠাই কোনো অনুমানৰ পৰিমাণেৰে পূৰ কৰা নহ’ব।',
   'improve.fertTable.action':
     '{crop}ৰ সাৰৰ তালিকা আপোনাৰ কৃষি বিজ্ঞান কেন্দ্ৰ বা কৃষি বিস্তাৰ বিষয়াক সোধক, আৰু মাটি পৰীক্ষাৰ ফল লগত লৈ যাওক।',
+  'improve.waterQuality.title': 'আপোনাৰ পানী বা মাটিৰ পৰীক্ষাত গুণগত সমস্যা ধৰা পৰিছে',
+  'improve.waterQuality.explain':
+    'আপোনাৰ নিজৰ পৰীক্ষাৰ ফলত কিছু মান সুৰক্ষিত সীমাৰ ওপৰত: {breaches}। ইয়াৰ প্ৰভাৱ পৰে পানী শোষণ আৰু শস্যৰ গ্ৰহণত — কেৱল বেছি পানী দিলে ই ঠিক নহয়।',
+  'improve.waterQuality.action':
+    'পৰীক্ষাৰ ৰিপৰ্ট কৃষি বিজ্ঞান কেন্দ্ৰলৈ লৈ যাওক: তেওঁলোকে আপোনাৰ মাটি আৰু শস্য অনুসৰি সংশোধন (জিপচাম, পানী মিলোৱা, পানী নিষ্কাশন) ক’ব পাৰিব।',
 };
 
 const ur: Record<TranslationKey, string> = {
@@ -3037,6 +3157,21 @@ const ur: Record<TranslationKey, string> = {
   'nav.history': 'تاریخچہ',
   'nav.fertilizer': 'کھاد',
   'nav.settings': 'ترتیبات',
+
+  // --- Optional lab tests in the farm form (V2.2) ---
+  'form.testsToggle': 'میرے پاس مٹی / پانی کی جانچ ہے (اختیاری)',
+  'form.testsSoilTitle': 'مٹی جانچ',
+  'form.testsWaterTitle': 'آبپاشی پانی کی جانچ',
+  'form.testsHint':
+    'صرف لیب کے نتائج ہوں تو دیں۔ نمکی والی مٹی (ECe) پر نمکی والا پانی (ECw) دینے پر ایپ خود بخود نمکی دھونے کا پانی شامل کرتی ہے۔',
+  'form.ece': 'مٹی کی لویزلت ECe (dS/m)',
+  'form.esp': 'مٹی کا سوڈیم ESP (%)',
+  'form.ecw': 'پانی کی لویزلت ECw (dS/m)',
+  'form.sar': 'پانی کا سوڈیم SAR',
+  'form.boron': 'پانی کا بورون (mg/L)',
+  'form.bicarbonate': 'پانی کا بائی کاربونیٹ (meq/L)',
+  'form.waterPh': 'پانی کا pH',
+
   'dashboard.greeting': 'السلام علیکم، {name}',
   'dashboard.addFirstFarm': 'آج کی آبپاشی کی سفارش دیکھنے کے لیے اپنا پہلا کھیت شامل کریں۔',
   'dashboard.addFarm': 'کھیت شامل کریں',
@@ -3317,8 +3452,8 @@ const ur: Record<TranslationKey, string> = {
   'vision.again': 'دوسری تصویر جانچیں',
   'vision.previewAlt': 'آپ کی چنی ہوئی پتے کی تصویر',
   'vision.healthyName': 'صحت مند پتہ',
-  'vision.similarTo': 'یہ پتہ {name} کی تصویروں جیسا لگتا ہے ({percent}% مشابہت)۔',
-  'vision.healthy': 'یہ پتہ صحت مند پتوں جیسا لگتا ہے ({percent}% مشابہت)۔',
+  'vision.similarTo': 'یہ {name} ہے۔',
+  'vision.healthy': 'یہ پتہ صحت مند ہے۔',
   'vision.healthyCaveat':
     'یہ صرف اسی ایک پتے کے بارے میں ہے۔ دوسرے پودے بھی دیکھتے رہیں، خاص طور پر نیچے اور اندر کے پتے۔',
   'vision.unsure':
@@ -3431,6 +3566,14 @@ const ur: Record<TranslationKey, string> = {
   'assistant.rule.greeting':
     'آداب۔ پوچھیں آج کتنا پانی دینا ہے، کب سیرابی کرنی ہے، یا ایپ یہ مشورہ کیوں دے رہی ہے۔',
   'assistant.rule.today': 'آج کھیت میں یہ کام کریں: {status}۔',
+  // --- V2.2 interactive pack ---
+  'assistant.rule.todayIssue': 'ایک نظر اس پر بھی ڈالیں: {issue}۔',
+  'assistant.rule.todayDisease':
+    'آج موسم {disease} کے لیے سازگار ہے ({level}) — کھیت میں ہوں تو {where} دیکھ لیں۔',
+  'assistant.rule.todaySchedule':
+    'اس فصل کی محفوظ کھاد کا شیڈول Fertilizer ٹیب پر تیار ہے۔',
+  'assistant.suggest.photo': 'پتے کی تصویر میں کیا دکھا؟',
+  'assistant.action.fertilizer': 'Fertilizer ٹیب کھولیں',
   'assistant.rule.amount': 'آج {mm} ملی میٹر دیں — آپ کے کھیت کے لیے تقریباً {litres} لیٹر۔',
   'assistant.rule.amountRun': 'یعنی تقریباً {minutes} منٹ چلانا ہوگا۔',
   'assistant.rule.amountNone': 'آج سیرابی کی ضرورت نہیں۔',
@@ -3459,11 +3602,10 @@ const ur: Record<TranslationKey, string> = {
     'اگر ایسی علامات ملیں تو تصویر کرشی وگیان کیندر یا بیج-دوائی کی دکان کو دکھائیں — وہ تصدیق کر کے بتائیں گے کہ آپ کی فصل کے مرحلے کے لیے کیا منظور ہے۔',
 
   // --- Latest leaf-photo check (V2.2) ---
-  'assistant.photo.match': 'تصویر {name} کی تصویروں سے ملتی جلتی لگتی ہے ({percent}% مشابہ)۔',
-  'assistant.photo.tentative': 'تصویر {name} سے کچھ ہی ملتی ہے ({percent}% مشابہ)۔',
-  'assistant.photo.healthy': 'تصویر صحت مند پتے جیسی لگتی ہے ({percent}% مشابہ)۔',
+  'assistant.photo.match': 'تصویر میں {name} دکھتا ہے۔',
+  'assistant.photo.tentative': 'تصویر میں شاید {name} ہو۔',
+  'assistant.photo.healthy': 'تصویر میں صحت مند پتا دکھتا ہے۔',
   'assistant.photo.otherPlant': 'تصویر {plant} کے پتے جیسی لگتی ہے، آپ کی {crop} نہیں۔',
-  'assistant.rule.photoAnswer': 'یہ مشابہت ہے، تشخیص نہیں — ایپ یہ نہیں کہہ سکتی کہ بیماری موجود ہے۔',
   'assistant.rule.photoNext': 'پتے پر علامات دکھیں تو تصدیق کے لیے پتا (یا تصویر) کرشی وگیان کیندر یا بیج-دوائی کی دکان لے جائیں۔',
   'assistant.rule.photoNone': 'ابھی کوئی تصویر کی جانچ میرے پاس نہیں۔ آج کی اسکرین کے “پتے کی تصویر دیکھیں” کارڈ میں پتے کی تصویر لیں — یہ آپ کے فون پر چلتی ہے، انٹرنیٹ نہیں چاہیے۔',
   'assistant.rule.savedToday': 'آج آپ نے تقریباً {litres} لیٹر بچائے۔',
@@ -3497,6 +3639,10 @@ const ur: Record<TranslationKey, string> = {
     'اس شیڈول کی گوبر کھاد، مٹی اصلاح اور تقسیم کے اوقات Fertilizer ٹیب پر دیکھیں۔',
   'assistant.rule.fertScheduleNote':
     'حتمی منصوبہ اپنے کرشی وگیان کیندر سے تصدیق کریں — وہ آپ کے کھیت کے حساب سے اسے بدل سکتے ہیں۔',
+  'assistant.rule.fertilitySuitable':
+    'خوشخبری: آپ کی مٹی کا pH اس فصل کے لیے پہلے ہی ٹھیک ہے — چونا یا جپسم سے کچھ درست کرنے کی ضرورت نہیں۔',
+  'assistant.rule.fertilityTestNext':
+    'درست کھاد کی منصوبہ بندی کے لیے مٹی صحت کارڈ کی جانچ کروائیں — آپ کا کرشی وگیان کیندر اس کے اعداد سے آپ کے کھیت کی خوراک بتا دے گا۔',
   'assistant.rule.testInterpreted':
     'میں نے آپ کی دی ہوئی مٹی جانچ کے نتائج پڑھے: pH {ph}، نامیاتی کاربن {oc}%، اور {values}۔ یہ کھیت کی جانچ کے اعداد ہیں، اس لیے علاقے کے نقشے کے اندازے سے زیادہ مفید ہیں۔',
   'assistant.rule.testLow':
@@ -3582,6 +3728,11 @@ const ur: Record<TranslationKey, string> = {
     'ایپ میں ریاست کا کھاد کا جدول چھ فصلوں کے لیے ہے اور {crop} ان میں نہیں ہے۔ یہ کمی کسی اندازے کی مقدار سے نہیں بھری جائے گی۔',
   'improve.fertTable.action':
     '{crop} کے لیے کھاد کا جدول اپنے کرشی وگیان کیندر یا زرعی توسیعی افسر سے پوچھیں، اور مٹی کی جانچ کی رپورٹ ساتھ لے جائیں۔',
+  'improve.waterQuality.title': 'آپ کی پانی یا مٹی کی جانچ میں معیار کا مسئلہ ملا ہے',
+  'improve.waterQuality.explain':
+    'آپ کے اپنے جانچ کے نتائج میں کچھ اعداد محفوظ حد سے اوپر ہیں: {breaches}۔ ان کا اثر پانی کے جذب ہونے اور فصل کے حصول پر پڑتا ہے — صرف زیادہ پانی اسے ٹھیک نہیں کرتا۔',
+  'improve.waterQuality.action':
+    'اپنی جانچ کی رپورٹ کرشی وگیان کیندر لے جائیں: وہ آپ کی مٹی اور فصل کے مطابق اصلاح (جپسم، پانی ملا کر استعمال، نکاسی) بتا سکتے ہیں۔',
 };
 
 export const TRANSLATIONS: Record<Language, Record<TranslationKey, string>> = { en, hi, bn, as, ur };

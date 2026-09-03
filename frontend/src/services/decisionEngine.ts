@@ -18,7 +18,8 @@ import type {
 } from '../types';
 import { getKc, getZr, getDepletionFraction } from './knowledgeBase';
 import { rootZoneWater, type RootZoneWater } from './soilProfile';
-import { buildExplanation } from './explanationText';
+import { buildExplanation, leachingSentence } from './explanationText';
+import { leachingRequirement } from './waterQuality';
 import { estimateEto } from './evapotranspiration';
 import { getSeasonForDate } from './regionalKnowledge';
 import { localDayString, previousDayString } from './dateUtils';
@@ -788,7 +789,40 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
     durationMinutes: 0,
     flowLitersPerMinute: 0,
   };
-  if (status === 'Irrigate Today') {
+  // V2.2 — salinity leaching (FAO-29). When the farmer's water test gives an
+  // ECw and the soil's own ECe confirms salts are actually accumulating, the
+  // applied depth is raised by the crop-specific leaching requirement. The
+  // ECe GATE matters: leaching is a response to a saline SOIL irrigated with
+  // saline water, not to a water report alone — an ECw above zero on a
+  // non-saline field is normal and needs no extra water. Null LR (water too
+  // saline for the crop to be protected by leaching) adds no depth; it is
+  // surfaced by the improvement detector and the explanation instead.
+  let leachingNote: string | null = null;
+  const eceDsm = soil.qualityReading?.eceDsm ?? soil.nutrientReading?.ec;
+  const ecwDsm = farm.waterQuality?.ecwDsm;
+  const SALINE_SOIL_ECE_DSM = 2.0;
+  if (
+    status === 'Irrigate Today' &&
+    ecwDsm !== undefined &&
+    ecwDsm > 0 &&
+    eceDsm !== undefined &&
+    eceDsm >= SALINE_SOIL_ECE_DSM
+  ) {
+    const lr = leachingRequirement(ecwDsm, crop.name);
+    if (lr !== null && lr > 0) {
+      const grossDepth = nir / METHOD_EFFICIENCY[farm.irrigationMethod];
+      const leached = grossDepth / (1 - lr);
+      const intake = intakeFactor(farm.terrain);
+      water = {
+        depthMm: round(leached, 2),
+        volumeLiters: Math.round(leached * areaM2),
+        durationMinutes: runMinutes(leached, farm.irrigationMethod, intake),
+        flowLitersPerMinute: flowLitersPerMinute(farm.irrigationMethod, areaM2, intake),
+      };
+      leachingNote = leachingSentence(language, lr, leached - grossDepth);
+    }
+  }
+  if (status === 'Irrigate Today' && water.depthMm === 0) {
     const grossDepth = nir / METHOD_EFFICIENCY[farm.irrigationMethod];
     // Slope slows how fast the soil can take water in, so the same depth is
     // applied over a longer run at a lower flow (item 10). Depth and volume are
@@ -832,18 +866,19 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
   const confidence = computeConfidence(weather, now);
 
   // Stage 9 — Explanation
-  const explanation = buildExplanation(
-    {
-      status,
-      cropName: crop.name,
-      growthStage: crop.growthStage,
-      soilName: soil.name,
-      method: farm.irrigationMethod,
-      rainMeaningful: pe > 0,
-      hot: weather ? weather.temperature > WEATHER.T_BASE : false,
-    },
-    language,
-  );
+  const explanation =
+    buildExplanation(
+      {
+        status,
+        cropName: crop.name,
+        growthStage: crop.growthStage,
+        soilName: soil.name,
+        method: farm.irrigationMethod,
+        rainMeaningful: pe > 0,
+        hot: weather ? weather.temperature > WEATHER.T_BASE : false,
+      },
+      language,
+    ) + (leachingNote ?? '');
 
   // Stage 10 — Decision factors (roadmap Feature 4)
   const factors = buildFactors(kc, crop, soil, farm, weather, pe, etcAdj);

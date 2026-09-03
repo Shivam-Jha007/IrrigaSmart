@@ -147,6 +147,25 @@ export interface FertilizerSelection {
 }
 
 /**
+ * Optional lab-test soil chemistry a farmer may hold beyond the Soil Health
+ * Card's N-P-K: saturation-extract salinity (ECe) and exchangeable sodium
+ * percentage (ESP). ECe gates the decision engine's leaching-requirement step;
+ * ESP raises the sodicity warning (V2.2). The Soil Health Card's own EC figure
+ * (`nutrientReading.ec`) is the same quantity and is read as a fallback.
+ *
+ * USER_PROVIDED, like `nutrientReading`. Every field optional — a lab slip may
+ * carry only one of the two.
+ */
+export interface SoilQualityReading {
+  /** Saturation-extract electrical conductivity (ECe), dS/m. */
+  eceDsm?: number;
+  /** Exchangeable sodium percentage, %. */
+  espPct?: number;
+  /** When the farmer entered this reading. ISO 8601. */
+  recordedAt: string;
+}
+
+/**
  * Soil — dominant soil characteristics of a farm (docs/03_Data_Models.md).
  *
  * Categories mirror the qualitative classifications in the Knowledge Base
@@ -163,5 +182,6 @@ export interface Soil {
   measured?: MeasuredSoilProfile;
   nutrientReading?: SoilNutrientReading;
   fertilizerSelection?: FertilizerSelection;
+  qualityReading?: SoilQualityReading;
   sensorReading?: SoilSensorReading;
 }

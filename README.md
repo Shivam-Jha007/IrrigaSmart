@@ -69,7 +69,7 @@ frontend/src/
   services/    Decision engine, knowledge base, weather + API client
   app/         Integration store wiring storage + weather + engine together
   components/  Presentational UI (RecommendationCard, WeatherSummary, nav…)
-  pages/       Dashboard, Farms, History, Settings
+  pages/       Dashboard, Farms, Fertilizer, Settings
 backend/src/
   index.ts     Express app: /health and GET /api/weather
   weather.ts   Open-Meteo provider integration

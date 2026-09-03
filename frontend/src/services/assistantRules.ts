@@ -109,13 +109,13 @@ export interface AssistantContext {
   //
   // A summary of the most recent photo the farmer checked on the Today screen,
   // PRE-WORDED by deterministic code rather than handed to the model as raw
-  // class strings. The verdict's careful phrasing — "looks similar to", never
-  // "has"; similarity %, never probability; no name at all below the
-  // confidence threshold — is a product boundary (docs/12 §Product Boundaries,
-  // docs/14), and it is enforced here, in the sentence itself, so neither
-  // answer path can re-word it into a claim.
+  // class strings. The verdict's wording — the finding named plainly, no
+  // percentages, no name at all below the confidence threshold — is a product
+  // boundary (docs/12 §Product Boundaries, docs/14), and it is enforced here,
+  // in the sentence itself, so neither answer path can re-word it into a
+  // claim the model invented.
 
-  /** Pre-translated verdict sentence, e.g. "The photo looks similar to Rice Blast (72% similar)." */
+  /** Pre-translated verdict sentence, e.g. "The photo shows Rice Blast." */
   photoVerdict?: string;
   /** Which crop the checked photo was of, when it differed from the farm's. */
   photoPlant?: string;
@@ -162,6 +162,28 @@ export interface AssistantContext {
   soilMoistureProvenance?: string;
   /** Pre-translated top farm issues (Phase 3), highest severity first. */
   topIssues?: string[];
+
+  // --- Water & soil quality tests (V2.2) ---
+  //
+  // The farmer's own lab reports, USER_PROVIDED. ECw and ECe together gate the
+  // engine's leaching uplift; the rest are management constraints the
+  // improvement plan flags — the model may quote the figures and interpret
+  // them against the FAO-29 limits, never turn them into a dose or product.
+
+  /** Irrigation-water salinity (ECw), dS/m. */
+  waterEcw?: number;
+  /** Water sodium adsorption ratio. */
+  waterSar?: number;
+  /** Water boron, mg/L. */
+  waterBoron?: number;
+  /** Water bicarbonate, meq/L. */
+  waterBicarbonate?: number;
+  /** Water pH. */
+  waterPh?: number;
+  /** Soil saturation-extract salinity (ECe), dS/m. */
+  soilEce?: number;
+  /** Soil exchangeable sodium percentage, %. */
+  soilEsp?: number;
 
   // --- Soil fertility: the farmer's own Soil Health Card reading ---
   //
@@ -225,6 +247,12 @@ export interface AssistantContext {
 export interface RuleAnswer {
   answer: string;
   intent: AssistantIntent;
+  /**
+   * An app destination the answer points at, rendered as a tappable button by
+   * the chat panel. Set only when the answer's advice has a screen for it —
+   * the offline rules never name a destination the app does not have.
+   */
+  action?: 'fertilizer';
 }
 
 /**
@@ -284,14 +312,18 @@ const REFERRAL_TERMS = [
   // adding the same "no exact quantity" caution — an estimate-then-caution
   // answer is more useful than an instant refusal, and the app does have
   // relevant figures to offer even though it cannot name a rate.
+  //
+  // 'dose'/'dosage' are NOT here, deliberately (V2.2): a farmer asking about a
+  // DOSE almost always means fertiliser ("what dose of NPK for rice?"), which
+  // is answerable from the official schedule. Plant-protection dose questions
+  // still land here through their own words — 'spray', 'medicine', 'दवा' —
+  // which this first-match table always wins with.
   'spray',
   'fungicide',
   'pesticide',
   'insecticide',
   'chemical',
   'medicine',
-  'dose',
-  'dosage',
   'seed variety',
   'which seed',
   'market price',
@@ -361,6 +393,18 @@ const FERTILITY_TERMS = [
   'nutrient',
   'manure',
   'compost',
+  // Dose language, moved here from the referral table in V2.2: the dose a
+  // farmer asks about is fertiliser, now quotable from the official schedule.
+  // Deliberately EXCLUDES quantity-words like 'मात्रা'/'মাত্রা', which also
+  // modify water ("पानी की मात्रा") and would swallow amount questions —
+  // fertility is matched before amount in classify().
+  'dose',
+  'dosage',
+  'khurak',
+  'खुराक',
+  'ডোজ',
+  'খুরাক',
+  'خوراک',
   'improve soil',
   'improve my soil',
   'improve the soil',
@@ -1065,11 +1109,26 @@ export function answerFromRules(
     phDirection !== undefined && context.phAltCrops && context.phAltCrops.length > 0
       ? line('assistant.rule.phAlts', { crops: context.phAltCrops.slice(0, 3).join(', ') })
       : undefined;
+  // The mirror of the amendment line: pH known, optima known, and INSIDE the
+  // band. A farmer with suitable soil asked "how do I improve my soil?" was
+  // told what the bot cannot do (the old refusal close) when the honest answer
+  // is that nothing needs correcting — say that, then the soil-test next step.
+  const phSuitable =
+    phDirection === undefined &&
+    context.soilPh !== undefined &&
+    context.phOptimalMin !== undefined &&
+    context.phOptimalMax !== undefined;
 
   switch (intent) {
     case 'today': {
       if (!context.status && context.depthMm === undefined) return null;
       const status = context.status ?? line('assistant.briefing.noRecommendation');
+      // V2.2 interactive pack: the today-answer is an action list, not just a
+      // water figure. Everything appended here is a fact the dashboard already
+      // shows (top issue, weather-favoured disease with its scouting hint,
+      // saved schedule), so the offline answer and the screen cannot disagree.
+      // The schedule line — and its deep-link action — earn their place only
+      // when a schedule actually resolved for this crop.
       return {
         intent,
         answer: sentences(
@@ -1088,8 +1147,24 @@ export function answerFromRules(
           context.durationMinutes === undefined || context.durationMinutes <= 0
             ? undefined
             : line('assistant.rule.amountRun', { minutes: Math.round(context.durationMinutes) }),
+          context.topIssues === undefined || context.topIssues.length === 0
+            ? undefined
+            : line('assistant.rule.todayIssue', { issue: context.topIssues[0]! }),
+          context.diseaseName === undefined ||
+          context.diseaseRiskLevel === undefined ||
+          context.diseaseWhere === undefined
+            ? undefined
+            : line('assistant.rule.todayDisease', {
+                disease: context.diseaseName,
+                level: context.diseaseRiskLevel,
+                where: context.diseaseWhere,
+              }),
+          context.fertScheduleNpk === undefined
+            ? undefined
+            : line('assistant.rule.todaySchedule'),
           context.explanation,
         ),
+        ...(context.fertScheduleNpk !== undefined ? { action: 'fertilizer' as const } : {}),
       };
     }
 
@@ -1232,18 +1307,26 @@ export function answerFromRules(
         intent,
         answer: sentences(
           hasEstimate ? undefined : line('assistant.rule.fertilityNoEstimate'),
-          flaggedIssue,
+          // The soil's own state leads — it is the direct answer to "how do I
+          // improve my soil". The farmer's own reading outranks the map, and
+          // the flagged issue follows the state it is about instead of opening
+          // the answer with a negative (the transcript complaint).
           nutrientReading,
           phEstimate,
+          phSuitable ? line('assistant.rule.fertilitySuitable') : undefined,
           amendLine,
           altsLine,
           carbonEstimate,
+          flaggedIssue,
           schedule,
-          // With a schedule quoted, the closing line confirms rather than
-          // refuses; without one the no-quantity rule still gets said plainly.
+          // Closing by case: schedule quoted → confirm with KVK; suitable pH
+          // with nothing to quote → the soil-test next step; nothing known at
+          // all → the plain no-quantity rule still gets said.
           schedule !== undefined
             ? line('assistant.rule.fertScheduleNote')
-            : line('assistant.rule.fertilityAdvice'),
+            : phSuitable
+              ? line('assistant.rule.fertilityTestNext')
+              : line('assistant.rule.fertilityAdvice'),
         ),
       };
     }
@@ -1345,10 +1428,6 @@ export function answerFromRules(
         intent,
         answer: sentences(
           context.photoVerdict,
-          // Unconditional: the photo result is a resemblance, and a farmer
-          // acting on it must hear that in the same breath (docs/12 §Product
-          // Boundaries, docs/14).
-          line('assistant.rule.photoAnswer'),
           line('assistant.rule.photoNext'),
         ),
       };

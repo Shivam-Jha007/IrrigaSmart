@@ -376,10 +376,10 @@ export type VisionVerdict =
    * leaves it does not recognise: over ten field photographs of diseased plants
    * it was never trained on, it chose that class for both onion photographs at
    * 89% and 96% confidence. Rendered through the shared path, a farmer holding a
-   * visibly diseased onion leaf read "this leaf looks similar to healthy leaves
-   * (96% similar)" with a mismatch note above it — a confident all-clear on a sick
-   * plant, which is a worse outcome than a wrong disease name because it ends the
-   * investigation instead of misdirecting it.
+   * visibly diseased onion leaf read a confident healthy verdict with a mismatch
+   * note above it — an all-clear on a sick plant, which is a worse outcome than
+   * a wrong disease name because it ends the investigation instead of
+   * misdirecting it.
    *
    * A healthy reading for a plant the farmer is not growing is evidence about
    * nothing. This kind exists so the component cannot state otherwise. The full

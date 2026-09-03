@@ -6,8 +6,10 @@ import { getDepletionFraction, getKc } from '../knowledgeBase';
 import {
   makeCrop,
   makeDaily,
+  makeDepletion,
   makeFarm,
   makeSoil,
+  makeWaterQuality,
   makeWeather,
   NOW,
   SCENARIOS,
@@ -381,6 +383,130 @@ describe('decision engine — determinism', () => {
     expect(result.ok).toBe(true);
     if (!result.ok || !result.waterBalance) throw new Error('expected a water balance');
     expect(result.waterBalance.carryValidAsOfDate < TODAY).toBe(true);
+  });
+});
+
+describe('decision engine — salinity leaching uplift (V2.2)', () => {
+  /**
+   * The FAO-29 step: when the farmer's water test (ECw) and soil test (ECe)
+   * BOTH say salts are a live problem, the irrigate-today depth is raised by
+   * the crop-specific leaching requirement. The gates matter as much as the
+   * formula — a water report alone on a healthy field adds nothing.
+   */
+  // 'dry' with a deep depletion: rolling yesterday's 150mm forward with one
+  // day of demand lands past Loamy's 78mm RAW for wheat-mid, guaranteeing the
+  // Irrigate Today branch. The first test re-asserts that premise, so a future
+  // fixture change fails here loudly instead of quietly testing the Monitor
+  // branch's (empty) water figures.
+  const dry = SCENARIOS.find((s) => s.key === 'dry') ?? SCENARIOS[0]!;
+  const deepDepletion = makeDepletion(150);
+
+  function runWithTests(
+    waterQuality: { ecwDsm?: number },
+    qualityReading: { eceDsm?: number } | undefined,
+  ) {
+    return generateRecommendation({
+      farm: makeFarm({ waterQuality: makeWaterQuality(waterQuality) }),
+      crop: makeCrop('Wheat', 'Mid Season'),
+      soil: makeSoil(
+        'Loamy',
+        qualityReading ? { recordedAt: NOW, ...qualityReading } : undefined,
+      ),
+      weather: dry.weather,
+      daily: dry.daily,
+      depletionState: deepDepletion,
+      waterLedger: null,
+      now: NOW,
+      language: 'en',
+    });
+  }
+
+  it('adds depth when ECw and ECe both say the field is saline', () => {
+    const plain = runWithTests({}, undefined);
+    const saline = runWithTests({ ecwDsm: 1.0 }, { eceDsm: 4.0 });
+    if (!plain.ok || !saline.ok) throw new Error('expected both results');
+    // Guard the premise: this scenario must actually irrigate, or the water
+    // figures under test are the zeros of the Monitor branch.
+    expect(plain.recommendation.status).toBe('Irrigate Today');
+    expect(plain.recommendation.estimatedWaterAmount.depthMm).toBeGreaterThan(0);
+    // Wheat threshold 6.0: LR = 1.0/(30−1) ≈ 0.0345 → depth / (1−LR).
+    const lr = 1.0 / (5 * 6.0 - 1.0);
+    expect(saline.recommendation.estimatedWaterAmount.depthMm).toBeCloseTo(
+      plain.recommendation.estimatedWaterAmount.depthMm / (1 - lr),
+      1,
+    );
+    // The farmer is told WHY, with the FAO-29 attribution.
+    expect(saline.recommendation.explanation).toContain('salt');
+    expect(saline.recommendation.explanation).toContain('FAO-29');
+  });
+
+  it('adds nothing when the water report is the only saline figure', () => {
+    // ECw 1.0 on a non-saline soil (no ECe entered): leaching is a response to
+    // a saline FIELD, not to a water report alone.
+    const plain = runWithTests({}, undefined);
+    const waterOnly = runWithTests({ ecwDsm: 1.0 }, undefined);
+    if (!plain.ok || !waterOnly.ok) throw new Error('expected both results');
+    expect(waterOnly.recommendation.estimatedWaterAmount.depthMm).toBe(
+      plain.recommendation.estimatedWaterAmount.depthMm,
+    );
+    expect(waterOnly.recommendation.explanation).not.toContain('salt');
+  });
+
+  it('adds nothing without any tests at all', () => {
+    // The pre-V2.2 behaviour, byte for byte: every farm without lab data must
+    // see exactly the depth it always saw. Compared against the same scenario
+    // AND the same deep depletion, so only the absent tests differ.
+    const plain = runWithTests({}, undefined);
+    if (!plain.ok) throw new Error('expected a result');
+    const legacy = generateRecommendation({
+      farm: makeFarm(),
+      crop: makeCrop('Wheat', 'Mid Season'),
+      soil: makeSoil('Loamy'),
+      weather: dry.weather,
+      daily: dry.daily,
+      depletionState: deepDepletion,
+      waterLedger: null,
+      now: NOW,
+      language: 'en',
+    });
+    expect(digest(legacy)).toBe(digest(plain));
+  });
+
+  it('adds nothing when the soil is saline but no water test exists', () => {
+    const plain = runWithTests({}, undefined);
+    const soilOnly = runWithTests({}, { eceDsm: 4.0 });
+    if (!plain.ok || !soilOnly.ok) throw new Error('expected both results');
+    expect(soilOnly.recommendation.estimatedWaterAmount.depthMm).toBe(
+      plain.recommendation.estimatedWaterAmount.depthMm,
+    );
+  });
+
+  it('falls back to the Soil Health Card EC figure as the soil ECe', () => {
+    // The card's EC field IS the saturation-extract value; a farmer who entered
+    // it on the Fertilizer page gets the leaching protection without retyping.
+    // n/p/k are required by the card's type but unused by this path.
+    const viaCard = generateRecommendation({
+      farm: makeFarm({ waterQuality: makeWaterQuality({ ecwDsm: 1.0 }) }),
+      crop: makeCrop('Wheat', 'Mid Season'),
+      soil: makeSoil('Loamy', undefined, {
+        n: 240,
+        p2o5: 12,
+        k2o: 150,
+        recordedAt: NOW,
+        ec: 4.0,
+      }),
+      weather: dry.weather,
+      daily: dry.daily,
+      depletionState: deepDepletion,
+      waterLedger: null,
+      now: NOW,
+      language: 'en',
+    });
+    const viaQuality = runWithTests({ ecwDsm: 1.0 }, { eceDsm: 4.0 });
+    if (!viaCard.ok || !viaQuality.ok) throw new Error('expected both results');
+    expect(viaCard.recommendation.estimatedWaterAmount.depthMm).toBe(
+      viaQuality.recommendation.estimatedWaterAmount.depthMm,
+    );
   });
 });
 

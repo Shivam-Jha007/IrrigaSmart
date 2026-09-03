@@ -282,19 +282,40 @@ describe('describeContext — absent fields leave no trace', () => {
     expect(facts.join('\n')).toContain('rough');
   });
 
-  it('quotes a photo-check verdict as a resemblance, never a diagnosis', () => {
-    // V2.2: the leaf-photo verdict arrives pre-worded by the client because the
-    // wording IS the boundary. The fact line must carry the resemblance rule
-    // alongside the sentence, so no re-wording can quietly turn it into "the
-    // crop has X".
+  it('quotes the quality fact line with its FAO-29 limits when tests exist', () => {
+    // V2.2: the farmer's own water and soil tests reach the prompt with the
+    // limits they are judged against, so the model interprets rather than
+    // guesses. Absent tests leave no line, like every other fact.
     const line = describeContext(
       context({
-        photoVerdict: 'The photo looks similar to Rice Blast (72% similar).',
+        waterEcw: 1.2,
+        soilEce: 4.1,
+        waterSar: 5.5,
+        waterBoron: 1.1,
+      }),
+    ).find((fact) => fact.includes('Soil and water tests'));
+    expect(line).toContain('ECw 1.2 dS/m');
+    expect(line).toContain('ECe 4.1 dS/m');
+    expect(line).toContain('SAR 5.5');
+    expect(line).toContain('boron 1.1 mg/L');
+    expect(line).toContain('FAO-29');
+    expect(line).toContain('never name a corrective product or dose');
+    expect(describeContext(context()).join('\n')).not.toContain('Soil and water tests');
+  });
+
+  it('quotes a photo-check verdict plainly, with no percentage license', () => {
+    // V2.2: the leaf-photo verdict arrives pre-worded by the client because the
+    // wording IS the boundary. The fact line must carry the no-percentages rule
+    // alongside the sentence, so no re-wording can quietly attach a confidence
+    // figure the app never shows the farmer.
+    const line = describeContext(
+      context({
+        photoVerdict: 'The photo shows Rice Blast.',
         photoPlant: 'rice',
       }),
     ).find((fact) => fact.includes('leaf-photo check'));
-    expect(line).toContain('The photo looks similar to Rice Blast (72% similar)');
-    expect(line).toContain('RESEMBLANCE, not a diagnosis');
+    expect(line).toContain('The photo shows Rice Blast.');
+    expect(line).toContain('never attach a percentage');
     expect(line).toContain('rice leaf');
     // Absent when no check happened — a missing photo is not a photo fact.
     expect(describeContext(context()).join('\n')).not.toContain('leaf-photo check');
@@ -643,6 +664,30 @@ describe('buildSystemPrompt', () => {
     const prompt = buildSystemPrompt(undefined);
     expect(prompt).toContain('WHERE THE FACTS BELOW COME FROM');
     expect(prompt).toContain('RULES YOU MUST FOLLOW ABOUT THOSE LABELS');
+  });
+
+  it('injects retrieved app knowledge with its source', () => {
+    // V2.2 RAG foundation: matched corpus entries appear as an APP KNOWLEDGE
+    // section, each line carrying its source so the model can cite it.
+    const prompt = buildSystemPrompt(context(), [
+      {
+        id: 'crop.rice.water',
+        text: 'Rice has a crop coefficient of 1.2 in mid season.',
+        source: 'FAO-56 Tables 12 and 22, as used by the app',
+        keywords: ['rice'],
+      },
+    ]);
+    expect(prompt).toContain('APP KNOWLEDGE');
+    expect(prompt).toContain('crop coefficient of 1.2');
+    expect(prompt).toContain('[FAO-56 Tables 12 and 22');
+    expect(prompt).toContain('ground your answer in it');
+  });
+
+  it('omits the knowledge section entirely when nothing matched', () => {
+    // An empty section header invites the model to imagine its contents. The
+    // RULES text mentions "APP KNOWLEDGE" unconditionally, so the assertion
+    // targets the section HEADER, which exists only when entries were passed.
+    expect(buildSystemPrompt(context())).not.toContain('APP KNOWLEDGE (');
   });
 });
 

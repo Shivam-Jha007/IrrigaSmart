@@ -26,11 +26,12 @@ import type {
  * v3 → + waterLedger store (per-day advised/applied/saved water tracking);
  * v4 → no new stores; forces the idempotent upgrade below to run once on every
  * existing client, repairing any schema drift (see `upgrade`);
- * v5 → + depletionState store (root-zone water balance, Decision Logic §4b).
+ * v5 → + depletionState store (root-zone water balance, Decision Logic §4b);
+ * v6 → + assistantChat store (V2.2 conversation persistence, single record).
  */
 
 export const DB_NAME = 'irrigasmart';
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 /** Key for the single application settings record. */
 export const SETTINGS_KEY = 'app';
@@ -102,6 +103,41 @@ export interface IrrigaSmartDB extends DBSchema {
     key: string;
     value: DepletionState;
   };
+  assistantChat: {
+    key: string;
+    value: AssistantChatRecord;
+  };
+}
+
+/**
+ * One message of the persisted assistant conversation.
+ *
+ * A STRUCTURAL TWIN of the panel's Message shape and of the service layer's
+ * `AssistantSource` / `AssistantActionTarget` unions, written out here because
+ * storage sits below services and must not import from them (the same
+ * wire-contract discipline the two AssistantContext copies follow). The unions
+ * are closed and small; if either grows, grow this with it.
+ */
+export interface AssistantChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+  /** Only on assistant messages: which path answered. */
+  source?: 'rules' | 'claude' | 'unavailable';
+  /** Only on rule answers whose advice has a screen for it. */
+  action?: 'fertilizer';
+}
+
+/**
+ * The persisted assistant conversation — a single record keyed by
+ * ASSISTANT_CHAT_KEY. One transcript, not one per farm: the panel is a single
+ * floating conversation across tabs and farms, and splitting it would either
+ * drop context mid-conversation or splice farms together anyway.
+ */
+export interface AssistantChatRecord {
+  id: string;
+  messages: AssistantChatMessage[];
+  /** When the transcript was last written. ISO 8601. */
+  updatedAt: string;
 }
 
 let dbPromise: Promise<IDBPDatabase<IrrigaSmartDB>> | null = null;
@@ -213,6 +249,11 @@ export function getDb(): Promise<IDBPDatabase<IrrigaSmartDB>> {
         // V1.6 — Root-zone depletion state per farm.
         if (!db.objectStoreNames.contains('depletionState')) {
           db.createObjectStore('depletionState', { keyPath: 'farmId' });
+        }
+
+        // V2.2 — Assistant conversation persistence (single record).
+        if (!db.objectStoreNames.contains('assistantChat')) {
+          db.createObjectStore('assistantChat', { keyPath: 'id' });
         }
       },
       blocked() {

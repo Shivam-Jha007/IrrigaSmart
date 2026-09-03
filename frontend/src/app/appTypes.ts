@@ -1,4 +1,4 @@
-import type { Crop, Farm, Farmer, Recommendation, Settings, Soil } from '../types';
+import type { Crop, Farm, Farmer, Recommendation, Settings, Soil, SoilQualityReading, WaterQualityReading } from '../types';
 import type { DiseaseRiskAssessment, IrrigationPlan, WaterBalanceState } from '../services';
 
 /**
@@ -24,6 +24,10 @@ export interface FarmDraft {
   growthStage: Crop['growthStage'];
   soilType: Soil['name'];
   irrigationMethod: Farm['irrigationMethod'];
+  /** Optional soil lab tests (V2.2). Absent = none entered; cleared = remove. */
+  qualityTests?: SoilQualityReading;
+  /** Optional irrigation-water lab tests (V2.2). Absent = none entered. */
+  waterTests?: WaterQualityReading;
 }
 
 export interface AppData {

@@ -343,6 +343,24 @@ On the V1.6 primary path `NIR = Dr`, so the gross depth is exactly the amount th
 
 Both the **depth (mm)** and the **volume (liters)** are returned. The UI decides which to emphasize; units are metric (see Assumptions).
 
+## Step 6a — Salinity Leaching Uplift (V2.2)
+
+Applied on top of the gross depth, only when BOTH farmer-entered test figures say salts are a live problem:
+
+```
+if waterQuality.ECw exists AND soil ECe ≥ 2.0 dS/m:
+        LR     = ECw / (5 × ECe_threshold(crop) − ECw)     // FAO-29 eq. 9
+        depth  = grossDepth / (1 − LR)                      // when LR ≤ 0.9
+        // LR > 0.9 or a non-positive denominator: no uplift; the water-quality
+        // improvement issue tells the farmer the water does not suit this crop.
+```
+
+- `ECe_threshold(crop)` is the crop's FAO-29 Table 1 (Maas & Hoffman 1977) yield-decline threshold, transcribed in `services/waterQuality.ts` — per crop, not a blanket number: onion tolerates 1.3 dS/m, cotton 7.7, so the same water demands six times the leaching fraction on one as the other.
+- The **ECe gate** (≥ 2.0 dS/m, from the soil's own quality reading or the Soil Health Card's EC field) matters as much as the formula: leaching responds to a saline FIELD irrigated with saline water, not to a water report alone. An ECw above zero on a non-saline field is normal and adds nothing.
+- Only the threshold — the conservative end of the Maas-Hoffman piecewise curve — is used, so the extra water protects full yield rather than accepting decline.
+- The explanation appends one sentence naming the leaching fraction and the extra mm, attributed to FAO-29, in the farmer's language.
+- Absent either test: byte-for-byte the pre-V2.2 behaviour (tested).
+
 ---
 
 # Step 7 — Recommended Time

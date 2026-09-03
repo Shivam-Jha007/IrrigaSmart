@@ -9,6 +9,7 @@ import {
 } from '../i18n';
 import { isKnown, type FarmContext } from './farmContext';
 import { fertilizerCoversCrop } from './fertilizerKnowledge';
+import { leachingRequirement } from './waterQuality';
 import { isFieldMeasurement } from './provenance';
 import { isSurfaceMethod, surfaceMethodWarned } from './slopeAdjustment';
 import { soilTypeFromTexture } from './soilProfile';
@@ -108,7 +109,8 @@ export type FarmIssueId =
   | 'low-retention-surface-method'
   | 'disease-pressure'
   | 'stale-advice'
-  | 'fertilizer-table-missing';
+  | 'fertilizer-table-missing'
+  | 'water-quality';
 
 export interface FarmIssue {
   id: FarmIssueId;
@@ -414,6 +416,77 @@ const fertilizerTableMissing: Detector = (fc) => {
 };
 
 /**
+ * Irrigation-water or soil chemistry beyond what the engine acts on
+ * numerically (V2.2).
+ *
+ * FIRES ONLY ON THE FARMER'S OWN TEST VALUES, all `USER_PROVIDED`, so the
+ * comparisons carry `High` confidence. The thresholds are FAO-29 Table 1/12
+ * and its Indian-extension adaptations (the values your reference table also
+ * cites): SAR > 3 with ECw < 0.7 risks sodium build-up; boron > 0.7 mg/L is
+ * toxic to sensitive crops; bicarbonate > 1.5 meq/L clogs emitters with white
+ * scale; ESP > 5% closes soil pores; and an ECw the crop's own FAO-29
+ * tolerance cannot be leached against is unusable for that crop.
+ *
+ * ONE DETECTOR, NOT SIX: a single test slip usually trips several thresholds
+ * at once (saline water is often sodic and boronic too), and six separate
+ * cards would be one problem announced six times. The worst breach sets the
+ * severity; the explanation lists every breach the tests showed.
+ */
+const WATER_QUALITY_LIMITS = {
+  sar: 3,
+  boronMgl: 0.7,
+  bicarbonateMeql: 1.5,
+  espPct: 5,
+} as const;
+
+const waterQuality: Detector = (fc) => {
+  // The thresholds compared against exist only in the codebase's own vetted
+  // table, so these literals belong in the detector.
+  const water = fc.water;
+  const breaches: Array<{ key: string; value: number }> = [];
+  if (isKnown(water.qualitySar) && water.qualitySar.value > WATER_QUALITY_LIMITS.sar) {
+    breaches.push({ key: 'sar', value: water.qualitySar.value });
+  }
+  if (isKnown(water.qualityBoron) && water.qualityBoron.value > WATER_QUALITY_LIMITS.boronMgl) {
+    breaches.push({ key: 'boron', value: water.qualityBoron.value });
+  }
+  if (
+    isKnown(water.qualityBicarbonate) &&
+    water.qualityBicarbonate.value > WATER_QUALITY_LIMITS.bicarbonateMeql
+  ) {
+    breaches.push({ key: 'bicarbonate', value: water.qualityBicarbonate.value });
+  }
+  if (isKnown(water.soilEsp) && water.soilEsp.value > WATER_QUALITY_LIMITS.espPct) {
+    breaches.push({ key: 'esp', value: water.soilEsp.value });
+  }
+  // An ECw too saline for THIS crop to be leached against (leachingRequirement
+  // returns null) is the one breach that outranks the others: no amount of
+  // extra water makes that water safe for that crop.
+  let unusableWater = false;
+  if (isKnown(water.qualityEc) && isKnown(fc.crop.name)) {
+    unusableWater = leachingRequirement(water.qualityEc.value, fc.crop.name.value) === null;
+    if (unusableWater) breaches.push({ key: 'ecw', value: water.qualityEc.value });
+  }
+  if (breaches.length === 0) return null;
+
+  const summary = breaches
+    .map(({ key, value }) => `${key} ${value > 10 ? Math.round(value) : value}`)
+    .join(', ');
+  return {
+    id: 'water-quality',
+    category: 'WATER',
+    severity: unusableWater || breaches.length >= 3 ? 'HIGH' : 'MEDIUM',
+    titleKey: 'improve.waterQuality.title',
+    explanationKey: 'improve.waterQuality.explain',
+    actionKeys: ['improve.waterQuality.action'],
+    vars: { breaches: summary },
+    labelVars: {},
+    // Every value is the farmer's own lab number.
+    confidence: 'High',
+  };
+};
+
+/**
  * The detectors, in the order that breaks a severity-and-confidence tie.
  *
  * The order is part of the contract, not an accident of how the file grew: it
@@ -431,6 +504,7 @@ const DETECTORS: readonly Detector[] = [
   diseasePressure,
   staleAdvice,
   fertilizerTableMissing,
+  waterQuality,
 ];
 
 /**
