@@ -1,4 +1,4 @@
-import type { Crop, Farm, Farmer, Recommendation, Settings, Soil } from '../types';
+import type { Crop, Farm, Farmer, Recommendation, Settings, Soil, SoilQualityReading, WaterQualityReading } from '../types';
 import type { DiseaseRiskAssessment, IrrigationPlan, WaterBalanceState } from '../services';
 
 /**
@@ -24,6 +24,10 @@ export interface FarmDraft {
   growthStage: Crop['growthStage'];
   soilType: Soil['name'];
   irrigationMethod: Farm['irrigationMethod'];
+  /** Optional soil lab tests (V2.2). Absent = none entered; cleared = remove. */
+  qualityTests?: SoilQualityReading;
+  /** Optional irrigation-water lab tests (V2.2). Absent = none entered. */
+  waterTests?: WaterQualityReading;
 }
 
 export interface AppData {
@@ -31,6 +35,28 @@ export interface AppData {
   profiles: FarmProfile[];
   settings: Settings;
 }
+
+/**
+ * Where a farm's measured soil profile has got to, for the cards that would
+ * otherwise have to render a bare "unavailable".
+ *
+ * The profile is fetched in the background and can take tens of seconds, so
+ * "not here yet" and "will never be here" look identical on screen unless the
+ * store says which. It reported neither before, which is why the pH card
+ * appeared broken rather than pending: `pending` and `unreachable` were both
+ * indistinguishable from `noData`.
+ *
+ * Deliberately NOT persisted. It is a fact about the last attempt, not about the
+ * soil, and a stored copy would still be claiming an outage long after the
+ * provider recovered.
+ */
+export type SoilFetchStatus =
+  /** A background fetch is in flight for this soil record. */
+  | 'pending'
+  /** The backend could not be reached; nothing is known, and this will retry. */
+  | 'unreachable'
+  /** The provider answered and has no usable profile for this coordinate. */
+  | 'noData';
 
 /** Recommendation plus the weather it was based on, for display. */
 export interface RecommendationView {

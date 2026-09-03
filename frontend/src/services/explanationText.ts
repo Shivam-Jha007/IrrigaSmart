@@ -224,9 +224,23 @@ interface SentenceTemplates {
   irrigate(v: SentenceVocab, parts: ExplanationParts): string;
 }
 
+/**
+ * Soils on which rain moisture drains past the root zone fastest. The delay
+ * sentence's soil clause must be TRUE for the soil it names: telling a farmer
+ * on sand that "this moisture stays available longer" (the pre-V2.2 wording,
+ * identical for every soil) is the opposite of what sand does with water.
+ * The clause branches on this set — light soils get a check-again-tomorrow
+ * warning, water-holding soils get the holds-well reassurance.
+ */
+const LIGHT_SOILS: ReadonlySet<SoilType> = new Set<SoilType>(['Sandy', 'Sandy Loam']);
+
 const EN_TEMPLATES: SentenceTemplates = {
   delay: (v, p) =>
-    `Rain expected today is enough to meet your ${v.crops[p.cropName]}'s needs, so you can delay irrigation. On ${v.soils[p.soilName]} soil this moisture stays available longer.`,
+    `Rain expected today is enough to meet your ${v.crops[p.cropName]}'s needs, so you can delay irrigation. ${
+      LIGHT_SOILS.has(p.soilName)
+        ? `On ${v.soils[p.soilName]} soil moisture drains quickly, so check the crop again tomorrow.`
+        : `Your ${v.soils[p.soilName]} soil holds this moisture well.`
+    }`,
   monitor: (v, p) =>
     `Your ${v.crops[p.cropName]} in the ${v.stages[p.growthStage]} stage needs only a little water today, and your ${v.soils[p.soilName]} soil (${v.soilFrequency[p.soilName]} watering) can hold it. Check again tomorrow.`,
   irrigate: (v, p) => {
@@ -240,7 +254,11 @@ const EN_TEMPLATES: SentenceTemplates = {
 
 const HI_TEMPLATES: SentenceTemplates = {
   delay: (v, p) =>
-    `आज अनुमानित बारिश आपकी ${v.crops[p.cropName]} फ़सल की ज़रूरत के लिए काफ़ी है, इसलिए आप सिंचाई टाल सकते हैं। ${v.soils[p.soilName]} मिट्टी में यह नमी ज़्यादा देर तक बनी रहती है।`,
+    `आज अनुमानित बारिश आपकी ${v.crops[p.cropName]} फ़सल की ज़रूरत के लिए काफ़ी है, इसलिए आप सिंचाई टाल सकते हैं। ${
+      LIGHT_SOILS.has(p.soilName)
+        ? `${v.soils[p.soilName]} मिट्टी में नमी जल्दी सूख जाती है, इसलिए कल फ़सल फिर देखें।`
+        : `आपकी ${v.soils[p.soilName]} मिट्टी यह नमी अच्छी तरह रोक लेती है।`
+    }`,
   monitor: (v, p) =>
     `${v.stages[p.growthStage]} अवस्था में आपकी ${v.crops[p.cropName]} फ़सल को आज बहुत कम पानी चाहिए, और आपकी ${v.soils[p.soilName]} मिट्टी (${v.soilFrequency[p.soilName]} सिंचाई) इसे संभाल सकती है। कल फिर जाँचें।`,
   irrigate: (v, p) => {
@@ -254,7 +272,11 @@ const HI_TEMPLATES: SentenceTemplates = {
 
 const BN_TEMPLATES: SentenceTemplates = {
   delay: (v, p) =>
-    `আজকের পূর্বাভাসিত বৃষ্টি আপনার ${v.crops[p.cropName]} ফসলের প্রয়োজন মেটাতে যথেষ্ট, তাই আপনি সেচ পিছিয়ে দিতে পারেন। ${v.soils[p.soilName]} মাটিতে এই আর্দ্রতা বেশি দিন ধরে থাকে।`,
+    `আজকের পূর্বাভাসিত বৃষ্টি আপনার ${v.crops[p.cropName]} ফসলের প্রয়োজন মেটাতে যথেষ্ট, তাই আপনি সেচ পিছিয়ে দিতে পারেন। ${
+      LIGHT_SOILS.has(p.soilName)
+        ? `${v.soils[p.soilName]} মাটিতে আর্দ্রতা দ্রুত শুকিয়ে যায়, তাই কাল ফসল আবার দেখুন।`
+        : `আপনার ${v.soils[p.soilName]} মাটি এই আর্দ্রতা ভালোভাবে ধরে রাখে।`
+    }`,
   monitor: (v, p) =>
     `${v.stages[p.growthStage]} পর্যায়ে আপনার ${v.crops[p.cropName]} ফসলের আজ খুব অল্প জল প্রয়োজন, আর আপনার ${v.soils[p.soilName]} মাটি (${v.soilFrequency[p.soilName]} সেচ) তা ধরে রাখতে পারে। আগামীকাল আবার দেখুন।`,
   irrigate: (v, p) => {
@@ -268,7 +290,11 @@ const BN_TEMPLATES: SentenceTemplates = {
 
 const UR_TEMPLATES: SentenceTemplates = {
   delay: (v, p) =>
-    `آج متوقع بارش آپ کی ${v.crops[p.cropName]} کی ضرورت پوری کرنے کے لیے کافی ہے، اس لیے آپ آبپاشی مؤخر کر سکتے ہیں۔ ${v.soils[p.soilName]} مٹی میں یہ نمی زیادہ دیر تک دستیاب رہتی ہے۔`,
+    `آج متوقع بارش آپ کی ${v.crops[p.cropName]} کی ضرورت پوری کرنے کے لیے کافی ہے، اس لیے آپ آبپاشی مؤخر کر سکتے ہیں۔ ${
+      LIGHT_SOILS.has(p.soilName)
+        ? `${v.soils[p.soilName]} مٹی میں نمی جلد خشک ہو جاتی ہے، اس لیے کل فصل دوبارہ دیکھیں۔`
+        : `آپ کی ${v.soils[p.soilName]} مٹی یہ نمی اچھی طرح روک لیتی ہے۔`
+    }`,
   monitor: (v, p) =>
     `${v.stages[p.growthStage]} مرحلے میں آپ کی ${v.crops[p.cropName]} کو آج بہت کم پانی درکار ہے، اور آپ کی ${v.soils[p.soilName]} مٹی (${v.soilFrequency[p.soilName]} آبپاشی) اسے سنبھال سکتی ہے۔ کل دوبارہ دیکھیں۔`,
   irrigate: (v, p) => {
@@ -300,4 +326,30 @@ export function buildExplanation(parts: ExplanationParts, language: Language): s
     case 'Irrigate Today':
       return templates.irrigate(vocab, parts);
   }
+}
+
+/**
+ * The V2.2 salinity-leaching sentence, appended to an Irrigate Today
+ * explanation when the farmer's water and soil tests triggered a leaching
+ * uplift. Its own factory rather than a template: it applies to one status
+ * only, and the numbers (leaching fraction, extra mm) come from the engine's
+ * own computation, not from the ExplanationParts vocabulary.
+ */
+const LEACHING_SENTENCE: Record<Language, (lrFraction: number, extraMm: number) => string> = {
+  en: (lr, extra) =>
+    ` Your water and soil tests show salt build-up, so ${Math.round(lr * 100)}% extra water (${extra.toFixed(1)} mm) is included to wash salts below the roots (FAO-29).`,
+  hi: (lr, extra) =>
+    ` आपकी पानी और मिट्टी की जाँच में लवण जमाव है, इसलिए जड़ों से नीचे लवण धोने के लिए ${Math.round(lr * 100)}% अतिरिक्त पानी (${extra.toFixed(1)} मिमी) जोड़ा गया है (FAO-29)।`,
+  bn: (lr, extra) =>
+    ` আপনার জল ও মাটির পরীক্ষায় লবণ জমা দেখা যাচ্ছে, তাই শিকড়ের নিচে লবণ ধুয়ে দিতে ${Math.round(lr * 100)}% বাড়তি জল (${extra.toFixed(1)} মিমি) যোগ করা হয়েছে (FAO-29)।`,
+  // Assamese renders through the English templates (see VOCAB above).
+  as: (lr, extra) =>
+    ` Your water and soil tests show salt build-up, so ${Math.round(lr * 100)}% extra water (${extra.toFixed(1)} mm) is included to wash salts below the roots (FAO-29).`,
+  ur: (lr, extra) =>
+    ` آپ کی پانی اور مٹی کی جانچ میں نمکیات کا جمع ہے، اس لیے جڑوں کے نیچے نمکیات دھونے کے لیے ${Math.round(lr * 100)}% اضافی پانی (${extra.toFixed(1)} ملی میٹر) شامل کیا گیا ہے (FAO-29)۔`,
+};
+
+/** The leaching sentence for one language (V2.2; see LEACHING_SENTENCE). */
+export function leachingSentence(language: Language, lrFraction: number, extraMm: number): string {
+  return (LEACHING_SENTENCE[language] ?? LEACHING_SENTENCE.en)(lrFraction, extraMm);
 }

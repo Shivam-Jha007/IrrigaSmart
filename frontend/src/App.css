@@ -144,10 +144,10 @@
   bottom: var(--space-4);
   left: 50%;
   transform: translateX(-50%);
-  width: min(420px, calc(100% - var(--space-5)));
+  width: min(480px, calc(100% - var(--space-5)));
   height: var(--nav-height);
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: var(--space-1);
   padding: 6px;
   background: rgba(255, 255, 255, 0.86);
@@ -984,6 +984,39 @@
   font-size: 0.8rem;
   color: var(--color-text-muted);
 }
+.disease__references {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+.disease__references-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.disease__references-note,
+.disease__reference-credit {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+.disease__reference-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.disease__reference-image {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  display: block;
+}
 .disease__tip {
   margin: 0;
   font-size: 0.85rem;
@@ -1005,6 +1038,281 @@
 }
 .disease__confidence {
   align-self: flex-start;
+}
+
+/* --- Fertilizer recommendation (new feature) ---
+   Icon-button pickers (on FertilizerPage) plus a result card, styled as a
+   calm reference sheet rather than a decision card: no status colour, no
+   urgency — this is a published schedule the farmer is looking up, not
+   advice the app is pushing. Rewritten to be visual-first: large tap targets
+   with an icon + short label stand in for the old dropdowns, since a farmer
+   who cannot read comfortably can still recognise a picture (docs/05 UX
+   principle: minimal text, maximum recognisability). */
+.fert-prefill-note {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+}
+/* Same three-colour convention as .ph-suitability__badge--* on the Dashboard
+   (item: fertility data integration) — a farmer who has seen the pH card there
+   reads this note on the Fertilizer page the same way, for the same soil. */
+.fert-ph-note {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+}
+.fert-ph-note--suitable {
+  background: #d8efe1;
+  color: #14633c;
+}
+.fert-ph-note--slightly-outside {
+  background: #fdeecb;
+  color: #8a6400;
+}
+.fert-ph-note--significant-issue {
+  background: #f6dede;
+  color: #8f2f2f;
+}
+.fert-step-label {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* Icon-button grid: crop / variety / zone pickers. Buttons are large square
+   tap targets (min 72px) since the audience includes users who may not have
+   fine pointer precision, and every button keeps its label under the icon —
+   the icon speeds recognition, the label removes ambiguity. */
+.fert-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: var(--space-2);
+}
+.fert-icon-grid--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.fert-icon-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 72px;
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition:
+    transform 0.15s var(--ease),
+    border-color 0.15s var(--ease),
+    background 0.15s var(--ease);
+}
+.fert-icon-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--color-primary);
+}
+.fert-icon-btn--active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  box-shadow: var(--shadow-primary);
+}
+.fert-icon-btn--muted {
+  opacity: 0.55;
+}
+.fert-icon-btn__icon {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+.fert-icon-btn__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text);
+  text-align: center;
+}
+
+/* Fertility input mode toggle: "I have soil-test numbers" vs "I am not sure". */
+.fert-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+.fert-mode-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    border-color 0.15s var(--ease),
+    background 0.15s var(--ease),
+    color 0.15s var(--ease);
+}
+.fert-mode-btn--active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+}
+
+/* N/P/K soil-test number inputs. */
+.fert-npk-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.fert-npk-input .field__input {
+  font-size: 1.05rem;
+}
+.fert-classified-badge {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+}
+
+.fert-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  animation: fade-up 0.5s var(--ease-out) both;
+}
+.fert-card__districts {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+.fert-card__row-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* NPK doses lead the card as large icon-labelled numbers — the one figure a
+   farmer needs at a glance, with nothing to read first. */
+.fert-card__npk-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.fert-card__npk-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius);
+  background: var(--color-surface-alt);
+  text-align: center;
+}
+.fert-card__npk-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.fert-card__npk-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--color-primary-dark);
+}
+.fert-card__npk-label {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+.fert-card__npk-unit {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+}
+.fert-card__empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+/* Secondary agronomic detail (amendments, manure, sulphur, micronutrients,
+   timing, table notes) is real information, kept rather than deleted, but
+   tucked behind one tap so the default view stays a handful of numbers. */
+.fert-card__details {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+}
+.fert-card__details-summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  list-style: none;
+}
+.fert-card__details-summary::-webkit-details-marker {
+  display: none;
+}
+.fert-card__details-summary::before {
+  content: '▸ ';
+}
+.fert-card__details[open] .fert-card__details-summary::before {
+  content: '▾ ';
+}
+.fert-card__details-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.fert-card__row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+.fert-card__details-body > .fert-card__row:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+.fert-card__row-text {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+/* Same weight and placement as .disease__advice — a product-boundary line
+   that must stay legible and always visible, never inside the disclosure. */
+.fert-card__disclaimer {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+}
+.fert-card__credit {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
 }
 
 /* --- Photo leaf check (V1.7 item 16) ---
@@ -1162,6 +1470,37 @@
   line-height: 1.45;
   color: var(--color-primary-dark);
 }
+.photo-card__references {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+.photo-card__references-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.photo-card__references-note,
+.photo-card__reference-credit {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+.photo-card__reference-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.photo-card__reference-image {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  display: block;
+}
 /* The leaf is a different plant from the farm's crop — worth noticing before
    reading the name below it, so it gets the amber the rest of the card avoids. */
 .photo-card__mismatch {
@@ -1275,6 +1614,106 @@
   color: var(--color-text-muted);
   border-top: 1px solid var(--color-border);
   padding-top: var(--space-2);
+}
+
+/* --- Soil pH suitability (item: pH-based crop suitability) ---
+   Traffic-light badge reusing the same three colours as .disease__badge--* /
+   .rec-card__confidence-badge--*, so a farmer who has learned "red means look
+   at this" elsewhere on the dashboard reads this card the same way. */
+.ph-suitability {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ph-suitability__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.ph-suitability__title {
+  font-size: 1rem;
+  margin: 0;
+}
+.ph-suitability__unavailable {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+.ph-suitability__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 3px 12px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+.ph-suitability__badge--suitable {
+  background: #d8efe1;
+  color: #14633c;
+}
+.ph-suitability__badge--slightly-outside {
+  background: #fdeecb;
+  color: #8a6400;
+}
+.ph-suitability__badge--significant-issue {
+  background: #f6dede;
+  color: #8f2f2f;
+}
+.ph-suitability__value {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+.ph-suitability__range {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+.ph-suitability__help {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+}
+/* The "this is an area estimate, not a test of your field" line (PRD §7).
+   Deliberately quieter than .ph-suitability__help but not hidden: it is a
+   caveat on the figure above, not the advice itself. */
+.ph-suitability__source {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* --- Data source chip (PRD §7 provenance) ---
+   Sits beside a figure to say where it came from. Neutral grey on purpose: it
+   is not a verdict and must not compete with the traffic-light badges, which
+   are the only colour-coded signal on these cards. Sized to ride inline with a
+   large number without changing its line height. */
+.provenance-chip {
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 /* --- Onboarding (roadmap Feature 6.5) — the "website" front door --- */
@@ -1556,6 +1995,12 @@
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+.field__hint {
+  margin: calc(var(--space-1) * -1) 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--color-text-muted);
 }
 .field-row {
   display: grid;
@@ -1876,6 +2321,37 @@
   background: rgba(255, 255, 255, 0.3);
 }
 
+.assistant__topics {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) 0;
+  overflow-x: auto;
+  background: var(--color-surface-alt);
+  flex-shrink: 0;
+}
+.assistant__topic {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.assistant__topic:hover,
+.assistant__topic:focus-visible {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
+}
+.assistant__topic:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .assistant__log {
   flex: 1;
   overflow-y: auto;
@@ -1892,6 +2368,18 @@
   flex-direction: column;
   gap: var(--space-3);
 }
+.assistant__briefing {
+  margin: 0;
+  padding: var(--space-3);
+  border-left: 3px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 .assistant__introText {
   margin: 0;
   color: var(--color-text-muted);
@@ -1944,6 +2432,28 @@
   line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* Deep-link button on answers whose advice has a screen (V2.2 interactive
+   pack): visually distinct from a chip — it goes somewhere, not asks. */
+.assistant__action {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  transition: background 140ms var(--ease);
+}
+.assistant__action:hover {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
 }
 .assistant__msgFoot {
   display: flex;
@@ -2139,4 +2649,199 @@
     background: transparent;
     backdrop-filter: none;
   }
+}
+
+/* --- Farm improvement plan (PRD §15) ---
+   First card in the dashboard sidebar. Structurally the same surface as
+   .ph-suitability and .fert-card so it does not read as a different kind of
+   thing; what distinguishes it is the numbered list and the severity rail down
+   the left of each item.
+
+   THE ITEMS ARE NUMBERED BECAUSE THE ORDER IS THE POINT. `detectFarmIssues`
+   ranks by severity then confidence, and a farmer with time for one thing should
+   be able to see which one that is without reading all three. An unordered list
+   would throw that away. */
+.improve-plan {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.improve-plan__title {
+  font-size: 1rem;
+  margin: 0;
+}
+.improve-plan__subtitle {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+/* The empty state is good news, so it gets the one green marker on this card
+   and reads at full weight rather than as a muted "nothing here". */
+.improve-plan__none {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.improve-plan__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.improve-plan__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: improve-item;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.improve-plan__item {
+  counter-increment: improve-item;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  /* The severity rail: one glance down the left edge ranks the list without
+     having to read the badges. */
+  border-left: 3px solid var(--color-border);
+  padding-left: var(--space-3);
+}
+.improve-plan__item--high {
+  border-left-color: #c0392b;
+}
+.improve-plan__item--medium {
+  border-left-color: #d9a406;
+}
+.improve-plan__item--low {
+  border-left-color: #4a7fb5;
+}
+.improve-plan__item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.improve-plan__item-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.improve-plan__speak {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.improve-plan__speak:hover,
+.improve-plan__speak:focus-visible {
+  background: var(--color-primary-light);
+}
+.improve-plan__speak:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.improve-plan__item-title::before {
+  content: counter(improve-item) '. ';
+  color: var(--color-text-muted);
+}
+.improve-plan__severity {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+.improve-plan__severity--high {
+  background: #f6dede;
+  color: #8f2f2f;
+}
+.improve-plan__severity--medium {
+  background: #fdeecb;
+  color: #8a6400;
+}
+.improve-plan__severity--low {
+  background: #e2ecf6;
+  color: #2f5b8f;
+}
+.improve-plan__explain {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+.improve-plan__confidence {
+  margin: 0;
+}
+.improve-plan__actions-label {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.improve-plan__actions {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* Items past the top few. Same treatment as .fert-card__details: kept rather
+   than dropped, one tap away, so the default view stays a short plan. */
+.improve-plan__details {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+}
+.improve-plan__details-summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  list-style: none;
+}
+.improve-plan__details-summary::-webkit-details-marker {
+  display: none;
+}
+.improve-plan__details-summary::before {
+  content: '▸ ';
+}
+.improve-plan__details[open] .improve-plan__details-summary::before {
+  content: '▾ ';
+}
+/* The expanded items keep counting on from the visible ones — "4." after "3." —
+   rather than restarting at 1 and implying a second, separate list. */
+.improve-plan__list--rest {
+  counter-reset: none;
+  margin-top: var(--space-3);
+}
+
+/* The "some of this rests on maps, not tests of your field" line (PRD §7).
+   Same voice and same weight as .ph-suitability__source, because it is the same
+   caveat about the same data. */
+.improve-plan__source {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  font-style: italic;
 }

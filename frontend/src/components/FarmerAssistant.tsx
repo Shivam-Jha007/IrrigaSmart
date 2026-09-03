@@ -1,17 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Language } from '../types';
-import { localeFor, type TranslateFn } from '../i18n';
+import { getAssistantChat, saveAssistantChat, type AssistantChatMessage } from '../storage';
+import { localeFor, translate, type TranslateFn, type TranslationKey } from '../i18n';
 import {
+  alternatesFor,
   askAssistant,
+  detectSpokenLanguage,
   MAX_QUESTION_CHARS,
   speechInputSupported,
   speechOutputSupported,
   speak,
   startListening,
   stopSpeaking,
+  type AssistantActionTarget,
   type AssistantContext,
   type AssistantSource,
+  type AssistantTopic,
   type AssistantTurn,
+  assistantTopicActions,
+  farmBriefing,
   type ListenSession,
 } from '../services';
 
@@ -43,6 +50,12 @@ interface Props {
   context: AssistantContext | undefined;
   language: Language;
   t: TranslateFn;
+  /**
+   * Opens an app destination named by an answer's deep-link button. Optional
+   * because the panel also renders on screens with nothing to navigate (the
+   * pre-onboarding dashboard); without it the button simply does not appear.
+   */
+  onNavigate?: (target: AssistantActionTarget) => void;
 }
 
 interface Message {
@@ -51,6 +64,8 @@ interface Message {
   text: string;
   /** Only on assistant messages, for the badge. */
   source?: AssistantSource;
+  /** Only on rule answers whose advice has a screen for it. */
+  action?: AssistantActionTarget;
 }
 
 /** Suggested openers, so the farmer never faces an empty box. */
@@ -61,7 +76,7 @@ const SUGGESTION_KEYS = [
   'assistant.suggest.moisture',
 ] as const;
 
-export function FarmerAssistant({ context, language, t }: Props) {
+export function FarmerAssistant({ context, language, t, onNavigate }: Props) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -77,9 +92,67 @@ export function FarmerAssistant({ context, language, t }: Props) {
   const locale = localeFor(language);
   const canListen = speechInputSupported();
   const canSpeak = speechOutputSupported();
+  const topicActions = assistantTopicActions(t);
+  const briefing = farmBriefing(context, t);
+  const topicLabel = (topic: AssistantTopic) => t(`assistant.topic.${topic}` as TranslationKey);
 
-  // Keep the newest message in view. A farmer should not have to scroll to read
-  // the answer they just asked for.
+  /**
+   * Context-aware openers (V2.2 interactive pack). The static four remain the
+   * floor; each live fact the assistant knows promotes its own question to the
+   * front, so the chips always name what is most worth asking about TODAY. A
+   * disease the weather favours outranks everything; a saved schedule and a
+   * photo check follow; never more than five chips.
+   */
+  const suggestions: TranslationKey[] = [];
+  if (context?.diseaseName && context.diseaseRiskLevel && context.diseaseRiskLevel !== 'None') {
+    suggestions.push('assistant.topic.diseaseQuestion');
+  }
+  if (context?.fertScheduleNpk) suggestions.push('assistant.topic.fertilizerQuestion');
+  if (context?.photoVerdict) suggestions.push('assistant.suggest.photo');
+  for (const key of SUGGESTION_KEYS) {
+    if (!suggestions.includes(key)) suggestions.push(key);
+  }
+  const visibleSuggestions = suggestions.slice(0, 5);
+
+  // Restore the previous conversation once on mount (V2.2). Ids are
+  // regenerated (they were never more than render keys) and nextId moves past
+  // them. If the farmer sends a message before IndexedDB answers, their
+  // message wins and the stored transcript is skipped — never spliced after
+  // it, which would read as a reply to nothing.
+  const hydrated = useRef(false);
+  useEffect(() => {
+    void getAssistantChat().then((stored) => {
+      if (!hydrated.current && stored.length > 0) {
+        setMessages(
+          stored.map((message: AssistantChatMessage, index) => ({
+            id: index + 1,
+            role: message.role,
+            text: message.text,
+            ...(message.source !== undefined ? { source: message.source } : {}),
+            ...(message.action !== undefined ? { action: message.action } : {}),
+          })),
+        );
+        nextId.current = stored.length + 1;
+      }
+      hydrated.current = true;
+    });
+  }, []);
+
+  // Persist after every change, best-effort (the store never throws). The
+  // cap lives in the store; the guard skips the empty pre-hydration render.
+  useEffect(() => {
+    if (!hydrated.current || messages.length === 0) return;
+    void saveAssistantChat(
+      messages.map(({ role, text, source, action }) => ({
+        role,
+        text,
+        ...(source !== undefined ? { source } : {}),
+        ...(action !== undefined ? { action } : {}),
+      })),
+    );
+  }, [messages]);
+
+  // Keep the newest message in view.
   useEffect(() => {
     const log = logRef.current;
     if (log) log.scrollTop = log.scrollHeight;
@@ -130,20 +203,44 @@ export function FarmerAssistant({ context, language, t }: Props) {
         content: message.text,
       }));
 
+      // A question's own script, not Settings → Language, decides which
+      // language THIS turn is answered in. Without this, a farmer whose
+      // Settings happens to be English but who types or speaks Hindi/Bengali/
+      // Assamese/Urdu got their transcript recognised correctly and their
+      // reply given back in English regardless — the app answered the
+      // question it was configured for, not the one it was actually asked.
+      // `detectSpokenLanguage` returns null for Latin-script text (English, or
+      // any language typed in roman letters), in which case the farmer's own
+      // Settings choice is the only signal there is, and stays authoritative.
+      const spokenLanguage = detectSpokenLanguage(text);
+      const turnLanguage: Language = spokenLanguage ?? language;
+      const turnT: TranslateFn = spokenLanguage
+        ? (key, vars) => translate(spokenLanguage, key, vars)
+        : t;
+      const turnContext: AssistantContext | undefined = context
+        ? { ...context, language: turnLanguage }
+        : context;
+
       const controller = new AbortController();
       abortRef.current = controller;
 
       try {
         const answer = await askAssistant({
           question: text,
-          context,
+          context: turnContext,
           history,
-          t,
+          t: turnT,
           signal: controller.signal,
         });
         setMessages((prev) => [
           ...prev,
-          { id: nextId.current++, role: 'assistant', text: answer.text, source: answer.source },
+          {
+            id: nextId.current++,
+            role: 'assistant',
+            text: answer.text,
+            source: answer.source,
+            ...(answer.action !== undefined ? { action: answer.action } : {}),
+          },
         ]);
       } finally {
         // askAssistant never throws — it returns an 'unavailable' answer instead
@@ -152,7 +249,90 @@ export function FarmerAssistant({ context, language, t }: Props) {
         setBusy(false);
       }
     },
-    [busy, context, messages, t],
+    [busy, context, language, messages, t],
+  );
+
+  /**
+   * Begin (or retry) a recognition attempt at one alternate locale.
+   *
+   * WHY THIS RETRIES ON `language-not-supported` SPECIFICALLY
+   * `localeFor('bn')` returns 'bn-IN', the correct tag for Bengali as spoken in
+   * India — but some recognition engines only ship a 'bn-BD' language pack and
+   * reject 'bn-IN' outright with this exact error, even though they can
+   * transcribe the same speech under the other tag (the mirror image of the
+   * synthesis gap `chooseVoice` fixes in speech.ts — see that file's
+   * `LOCALE_ALTERNATES` note for the Chromium bug this traces back to). Rather
+   * than showing the farmer an error for a locale mismatch the app itself can
+   * silently work around, the next alternate from `alternatesFor` is tried
+   * automatically; only once every alternate has failed does the farmer see
+   * `assistant.voiceLanguageUnsupported`.
+   */
+  const attemptListening = useCallback(
+    (alternateIndex: number) => {
+      const alternates = alternatesFor(locale);
+      const tryLocale = alternates[alternateIndex];
+      if (!tryLocale) {
+        // Exhausted every alternate — this is the honest "unsupported" case.
+        setListening(false);
+        listenRef.current = null;
+        setVoiceError(t('assistant.voiceLanguageUnsupported'));
+        return;
+      }
+
+      const session = startListening(tryLocale, {
+        onPartial: (partial) => setInput(partial),
+        onFinal: (final) => {
+          setInput(final);
+          setListening(false);
+          listenRef.current = null;
+          void send(final);
+        },
+        onError: (code) => {
+          if (code === 'language-not-supported' && alternateIndex + 1 < alternates.length) {
+            attemptListening(alternateIndex + 1);
+            return;
+          }
+          setListening(false);
+          listenRef.current = null;
+          setVoiceError(
+            code === 'not-allowed' || code === 'service-not-allowed'
+              ? t('assistant.voiceDenied')
+              : code === 'no-speech'
+                ? t('assistant.voiceNoSpeech')
+                // Distinct from the generic fallback: a farmer speaking one of
+                // this app's non-English languages needs to know their
+                // language — not their microphone — is the problem, since
+                // some browsers (observed on Edge) throw this for every
+                // language regardless of which one is actually unsupported.
+                : code === 'language-not-supported'
+                  ? t('assistant.voiceLanguageUnsupported')
+                  : code === 'network'
+                    ? t('assistant.voiceNetwork')
+                    : t('assistant.voiceError'),
+          );
+        },
+        // Some browsers end a session with no error at all when nothing was
+        // heard — the mic icon would otherwise just switch off with no
+        // explanation, which is indistinguishable from a broken microphone.
+        // Same message as the explicit 'no-speech' error above, since to the
+        // farmer it is the same outcome.
+        onSilentEnd: () => {
+          setVoiceError(t('assistant.voiceNoSpeech'));
+        },
+        onEnd: () => {
+          setListening(false);
+          listenRef.current = null;
+        },
+      });
+
+      if (!session) {
+        setVoiceError(t('assistant.voiceError'));
+        return;
+      }
+      listenRef.current = session;
+      setListening(true);
+    },
+    [locale, send, t],
   );
 
   const toggleListening = useCallback(() => {
@@ -164,38 +344,8 @@ export function FarmerAssistant({ context, language, t }: Props) {
     }
 
     setVoiceError(null);
-    const session = startListening(locale, {
-      onPartial: (partial) => setInput(partial),
-      onFinal: (final) => {
-        setInput(final);
-        setListening(false);
-        listenRef.current = null;
-        void send(final);
-      },
-      onError: (code) => {
-        setListening(false);
-        listenRef.current = null;
-        setVoiceError(
-          code === 'not-allowed' || code === 'service-not-allowed'
-            ? t('assistant.voiceDenied')
-            : code === 'no-speech'
-              ? t('assistant.voiceNoSpeech')
-              : t('assistant.voiceError'),
-        );
-      },
-      onEnd: () => {
-        setListening(false);
-        listenRef.current = null;
-      },
-    });
-
-    if (!session) {
-      setVoiceError(t('assistant.voiceError'));
-      return;
-    }
-    listenRef.current = session;
-    setListening(true);
-  }, [listening, locale, send, t]);
+    attemptListening(0);
+  }, [attemptListening, listening]);
 
   if (!open) {
     return (
@@ -231,12 +381,27 @@ export function FarmerAssistant({ context, language, t }: Props) {
           </button>
         </header>
 
+        <div className="assistant__topics" aria-label={t('assistant.title')}>
+          {topicActions.map((action) => (
+            <button
+              key={action.topic}
+              type="button"
+              className="assistant__topic"
+              disabled={busy}
+              onClick={() => void send(action.question)}
+            >
+              {topicLabel(action.topic)}
+            </button>
+          ))}
+        </div>
+
         <div className="assistant__log" ref={logRef}>
           {messages.length === 0 && (
             <div className="assistant__intro">
+              {briefing && <p className="assistant__briefing">{briefing}</p>}
               <p className="assistant__introText">{t('assistant.intro')}</p>
               <div className="assistant__suggestions">
-                {SUGGESTION_KEYS.map((key) => (
+                {visibleSuggestions.map((key) => (
                   <button
                     key={key}
                     type="button"
@@ -256,6 +421,17 @@ export function FarmerAssistant({ context, language, t }: Props) {
               className={`assistant__msg assistant__msg--${message.role}`}
             >
               <p className="assistant__msgText">{message.text}</p>
+              {message.role === 'assistant' && message.action && onNavigate && (
+                <button
+                  type="button"
+                  className="assistant__action"
+                  onClick={() => onNavigate(message.action as AssistantActionTarget)}
+                >
+                  {message.action === 'fertilizer'
+                    ? t('assistant.action.fertilizer')
+                    : message.action}
+                </button>
+              )}
               {message.role === 'assistant' && (
                 <div className="assistant__msgFoot">
                   {message.source && (

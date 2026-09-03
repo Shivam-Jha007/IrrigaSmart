@@ -1,4 +1,5 @@
 import type { TranslateFn, TranslationKey } from '../i18n';
+import { classifyNutrient } from './fertilizerKnowledge';
 
 /**
  * Offline assistant rules (item 17).
@@ -45,11 +46,16 @@ import type { TranslateFn, TranslationKey } from '../i18n';
  */
 export type AssistantIntent =
   | 'referral'
+  | 'today'
   | 'amount'
   | 'timing'
   | 'why'
   | 'rain'
   | 'moisture'
+  | 'ph'
+  | 'soil'
+  | 'fertility'
+  | 'photo'
   | 'disease'
   | 'savings'
   | 'plan'
@@ -94,17 +100,159 @@ export interface AssistantContext {
   totalAvailableMm?: number;
   diseaseRiskLevel?: string;
   diseaseName?: string;
+  /** Where on the plant to look for the at-risk disease (translated). */
+  diseaseWhere?: string;
+  /** What the signs look like (translated). */
+  diseaseWhat?: string;
+
+  // --- Latest leaf-photo check (V2.2, on-device model) ---
+  //
+  // A summary of the most recent photo the farmer checked on the Today screen,
+  // PRE-WORDED by deterministic code rather than handed to the model as raw
+  // class strings. The verdict's wording — the finding named plainly, no
+  // percentages, no name at all below the confidence threshold — is a product
+  // boundary (docs/12 §Product Boundaries, docs/14), and it is enforced here,
+  // in the sentence itself, so neither answer path can re-word it into a
+  // claim the model invented.
+
+  /** Pre-translated verdict sentence, e.g. "The photo shows Rice Blast." */
+  photoVerdict?: string;
+  /** Which crop the checked photo was of, when it differed from the farm's. */
+  photoPlant?: string;
+  /** When the photo was checked. ISO 8601. */
+  photoCheckedAt?: string;
   slopePercent?: number;
   /** Litres saved today versus the baseline practice, from the water ledger. */
   savedTodayLiters?: number;
   savedLifetimeLiters?: number;
   /** Tomorrow's advised action from the multi-day plan, e.g. "Irrigate Today". */
   tomorrowStatus?: string;
+
+  // --- Soil chemistry and where it came from (PRD §7, §28 Guardrail 1) ---
+  //
+  // WHY THE PROVENANCE FIELDS CARRY THE RAW ENGLISH LABEL
+  // These hold the §7 vocabulary verbatim — 'MEASURED', 'REGIONAL_ESTIMATE',
+  // 'USER_PROVIDED', 'FORECAST', 'CALCULATED', 'INFERRED', 'UNKNOWN' — not a
+  // translated chip. A rule can only branch on a closed vocabulary, and the
+  // backend prompt has to be able to name the exact token it is forbidding the
+  // model to misrepresent. `diseaseRiskLevel` already sets this precedent by
+  // carrying raw 'Moderate'. The farmer never sees these strings; they see the
+  // sentence a rule or the model builds from them.
+
+  /** Topsoil pH. An area prediction unless `soilPhProvenance` says MEASURED. */
+  soilPh?: number;
+  /** §7 label for `soilPh`, e.g. 'REGIONAL_ESTIMATE'. */
+  soilPhProvenance?: string;
+  /** Plain-language sentence naming what produced `soilPh`. */
+  soilPhOrigin?: string;
+  /** Already-translated verdict for the crop, e.g. "Well suited". */
+  phSuitability?: string;
+  phOptimalMin?: number;
+  phOptimalMax?: number;
+  /** USDA texture class from the soil map, e.g. "clay loam". Model-only. */
+  soilTextureClass?: string;
+  soilTextureProvenance?: string;
+  /** Topsoil organic carbon, percent by mass. */
+  organicCarbonPct?: number;
+  /** §7 label for `soilType` — USER_PROVIDED when the farmer chose it. */
+  soilTypeProvenance?: string;
+  /** §7 label for the weather figures, normally FORECAST. */
+  weatherProvenance?: string;
+  /** §7 label for the water-holding figures the moisture answer rests on. */
+  soilMoistureProvenance?: string;
+  /** Pre-translated top farm issues (Phase 3), highest severity first. */
+  topIssues?: string[];
+
+  // --- Water & soil quality tests (V2.2) ---
+  //
+  // The farmer's own lab reports, USER_PROVIDED. ECw and ECe together gate the
+  // engine's leaching uplift; the rest are management constraints the
+  // improvement plan flags — the model may quote the figures and interpret
+  // them against the FAO-29 limits, never turn them into a dose or product.
+
+  /** Irrigation-water salinity (ECw), dS/m. */
+  waterEcw?: number;
+  /** Water sodium adsorption ratio. */
+  waterSar?: number;
+  /** Water boron, mg/L. */
+  waterBoron?: number;
+  /** Water bicarbonate, meq/L. */
+  waterBicarbonate?: number;
+  /** Water pH. */
+  waterPh?: number;
+  /** Soil saturation-extract salinity (ECe), dS/m. */
+  soilEce?: number;
+  /** Soil exchangeable sodium percentage, %. */
+  soilEsp?: number;
+
+  // --- Soil fertility: the farmer's own Soil Health Card reading ---
+  //
+  // USER_PROVIDED, unlike every other soil-chemistry field above — the farmer
+  // typed these off their own lab slip; the app did not predict them from a
+  // map. `fertilityBand` is CALCULATED, the same distinction `phSuitability`
+  // draws against `soilPh`: the farmer supplied the numbers, the app supplied
+  // the verdict.
+
+  /** Available nitrogen from the farmer's own reading, kg/ha. */
+  fertilityN?: number;
+  fertilityP2O5?: number;
+  fertilityK2O?: number;
+  fertilityProvenance?: string;
+  fertilityBand?: string;
+  fertilityPh?: number;
+  fertilityEc?: number;
+  fertilityOrganicCarbonPct?: number;
+  fertilitySulphur?: number;
+  fertilityZinc?: number;
+  fertilityBoron?: number;
+  fertilityIron?: number;
+  fertilityManganese?: number;
+  fertilityCopper?: number;
+
+  // --- Resolved fertilizer schedule (State Agriculture Department booklet) ---
+  //
+  // Unlike every soil-chemistry field above, these figures ARE quotable exact
+  // values: they are a transcription of the official State Agriculture
+  // Department (West Bengal) soil-test-based fertilizer schedule — the same
+  // tables the app's Fertilizer tab shows — resolved to the crop, variety, soil
+  // zone and fertility band the farmer selected. The model may state these
+  // numbers verbatim WITH attribution to the State schedule. It may still never
+  // invent or adjust one: if no schedule line is present below, there is no
+  // figure to give, and the answer is to say so.
+
+  /** Official schedule dose for the selected band, e.g. "N 50, P2O5 25, K2O 25 kg/ha". */
+  fertScheduleNpk?: string;
+  /** The band the dose was resolved for, e.g. "Medium". */
+  fertScheduleBand?: string;
+  /** Variety label, e.g. "Kharif (monsoon) rice" or "Potato". */
+  fertScheduleVariety?: string;
+  /** Soil zone label the schedule was resolved for, e.g. "Terai". */
+  fertScheduleZone?: string;
+  /** Booklet soil amendment line, e.g. "Dolomite @ 1-2 t/ha". */
+  fertScheduleAmeliorant?: string;
+  /** Booklet manure/bio-fertilizer line, e.g. "FYM @ 5 t/ha ...". */
+  fertScheduleManure?: string;
+  /** Booklet sulphur line, e.g. "S @ 20 kg/ha at land preparation". */
+  fertScheduleSulphur?: string;
+  /** Booklet micronutrient line. */
+  fertScheduleMicronutrients?: string;
+  /** Booklet split-timing / general note for this crop table. */
+  fertScheduleTiming?: string;
+  /** True when the booklet has no NPK cell for this zone (Hill/Coastal gaps). */
+  fertScheduleNoDose?: boolean;
+  /** Crop alternatives ranked by pH suitability for this farm's soil. */
+  phAltCrops?: string[];
 }
 
 export interface RuleAnswer {
   answer: string;
   intent: AssistantIntent;
+  /**
+   * An app destination the answer points at, rendered as a tappable button by
+   * the chat panel. Set only when the answer's advice has a screen for it —
+   * the offline rules never name a destination the app does not have.
+   */
+  action?: 'fertilizer';
 }
 
 /**
@@ -156,21 +304,26 @@ function hasAny(normalised: string, terms: readonly string[]): boolean {
  * favour of distinctive stems.
  */
 const REFERRAL_TERMS = [
-  // Plant protection, fertiliser, seed, market, schemes — everything outside
-  // what this app is allowed to advise on (V1.3 Product Boundaries).
+  // Plant protection, seed, market, schemes — everything outside what this app
+  // is allowed to advise on at all (V1.3 Product Boundaries: no chemical name,
+  // no dose, no spray schedule, ever). Fertility and soil-amendment questions
+  // used to live in this table too; they now have their own `fertility` intent
+  // below, which answers from the app's own pH/organic-carbon estimate before
+  // adding the same "no exact quantity" caution — an estimate-then-caution
+  // answer is more useful than an instant refusal, and the app does have
+  // relevant figures to offer even though it cannot name a rate.
+  //
+  // 'dose'/'dosage' are NOT here, deliberately (V2.2): a farmer asking about a
+  // DOSE almost always means fertiliser ("what dose of NPK for rice?"), which
+  // is answerable from the official schedule. Plant-protection dose questions
+  // still land here through their own words — 'spray', 'medicine', 'दवा' —
+  // which this first-match table always wins with.
   'spray',
   'fungicide',
   'pesticide',
   'insecticide',
   'chemical',
   'medicine',
-  'dose',
-  'dosage',
-  'fertiliser',
-  'fertilizer',
-  'urea',
-  'npk',
-  'nutrient',
   'seed variety',
   'which seed',
   'market price',
@@ -184,16 +337,11 @@ const REFERRAL_TERMS = [
   'davai',
   'chidkav',
   'chhidkav',
-  'khad',
-  'khaad',
-  'urvarak',
   'keetnashak',
   'kitnashak',
   'दवा',
   'दवाई',
   'छिड़काव',
-  'खाद',
-  'उर्वरक',
   'कीटनाशक',
   'फफूंदनाशक',
   'बीज',
@@ -203,23 +351,242 @@ const REFERRAL_TERMS = [
   'ওষুধ',
   'ছত্রাকনাশক',
   'কীটনাশক',
-  'সার',
   'বীজ',
   'দাম',
   'স্প্রে',
   'ঔষধ',
-  'সাৰ',
   'বীজ',
   'স্প্ৰে',
   'ঔষধি',
   'دوا',
   'دوائی',
-  'کھاد',
   'کیڑے',
   'بیج',
   'قیمت',
   'اسپرے',
   'چھڑکاؤ',
+] as const;
+
+/**
+ * Fertility and soil-amendment terms.
+ *
+ * WHY THESE ARE NOT `REFERRAL_TERMS`
+ * A question about fertiliser, a nutrient, or an amendment like lime is not the
+ * same shape as "which pesticide should I spray" — the app has NO estimate at
+ * all for a spray decision, but it does have a pH reading, an organic-carbon
+ * estimate and (via `topIssues`) any fertility problem the engine already
+ * flagged. Refusing outright throws that estimate away. The `fertility` rule
+ * below states whatever the app knows first, and only then adds the same
+ * unconditional caution the `ph` rule already carries: no exact quantity,
+ * because that needs a soil test and the local KVK (PRD §28 Guardrail 2, which
+ * this table does not loosen — it only moves WHERE the caution is said from).
+ *
+ * Checked immediately after `referral` and before every other intent, for the
+ * same reason `ph`/`soil` sit early: a fertility phrase must not be captured by
+ * `moisture` (which owns the bare word for soil) or by `disease`.
+ */
+const FERTILITY_TERMS = [
+  'fertiliser',
+  'fertilizer',
+  'urea',
+  'npk',
+  'nutrient',
+  'manure',
+  'compost',
+  // Dose language, moved here from the referral table in V2.2: the dose a
+  // farmer asks about is fertiliser, now quotable from the official schedule.
+  // Deliberately EXCLUDES quantity-words like 'मात्रা'/'মাত্রা', which also
+  // modify water ("पानी की मात्रा") and would swallow amount questions —
+  // fertility is matched before amount in classify().
+  'dose',
+  'dosage',
+  'khurak',
+  'खुराक',
+  'ডোজ',
+  'খুরাক',
+  'خوراک',
+  'improve soil',
+  'improve my soil',
+  'improve the soil',
+  'soil health',
+  'better soil',
+  'मिट्टी सुधार',
+  'मिट्टी की गुणवत्ता',
+  'মাটির উন্নতি',
+  'মাটির স্বাস্থ্য',
+  'মাটিৰ উন্নতি',
+  'مٹی بہتر',
+  // Spelled-out nutrients, not just 'npk' — "how much phosphorus does my soil
+  // need?" is the same question as "how much fertiliser", asked differently.
+  'nitrogen',
+  'phosphorus',
+  'phosphate',
+  'potassium',
+  'potash',
+  'नाइट्रोजन',
+  'फॉस्फोरस',
+  'पोटाश',
+  'खाद',
+  'उर्वरक',
+  'खाद डालूं',
+  'खाद चाहिए',
+  'sar dena',
+  'khad dena',
+  'khad',
+  'khaad',
+  'urvarak',
+  'নাইট্রোজেন',
+  'ফসফরাস',
+  'পটাশ',
+  'সার',
+  'নাইট্ৰোজেন',
+  'ফছফৰাছ',
+  'সাৰ',
+  'نائٹروجن',
+  'فاسفورس',
+  'پوٹاش',
+  'کھاد',
+  // Soil amendments: the honest follow-up to "your soil is acidic" is "how much
+  // lime?", and the fertility rule reports the reading and refuses the exact
+  // quantity in the same breath rather than a bare refusal.
+  'lime',
+  'gypsum',
+  'chuna',
+  'चूना',
+  'चुना',
+  'জিপসাম',
+  'চুন',
+  'چونا',
+] as const;
+
+const TEST_VALUE_TERMS = [
+  'soil test',
+  'test value',
+  'test result',
+  'lab report',
+  'soil health card',
+  // Native-script equivalents, so "I have my soil test" in the farmer's own
+  // language reaches the card-guidance answer rather than being swallowed by
+  // the moisture terms (which own the bare word for soil in every language).
+  'मिट्टी की जाँच',
+  'मिट्टी जाँच',
+  'मृदा परीक्षण',
+  'सॉइल हेल्थ कार्ड',
+  'मिट्टी की रिपोर्ट',
+  'মাটির পরীক্ষা',
+  'মাটি পরীক্ষা',
+  'মৃত্তিকা স্বাস্থ্য কার্ড',
+  'মাটির রিপোর্ট',
+  'মাটিৰ পৰীক্ষা',
+  'মাটি পৰীক্ষা',
+  'মৃত্তিকা স্বাস্থ্য কাৰ্ড',
+  'مٹی کی جانچ',
+  'مٹی ٹیسٹ',
+  'سائل ہیلتھ کارڈ',
+  'مٹی کی رپورٹ',
+] as const;
+
+const LAB_VALUE_PATTERN = /(?:\bph\b|\bec\b|\belectrical\s+conductivity\b|\bnitrogen\b|\bphosphorus\b|\bpotassium\b|\borganic\s+carbon\b|\bsulphur\b|\bsulfur\b|\bzinc\b|\bboron\b|\biron\b|\bmanganese\b|\bcopper\b)\s*[:=]?\s*\d+(?:\.\d+)?/i;
+
+function parseSoilTestValues(question: string): {
+  ph?: number;
+  ec?: number;
+  organicCarbonPct?: number;
+  n?: number;
+  p2o5?: number;
+  k2o?: number;
+  sulphur?: number;
+  zinc?: number;
+  boron?: number;
+  iron?: number;
+  manganese?: number;
+  copper?: number;
+} {
+  const source = question.toLowerCase();
+  const value = (patterns: readonly RegExp[]): number | undefined => {
+    for (const pattern of patterns) {
+      const match = source.match(pattern);
+      if (match?.[1]) {
+        const number = Number(match[1]);
+        if (Number.isFinite(number)) return number;
+      }
+    }
+    return undefined;
+  };
+  const result: ReturnType<typeof parseSoilTestValues> = {};
+  const readings: Array<[keyof typeof result, number | undefined]> = [
+    ['ph', value([/\bph\s*[:=]?\s*(\d+(?:\.\d+)?)/i])],
+    ['ec', value([/(?:electrical\s+conductivity|\bec\b)\s*[:=]?\s*(\d+(?:\.\d+)?)/i])],
+    ['organicCarbonPct', value([/(?:organic\s+carbon|oc)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*%?/i])],
+    ['n', value([/(?:\bnitrogen\b|\bN\b)\s*[:=]?\s*(\d+(?:\.\d+)?)/i])],
+    ['p2o5', value([/(?:phosphorus|phosphate|\bP\b)\s*(?:\(\s*P2?O5\s*\))?\s*[:=]?\s*(\d+(?:\.\d+)?)/i])],
+    ['k2o', value([/(?:potassium|potash|\bK\b)\s*(?:\(\s*K2?O\s*\))?\s*[:=]?\s*(\d+(?:\.\d+)?)/i])],
+    ['sulphur', value([/(?:sulphur|sulfur|\bS\b)\s*[:=]?\s*(\d+(?:\.\d+)?)/i])],
+    ['zinc', value([/(?:zinc|\bZn\b)\s*[:=]?\s*(\d+(?:\.\d+)?)/i])],
+    ['boron', value([/(?:boron|\bB\b)\s*[:=]?\s*(\d+(?:\.\d+)?)/i])],
+    ['iron', value([/(?:iron|\bFe\b)\s*[:=]?\s*(\d+(?:\.\d+)?)/i])],
+    ['manganese', value([/(?:manganese|\bMn\b)\s*[:=]?\s*(\d+(?:\.\d+)?)/i])],
+    ['copper', value([/(?:copper|\bCu\b)\s*[:=]?\s*(\d+(?:\.\d+)?)/i])],
+  ];
+  for (const [name, reading] of readings) {
+    if (reading !== undefined) result[name] = reading;
+  }
+  return result;
+}
+
+function answerFromSoilTest(question: string, t: TranslateFn): RuleAnswer {
+  const values = parseSoilTestValues(question);
+  const line = (key: TranslationKey, vars?: Record<string, string | number>): string => t(key, vars);
+  const nutrients = (['n', 'p2o5', 'k2o'] as const)
+    .filter((nutrient) => values[nutrient] !== undefined)
+    .map((nutrient) => `${nutrient.toUpperCase()}: ${values[nutrient]} (${classifyNutrient(values[nutrient]!, nutrient)})`);
+  const low = (['n', 'p2o5', 'k2o'] as const)
+    .filter((nutrient) => values[nutrient] !== undefined && classifyNutrient(values[nutrient]!, nutrient) === 'Low')
+    .map((nutrient) => nutrient.toUpperCase());
+  const high = (['n', 'p2o5', 'k2o'] as const)
+    .filter((nutrient) => values[nutrient] !== undefined && classifyNutrient(values[nutrient]!, nutrient) === 'High')
+    .map((nutrient) => nutrient.toUpperCase());
+
+  const secondary = [
+    values.ec === undefined ? undefined : `EC: ${values.ec} dS/m`,
+    values.sulphur === undefined ? undefined : `S: ${values.sulphur} kg/ha`,
+    values.zinc === undefined ? undefined : `Zn: ${values.zinc} mg/kg`,
+    values.boron === undefined ? undefined : `B: ${values.boron} mg/kg`,
+    values.iron === undefined ? undefined : `Fe: ${values.iron} mg/kg`,
+    values.manganese === undefined ? undefined : `Mn: ${values.manganese} mg/kg`,
+    values.copper === undefined ? undefined : `Cu: ${values.copper} mg/kg`,
+  ].filter((reading): reading is string => reading !== undefined);
+
+  if (nutrients.length === 0 && secondary.length === 0 && values.ph === undefined && values.organicCarbonPct === undefined) {
+    return { intent: 'fertility', answer: line('assistant.rule.testPrompt') };
+  }
+  return {
+    intent: 'fertility',
+    answer: sentences(
+      line('assistant.rule.testInterpreted', {
+        ph: values.ph?.toFixed(1) ?? '—',
+        oc: values.organicCarbonPct?.toFixed(1) ?? '—',
+        values: [...nutrients, ...secondary].length > 0
+          ? [...nutrients, ...secondary].join(', ')
+          : 'no nutrient values',
+      }),
+      low.length > 0 ? line('assistant.rule.testLow', { nutrients: low.join(', ') }) : line('assistant.rule.testNoLow'),
+      high.length > 0 ? line('assistant.rule.testHigh', { nutrients: high.join(', ') }) : undefined,
+      line('assistant.rule.testNextSteps'),
+    ),
+  };
+}
+
+const TODAY_TERMS = [
+  'what should i do today',
+  'what do i do today',
+  'today advice',
+  'today plan',
+  'aaj kya karu',
+  'आज क्या कर',
+  'আজ কী কর',
+  'আজি কি কৰ',
+  'آج کیا کروں',
 ] as const;
 
 const AMOUNT_TERMS = [
@@ -328,6 +695,92 @@ const RAIN_TERMS = [
   'برسات',
 ] as const;
 
+/**
+ * pH terms.
+ *
+ * WHY ' ph ' IS PADDED WITH SPACES
+ * "ph" as a bare substring matches "phosphorus", "photo", "phal" and dozens of
+ * ordinary words in five languages. `normalise()` pads the whole question with
+ * a leading and trailing space and turns every punctuation run into a space, so
+ * ' ph ' matches the standalone token and nothing else. That is the only form
+ * that is safe here, and it is the form farmers actually type: "ph" is written
+ * in Latin script in all five languages, including inside Devanagari and
+ * Bengali sentences, because that is how it appears on a Soil Health Card.
+ *
+ * The native-script terms are for acidity and alkalinity, which is how the
+ * question is asked when the farmer is not quoting a card.
+ */
+const PH_TERMS = [
+  ' ph ',
+  'ph level',
+  'ph value',
+  'soil ph',
+  'acidic',
+  'acidity',
+  'alkaline',
+  'alkalinity',
+  'sour soil',
+  'amliya',
+  'kshariya',
+  'पीएच',
+  'अम्लीय',
+  'अम्लता',
+  'क्षारीय',
+  'खट्टी मिट्टी',
+  'পিএইচ',
+  'অম্লীয়',
+  'অম্লতা',
+  'ক্ষারীয়',
+  'অম্লীয়তা',
+  'পি এইচ',
+  'پی ایچ',
+  'تیزابی',
+  'تیزابیت',
+  'کھاری',
+] as const;
+
+/**
+ * General soil-character terms — texture, type, organic matter.
+ *
+ * WHY EVERY TERM HERE IS A MULTI-WORD PHRASE
+ * `MOISTURE_TERMS` already owns the bare word for soil in every language
+ * ('mitti', 'मिट्टी', 'জমি', 'মাটি', 'মাটিৰ', 'مٹی') because "how dry is my
+ * soil" is a far commoner question than "what soil do I have". So this table
+ * must never contain a bare soil word: it would swallow every moisture
+ * question. Each term instead pins the shape of a question about the soil's
+ * character, and `classify()` checks this table BEFORE `moisture` so the
+ * specific phrase wins over the general word it contains.
+ */
+const SOIL_TERMS = [
+  'what soil',
+  'which soil',
+  'soil type',
+  'soil texture',
+  'my soil like',
+  'kind of soil',
+  'soil quality',
+  'organic carbon',
+  'organic matter',
+  'kaunsi mitti',
+  'kaisi mitti',
+  'mitti ka prakar',
+  'कौन सी मिट्टी',
+  'कैसी मिट्टी',
+  'मिट्टी का प्रकार',
+  'मिट्टी कैसी',
+  'जैविक कार्बन',
+  'কোন মাটি',
+  'মাটির ধরন',
+  'মাটি কেমন',
+  'জৈব কার্বন',
+  'কেনেকুৱা মাটি',
+  'মাটিৰ প্ৰকাৰ',
+  'کون سی مٹی',
+  'مٹی کی قسم',
+  'مٹی کیسی',
+  'نامیاتی کاربن',
+] as const;
+
 const MOISTURE_TERMS = [
   'soil moisture',
   'how dry',
@@ -390,8 +843,51 @@ const SAVINGS_TERMS = [
   'সাশ্রয়',
   'বাঁচিয়েছি',
   'সঞ্চয়',
+  'বচত',
+  'বচাই',
   'بچت',
   'بچایا',
+] as const;
+
+/**
+ * Leaf-photo check terms — questions about what the last photo showed.
+ *
+ * Checked BEFORE `disease` (see classify): "what did the leaf photo show?"
+ * contains "leaf"/"photo" but the answer must come from the photo result, not
+ * the weather risk. Every term is multi-word or unambiguous on purpose — a
+ * bare "photo" would swallow "take a photo of the field?" style chat.
+ */
+const PHOTO_TERMS = [
+  'photo show',
+  'photo say',
+  'photo result',
+  'leaf photo',
+  'photo of my leaf',
+  'what did the photo',
+  'the photo check',
+  'photo dekha',
+  'photo kya',
+  'photo dikha',
+  'photo kiya',
+  'फोटो क्या',
+  'फोटो में क्या',
+  'फोटो ने क्या',
+  'फोटो दिखाया',
+  'पत्ते की फोटो',
+  'फ़ोटो क्या',
+  'फ़ोटो में क्या',
+  'फ़ोटो दिखाया',
+  'फोटোত কী',
+  'ছবিতে কী',
+  'ছবিতে কি',
+  'ছবিটা কী',
+  'পাতার ছবি',
+  'ফটোত কি',
+  'ফটোখনে কি',
+  'পাতৰ ফটো',
+  'تصویر نے کیا',
+  'تصویر میں کیا',
+  'پتے کی تصویر',
 ] as const;
 
 const PLAN_TERMS = [
@@ -481,14 +977,25 @@ const CAPABILITY_TERMS = [
  * it as a disease question would mean answering it at all. `capability` and
  * `greeting` are checked last because their terms are short and common enough
  * to swallow a real question that happens to be polite.
+ *
+ * `ph` and `soil` sit immediately before `moisture` for the same reason: their
+ * terms are specific phrases that CONTAIN the general words `moisture` owns
+ * ("what soil do I have" contains "soil"; "मिट्टी का प्रकार" contains "मिट्टी").
+ * Checked after `moisture` they would never fire at all.
  */
 export function classify(question: string): AssistantIntent | null {
   const q = normalise(question);
   if (q.trim().length === 0) return null;
 
   if (hasAny(q, REFERRAL_TERMS)) return 'referral';
+  if (hasAny(q, TEST_VALUE_TERMS)) return 'fertility';
+  if (hasAny(q, TODAY_TERMS)) return 'today';
+  if (hasAny(q, FERTILITY_TERMS)) return 'fertility';
   if (hasAny(q, SAVINGS_TERMS)) return 'savings';
+  if (hasAny(q, PH_TERMS)) return 'ph';
+  if (hasAny(q, SOIL_TERMS)) return 'soil';
   if (hasAny(q, MOISTURE_TERMS)) return 'moisture';
+  if (hasAny(q, PHOTO_TERMS)) return 'photo';
   if (hasAny(q, DISEASE_TERMS)) return 'disease';
   if (hasAny(q, AMOUNT_TERMS)) return 'amount';
   if (hasAny(q, TIMING_TERMS)) return 'timing';
@@ -541,12 +1048,289 @@ export function answerFromRules(
     return { intent, answer: t('assistant.rule.greeting') };
   }
 
-  if (!context) return null;
-
   const line = (key: TranslationKey, vars?: Record<string, string | number>): string =>
     t(key, vars);
 
+  if (intent === 'fertility') {
+    const supplied = parseSoilTestValues(question);
+    const hasValues = Object.values(supplied).some((value) => value !== undefined);
+    if (hasValues || LAB_VALUE_PATTERN.test(question) || TEST_VALUE_TERMS.some((term) => normalise(question).includes(term))) {
+      return answerFromSoilTest(question, t);
+    }
+  }
+
+  // A pH question is answered even with no farm at all, because the honest
+  // answer does not need one (PRD §33). "What is my exact soil pH?" must never
+  // reach the model on the chance that it obliges with a number, and the reply
+  // that is always true — the app holds an area estimate, only a Soil Health
+  // Card test gives this field's value — needs no context to be said.
+  if (intent === 'ph' && !context) {
+    return { intent, answer: t('assistant.rule.phUnknown') };
+  }
+  // Same shape for fertility: "how much fertiliser?" with no farm selected has
+  // one honest, context-free answer.
+  if (intent === 'fertility' && !context) {
+    return { intent, answer: t('assistant.rule.fertilityUnknown') };
+  }
+  // And for the photo question: with no farm there is no photo either, and the
+  // how-to answer (where the card is, that it works offline) is the same one.
+  if (intent === 'photo' && !context) {
+    return { intent, answer: t('assistant.rule.photoNone') };
+  }
+
+  if (!context) return null;
+
+  // V2.2: which side of the crop's optimal pH band the soil sits on. Derived
+  // from the numbers rather than the translated verdict string, so both the ph
+  // and fertility answers below branch on the same fact — and the direction
+  // line (which amendment family, never a quantity) plus the crop alternatives
+  // turn "your pH is out of range" into a plan instead of a dead end.
+  const phDirection =
+    context.soilPh === undefined ||
+    context.phOptimalMin === undefined ||
+    context.phOptimalMax === undefined
+      ? undefined
+      : context.soilPh < context.phOptimalMin
+        ? 'acidic'
+        : context.soilPh > context.phOptimalMax
+          ? 'alkaline'
+          : undefined;
+  const amendLine =
+    phDirection === undefined
+      ? undefined
+      : line(
+          phDirection === 'acidic'
+            ? 'assistant.rule.phAmendAcidic'
+            : 'assistant.rule.phAmendAlkaline',
+        );
+  // Only offered when the CURRENT crop does not suit — a suited crop makes the
+  // alternatives noise, not options.
+  const altsLine =
+    phDirection !== undefined && context.phAltCrops && context.phAltCrops.length > 0
+      ? line('assistant.rule.phAlts', { crops: context.phAltCrops.slice(0, 3).join(', ') })
+      : undefined;
+  // The mirror of the amendment line: pH known, optima known, and INSIDE the
+  // band. A farmer with suitable soil asked "how do I improve my soil?" was
+  // told what the bot cannot do (the old refusal close) when the honest answer
+  // is that nothing needs correcting — say that, then the soil-test next step.
+  const phSuitable =
+    phDirection === undefined &&
+    context.soilPh !== undefined &&
+    context.phOptimalMin !== undefined &&
+    context.phOptimalMax !== undefined;
+
   switch (intent) {
+    case 'today': {
+      if (!context.status && context.depthMm === undefined) return null;
+      const status = context.status ?? line('assistant.briefing.noRecommendation');
+      // V2.2 interactive pack: the today-answer is an action list, not just a
+      // water figure. Everything appended here is a fact the dashboard already
+      // shows (top issue, weather-favoured disease with its scouting hint,
+      // saved schedule), so the offline answer and the screen cannot disagree.
+      // The schedule line — and its deep-link action — earn their place only
+      // when a schedule actually resolved for this crop.
+      return {
+        intent,
+        answer: sentences(
+          line('assistant.rule.today', { status }),
+          context.depthMm === undefined || context.volumeLiters === undefined
+            ? undefined
+            : context.depthMm <= 0
+              ? line('assistant.rule.amountNone')
+              : line('assistant.rule.amount', {
+                  mm: context.depthMm.toFixed(1),
+                  litres: Math.round(context.volumeLiters).toLocaleString('en-US'),
+                }),
+          context.windowStart && context.windowEnd
+            ? line('assistant.rule.timing', { start: context.windowStart, end: context.windowEnd })
+            : undefined,
+          context.durationMinutes === undefined || context.durationMinutes <= 0
+            ? undefined
+            : line('assistant.rule.amountRun', { minutes: Math.round(context.durationMinutes) }),
+          context.topIssues === undefined || context.topIssues.length === 0
+            ? undefined
+            : line('assistant.rule.todayIssue', { issue: context.topIssues[0]! }),
+          context.diseaseName === undefined ||
+          context.diseaseRiskLevel === undefined ||
+          context.diseaseWhere === undefined
+            ? undefined
+            : line('assistant.rule.todayDisease', {
+                disease: context.diseaseName,
+                level: context.diseaseRiskLevel,
+                where: context.diseaseWhere,
+              }),
+          context.fertScheduleNpk === undefined
+            ? undefined
+            : line('assistant.rule.todaySchedule'),
+          context.explanation,
+        ),
+        ...(context.fertScheduleNpk !== undefined ? { action: 'fertilizer' as const } : {}),
+      };
+    }
+
+    case 'ph': {
+      // A farm created offline, or before the soil profile existed, has no
+      // figure. Both this and the no-farm case above are reachable, and both
+      // say the same thing rather than falling through to the model.
+      if (context.soilPh === undefined) {
+        return { intent, answer: line('assistant.rule.phUnknown') };
+      }
+      // The provenance sentence is not optional and not conditional on the
+      // farmer asking: the reading is meaningless, and dangerous, without the
+      // statement of what produced it (§28 Guardrail 1).
+      const measured = context.soilPhProvenance === 'MEASURED';
+      return {
+        intent,
+        answer: sentences(
+          line('assistant.rule.ph', { ph: context.soilPh.toFixed(1) }),
+          line(measured ? 'assistant.rule.phMeasured' : 'assistant.rule.phEstimate'),
+          context.phSuitability === undefined ||
+          context.phOptimalMin === undefined ||
+          context.phOptimalMax === undefined
+            ? undefined
+            : line('assistant.rule.phSuitability', {
+                verdict: context.phSuitability,
+                min: context.phOptimalMin.toFixed(1),
+                max: context.phOptimalMax.toFixed(1),
+              }),
+          // V2.2: out-of-range pH gets the direction, the alternatives, and
+          // the amount-needs-a-test caveat IN the direction line — the plain
+          // phAdvice sentence below would only repeat the same KVK referral.
+          amendLine,
+          altsLine,
+          amendLine === undefined ? line('assistant.rule.phAdvice') : undefined,
+        ),
+      };
+    }
+
+    case 'soil': {
+      if (!context.soilType) return null;
+      return {
+        intent,
+        answer: sentences(
+          line('assistant.rule.soilType', { soil: context.soilType }),
+          context.organicCarbonPct === undefined
+            ? undefined
+            : line('assistant.rule.soilCarbon', { oc: context.organicCarbonPct.toFixed(1) }),
+          context.organicCarbonPct === undefined
+            ? undefined
+            : line('assistant.rule.soilMapCaveat'),
+        ),
+      };
+    }
+
+    // "How much fertiliser/lime/urea should I give?" The app cannot name a
+    // rate, but it is not empty-handed either: the farmer's own Soil Health
+    // Card reading (if entered), pH, organic carbon and any fertility issue
+    // the engine already flagged are all estimates worth stating before the
+    // caution, not instead of it (docs: answer with what the app knows first,
+    // then say what needs a soil test).
+    case 'fertility': {
+      // The farmer's own reading outranks every map estimate below it.
+      const nutrientReading =
+        context.fertilityN === undefined &&
+        context.fertilityP2O5 === undefined &&
+        context.fertilityK2O === undefined
+          ? undefined
+          : line('assistant.rule.fertilityReading', {
+              n: context.fertilityN?.toFixed(0) ?? '—',
+              p: context.fertilityP2O5?.toFixed(0) ?? '—',
+              k: context.fertilityK2O?.toFixed(0) ?? '—',
+              band:
+                context.fertilityBand === undefined
+                  ? '—'
+                  : t(`fert.fertility.${context.fertilityBand as 'Low' | 'Medium' | 'High'}`),
+            });
+      const phEstimate =
+        context.soilPh === undefined
+          ? undefined
+          : sentences(
+              line('assistant.rule.ph', { ph: context.soilPh.toFixed(1) }),
+              line(
+                context.soilPhProvenance === 'MEASURED'
+                  ? 'assistant.rule.phMeasured'
+                  : 'assistant.rule.phEstimate',
+              ),
+              context.phSuitability === undefined ||
+              context.phOptimalMin === undefined ||
+              context.phOptimalMax === undefined
+                ? undefined
+                : line('assistant.rule.phSuitability', {
+                    verdict: context.phSuitability,
+                    min: context.phOptimalMin.toFixed(1),
+                    max: context.phOptimalMax.toFixed(1),
+                  }),
+            );
+      const carbonEstimate =
+        context.organicCarbonPct === undefined
+          ? undefined
+          : sentences(
+              line('assistant.rule.soilCarbon', { oc: context.organicCarbonPct.toFixed(1) }),
+              line('assistant.rule.soilMapCaveat'),
+            );
+      // Any fertility-flavoured issue the engine already surfaced on the
+      // dashboard — reusing it here rather than composing a new sentence keeps
+      // this answer identical to what the farmer can already see on screen.
+      const flaggedIssue = context.topIssues?.find((issue) =>
+        /pH|carbon|nutrient|fertil/i.test(issue),
+      );
+
+      // The improvement the farmer asked for, assembled from everything the
+      // app resolved: direction + alternatives when pH mismatches, and the
+      // official State schedule when the farmer's Fertilizer-page selection
+      // resolved one. The booklet manure/timing lines stay on that page — the
+      // raw English transcription does not belong mid-sentence in a translated
+      // reply (the model path quotes them in full, with the language rule).
+      const schedule =
+        context.fertScheduleNpk !== undefined &&
+        context.fertScheduleVariety !== undefined &&
+        context.fertScheduleZone !== undefined &&
+        context.fertScheduleBand !== undefined
+          ? sentences(
+              line('assistant.rule.fertScheduleQuote', {
+                variety: context.fertScheduleVariety,
+                zone: context.fertScheduleZone,
+                band: context.fertScheduleBand,
+                npk: context.fertScheduleNpk,
+              }),
+              line('assistant.rule.fertScheduleMore'),
+            )
+          : undefined;
+
+      const hasEstimate =
+        nutrientReading !== undefined ||
+        phEstimate !== undefined ||
+        carbonEstimate !== undefined ||
+        flaggedIssue !== undefined ||
+        schedule !== undefined;
+      return {
+        intent,
+        answer: sentences(
+          hasEstimate ? undefined : line('assistant.rule.fertilityNoEstimate'),
+          // The soil's own state leads — it is the direct answer to "how do I
+          // improve my soil". The farmer's own reading outranks the map, and
+          // the flagged issue follows the state it is about instead of opening
+          // the answer with a negative (the transcript complaint).
+          nutrientReading,
+          phEstimate,
+          phSuitable ? line('assistant.rule.fertilitySuitable') : undefined,
+          amendLine,
+          altsLine,
+          carbonEstimate,
+          flaggedIssue,
+          schedule,
+          // Closing by case: schedule quoted → confirm with KVK; suitable pH
+          // with nothing to quote → the soil-test next step; nothing known at
+          // all → the plain no-quantity rule still gets said.
+          schedule !== undefined
+            ? line('assistant.rule.fertScheduleNote')
+            : phSuitable
+              ? line('assistant.rule.fertilityTestNext')
+              : line('assistant.rule.fertilityAdvice'),
+        ),
+      };
+    }
+
     case 'amount': {
       if (context.depthMm === undefined || context.volumeLiters === undefined) return null;
       // Nothing to give today is an answer, not an absence — say so plainly
@@ -634,10 +1418,29 @@ export function answerFromRules(
       };
     }
 
+    case 'photo': {
+      // No photo checked yet — answerable offline with the how-to, which is
+      // more useful than a null that routes to the model to guess.
+      if (!context?.photoVerdict) {
+        return { intent, answer: line('assistant.rule.photoNone') };
+      }
+      return {
+        intent,
+        answer: sentences(
+          context.photoVerdict,
+          line('assistant.rule.photoNext'),
+        ),
+      };
+    }
+
     case 'disease': {
       if (!context.diseaseRiskLevel) return null;
       // The wording here carries the whole boundary: weather favours a disease;
-      // the app has not seen the crop and does not claim it is present.
+      // the app has not seen the crop and does not claim it is present. The
+      // scouting lines that follow turn that risk into an action the farmer can
+      // take TODAY (look, photograph, arrive prepared) — a dead-end "ask your
+      // KVK" answers nothing, and naming a spray remains out of bounds
+      // (docs/10 §10.2).
       return {
         intent,
         answer: sentences(
@@ -648,6 +1451,14 @@ export function answerFromRules(
               })
             : line('assistant.rule.diseaseNone'),
           line('assistant.rule.diseaseCaveat'),
+          context.diseaseName === undefined || context.diseaseWhere === undefined
+            ? undefined
+            : line('assistant.rule.diseaseScout', { where: context.diseaseWhere }),
+          context.diseaseName === undefined || context.diseaseWhat === undefined
+            ? undefined
+            : line('assistant.rule.diseaseSigns', { what: context.diseaseWhat }),
+          context.diseaseName === undefined ? undefined : line('assistant.rule.diseasePhoto'),
+          context.diseaseName === undefined ? undefined : line('assistant.rule.diseaseNext'),
         ),
       };
     }

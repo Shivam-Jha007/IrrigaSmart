@@ -7,7 +7,7 @@
  * Bengali, needs a language model. That has two consequences that shape the whole
  * design:
  *
- *   1. ANTHROPIC_API_KEY may never reach the browser. A key shipped in a bundle
+ *   1. The provider key may never reach the browser. A key shipped in a bundle
  *      is a key published, so the model is called from here and the frontend only
  *      ever sees text. This route is the reason the backend stops being a pure
  *      provider proxy.
@@ -34,12 +34,67 @@
  * writer of exactly the sentences those boundaries forbid, so the prohibition is
  * spelled out rather than assumed, and `sanitizeReply` checks the output for the
  * one class of violation with a hard, mechanical test: a named chemical.
+ *
+ * TWO INTERCHANGEABLE PROVIDERS
+ * Anthropic's API is not free, and asking every developer running this project
+ * to pay for one is a worse default than supporting a provider with a genuine
+ * no-cost tier. Google's Gemini API free tier (no billing account required) is
+ * that provider, so the route picks whichever key is present at start-up —
+ * `ANTHROPIC_API_KEY` if set, otherwise `GEMINI_API_KEY` — and calls that
+ * provider. Both paths share the same system prompt, the same context-to-facts
+ * builder, and the same `sanitizeReply` safety net, so the product boundaries
+ * hold identically regardless of which provider answered. `source` on the reply
+ * tells the frontend (for logging only; the farmer only ever sees "Answered
+ * online") which one it was.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
+import { retrieve, type KnowledgeEntry } from './knowledgeCorpus.js';
 
-/** Model id. Pinned deliberately: an unexpected model change alters advice. */
+/** Anthropic model id. Pinned deliberately: an unexpected model change alters advice. */
 const MODEL = 'claude-opus-5';
+
+/**
+ * Default Gemini model id.
+ *
+ * Flash (not Flash-Lite) is the deliberate default since the assistant began
+ * quoting official fertilizer schedules and composing action lists: Flash-Lite
+ * — the previous default, chosen when the route only reworded engine figures —
+ * followed the prompt's letter unevenly, sometimes copied bracketed provenance
+ * tokens straight into replies, and produced the flat generic sentences farmers
+ * objected to. Flash follows instructions and the label rules far better at a
+ * per-request cost that is still small for a few-sentence reply. Flash-Lite
+ * remains available to a deployment via `GEMINI_MODEL` if its larger free-tier
+ * quota matters more than answer quality.
+ */
+const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+
+/**
+ * Which Gemini model this deployment calls.
+ *
+ * `GEMINI_MODEL` overrides the default so a deployment can move to a newer model
+ * — or pin an older one that is being retired — without a code change and
+ * without a redeploy of the frontend. It is deliberately not a general-purpose
+ * setting: nothing here validates the id, so a value the API does not recognise
+ * means the provider rejects every call and the route reports itself
+ * unavailable, at which point the frontend falls back to the offline rules. That
+ * is a safe failure and a confusing one, so the variable is documented as
+ * optional and left unset in `render.yaml`.
+ *
+ * Read on each call rather than captured at import, for two reasons: the value is
+ * only consulted when a question is actually asked, so there is nothing to gain
+ * from freezing it at start-up; and a test can set the variable, exercise the
+ * accessor and restore it without re-importing the module.
+ *
+ * Whitespace is trimmed because a value pasted into a dashboard field commonly
+ * arrives with a trailing space, and `'gemini-flash-lite-latest '` would fail at
+ * the provider for a reason no log would make obvious.
+ */
+export function geminiModel(): string {
+  const configured = (process.env.GEMINI_MODEL ?? '').trim();
+  return configured.length > 0 ? configured : DEFAULT_GEMINI_MODEL;
+}
 
 /**
  * Reply budget. Farmers read this on a phone, often aloud via TTS, so the cap is
@@ -77,6 +132,14 @@ export class AssistantError extends Error {
  * prompt builder omits whatever is absent rather than substituting a default —
  * inventing a temperature the engine never saw would put a number in front of a
  * farmer that nothing in the app can reproduce.
+ *
+ * THIS SHAPE IS THE WIRE CONTRACT AND IT HAS A TWIN.
+ * `frontend/src/services/assistantRules.ts` declares the same interface, because
+ * one object serves both paths: the offline rules read it, and if they cannot
+ * answer it is sent here unchanged. The two copies must stay field-for-field
+ * identical. If they drift, the offline answer and the model's answer can
+ * disagree about the FACTS rather than merely the wording, and a farmer has no
+ * way to tell which one was working from the truth.
  */
 export interface AssistantContext {
   language?: string;
@@ -109,8 +172,145 @@ export interface AssistantContext {
   /** Advisory disease-risk summary, already computed from weather. */
   diseaseRiskLevel?: string;
   diseaseName?: string;
+  /** Where on the plant to look for the at-risk disease (translated). */
+  diseaseWhere?: string;
+  /** What the signs look like (translated). */
+  diseaseWhat?: string;
+
+  // --- Latest leaf-photo check (V2.2, on-device model) ---
+  //
+  // A PRE-WORDED summary of the most recent photo the farmer checked on the
+  // Today screen. The verdict names the finding plainly, with no percentages
+  // and no re-wording allowed: neither answer path may turn it into a figure
+  // or a treatment suggestion.
+
+  /** Pre-translated verdict sentence, e.g. "The photo shows Rice Blast." */
+  photoVerdict?: string;
+  /** Which crop the checked photo was of, when it differed from the farm's. */
+  photoPlant?: string;
+  /** When the photo was checked. ISO 8601. */
+  photoCheckedAt?: string;
   /** Approximate slope from the ~90 m DEM, when the farm has a terrain record. */
   slopePercent?: number;
+  /** Litres saved today versus the baseline practice, from the water ledger. */
+  savedTodayLiters?: number;
+  savedLifetimeLiters?: number;
+  /** Tomorrow's advised action from the multi-day plan, e.g. "Irrigate Today". */
+  tomorrowStatus?: string;
+
+  // --- Soil chemistry and where it came from (PRD §7, §28 Guardrail 1) ---
+  //
+  // WHY THE PROVENANCE FIELDS CARRY THE RAW ENGLISH LABEL
+  // These hold the §7 vocabulary verbatim — 'MEASURED', 'REGIONAL_ESTIMATE',
+  // 'USER_PROVIDED', 'FORECAST', 'CALCULATED', 'INFERRED', 'UNKNOWN'. The
+  // prompt below has to name the exact token it is forbidding the model to
+  // misrepresent, and a closed vocabulary is the only thing a rule can branch
+  // on. `diseaseRiskLevel` already sets this precedent with raw 'Moderate'.
+  // The farmer never sees these strings.
+
+  /** Topsoil pH. An area prediction unless `soilPhProvenance` says MEASURED. */
+  soilPh?: number;
+  /** §7 label for `soilPh`, e.g. 'REGIONAL_ESTIMATE'. */
+  soilPhProvenance?: string;
+  /** Plain-language sentence naming what produced `soilPh`. */
+  soilPhOrigin?: string;
+  /** Already-translated verdict for the crop, e.g. "Well suited". */
+  phSuitability?: string;
+  phOptimalMin?: number;
+  phOptimalMax?: number;
+  /** USDA texture class from the soil map, e.g. "clay loam". */
+  soilTextureClass?: string;
+  soilTextureProvenance?: string;
+  /** Topsoil organic carbon, percent by mass. */
+  organicCarbonPct?: number;
+  /** §7 label for `soilType` — USER_PROVIDED when the farmer chose it. */
+  soilTypeProvenance?: string;
+  /** §7 label for the weather figures, normally FORECAST. */
+  weatherProvenance?: string;
+  /** §7 label for the water-holding figures the moisture answer rests on. */
+  soilMoistureProvenance?: string;
+  /** Pre-translated top farm issues, highest severity first. */
+  topIssues?: string[];
+
+  // --- Water & soil quality tests (V2.2) ---
+  //
+  // The farmer's own lab reports, USER_PROVIDED. ECw and ECe together gate the
+  // engine's leaching uplift; the rest are management constraints the
+  // improvement plan flags — the model may quote the figures and interpret
+  // them against the FAO-29 limits, never turn them into a dose or product.
+
+  /** Irrigation-water salinity (ECw), dS/m. */
+  waterEcw?: number;
+  /** Water sodium adsorption ratio. */
+  waterSar?: number;
+  /** Water boron, mg/L. */
+  waterBoron?: number;
+  /** Water bicarbonate, meq/L. */
+  waterBicarbonate?: number;
+  /** Water pH. */
+  waterPh?: number;
+  /** Soil saturation-extract salinity (ECe), dS/m. */
+  soilEce?: number;
+  /** Soil exchangeable sodium percentage, %. */
+  soilEsp?: number;
+
+  // --- Soil fertility: the farmer's own Soil Health Card reading ---
+  //
+  // USER_PROVIDED, unlike every other soil-chemistry field above. The farmer
+  // typed these off their own lab slip; the app did not predict them from a
+  // map. `fertilityBand` is the one CALCULATED exception — the app's own
+  // classification of the three numbers into Low/Medium/High, the same
+  // distinction `phSuitability` draws against `soilPh`.
+
+  /** Available nitrogen from the farmer's own reading, kg/ha. */
+  fertilityN?: number;
+  fertilityP2O5?: number;
+  fertilityK2O?: number;
+  fertilityProvenance?: string;
+  fertilityBand?: string;
+  fertilityPh?: number;
+  fertilityEc?: number;
+  fertilityOrganicCarbonPct?: number;
+  fertilitySulphur?: number;
+  fertilityZinc?: number;
+  fertilityBoron?: number;
+  fertilityIron?: number;
+  fertilityManganese?: number;
+  fertilityCopper?: number;
+
+  // --- Resolved fertilizer schedule (State Agriculture Department booklet) ---
+  //
+  // Unlike every soil-chemistry field above, these figures ARE quotable exact
+  // values: they are a transcription of the official State Agriculture
+  // Department (West Bengal) soil-test-based fertilizer schedule — the same
+  // tables the app's Fertilizer tab shows — resolved to the crop, variety, soil
+  // zone and fertility band the farmer selected. The model may state these
+  // numbers verbatim WITH attribution to the State schedule. It may still never
+  // invent or adjust one: if no schedule line is present below, there is no
+  // figure to give, and the answer is to say so.
+
+  /** Official schedule dose for the selected band, e.g. "N 50, P2O5 25, K2O 25 kg/ha". */
+  fertScheduleNpk?: string;
+  /** The band the dose was resolved for, e.g. "Medium". */
+  fertScheduleBand?: string;
+  /** Variety label, e.g. "Kharif (monsoon) rice" or "Potato". */
+  fertScheduleVariety?: string;
+  /** Soil zone label the schedule was resolved for, e.g. "Terai". */
+  fertScheduleZone?: string;
+  /** Booklet soil amendment line, e.g. "Dolomite @ 1-2 t/ha". */
+  fertScheduleAmeliorant?: string;
+  /** Booklet manure/bio-fertilizer line, e.g. "FYM @ 5 t/ha ...". */
+  fertScheduleManure?: string;
+  /** Booklet sulphur line, e.g. "S @ 20 kg/ha at land preparation". */
+  fertScheduleSulphur?: string;
+  /** Booklet micronutrient line. */
+  fertScheduleMicronutrients?: string;
+  /** Booklet split-timing / general note for this crop table. */
+  fertScheduleTiming?: string;
+  /** True when the booklet has no NPK cell for this zone (Hill/Coastal gaps). */
+  fertScheduleNoDose?: boolean;
+  /** Crop alternatives ranked by pH suitability for this farm's soil. */
+  phAltCrops?: string[];
 }
 
 export interface AssistantTurn {
@@ -127,7 +327,11 @@ export interface AssistantRequest {
 export interface AssistantReply {
   /** The answer, in the farmer's language. */
   answer: string;
-  /** `claude` — from the model. Frontend rule answers never reach this route. */
+  /**
+   * `claude` — from the model, whichever provider actually answered. Frontend
+   * rule answers never reach this route, so this is always one of the two
+   * network providers below.
+   */
   source: 'claude';
   model: string;
 }
@@ -169,6 +373,21 @@ const FORBIDDEN_TERMS = [
 const FORBIDDEN_PATTERN = new RegExp(`\\b(${FORBIDDEN_TERMS.join('|')})\\b`, 'i');
 
 /**
+ * §7 provenance tokens that must never surface in a farmer-visible reply.
+ *
+ * The fact lines below deliberately weld labels like [USER_PROVIDED] onto the
+ * values they qualify, and the prompt tells the model to express what the label
+ * means in words rather than print it. A small model complies unevenly — a
+ * farmer being told "your loamy soil [USER_PROVIDED] wins" is the exact
+ * primitive-looking failure this removes. The strip is mechanical so it holds
+ * whatever the model does, the same reason FORBIDDEN_TERMS is a regex and not a
+ * hope. Only the bracketed token is removed; the sentence around it keeps its
+ * meaning because the model was asked to write a qualifier in words anyway.
+ */
+const PROVENANCE_TOKEN_PATTERN =
+  /\s*\[(?:MEASURED|USER_PROVIDED|REGIONAL_ESTIMATE|FORECAST|CALCULATED|INFERRED|UNKNOWN)\]/g;
+
+/**
  * Replace a reply that names a chemical with a referral.
  *
  * Dropping the whole answer rather than editing the offending sentence is
@@ -183,7 +402,7 @@ export function sanitizeReply(text: string): { text: string; blocked: boolean } 
       blocked: true,
     };
   }
-  return { text, blocked: false };
+  return { text: text.replace(PROVENANCE_TOKEN_PATTERN, ''), blocked: false };
 }
 /**
  * The system prompt.
@@ -197,8 +416,21 @@ export function sanitizeReply(text: string): { text: string; blocked: boolean } 
  * "Never name a chemical" invites a model to find the edge; "you cannot see the
  * crop, so naming a product would be guessing at a diagnosis you have not made"
  * does not.
+ *
+ * THE PROVENANCE SECTION IS A GUARDRAIL, NOT DOCUMENTATION (PRD §7, §28).
+ * Most of the soil facts this app holds are predictions for a 250 m map cell,
+ * not tests of the farmer's field. A model handed "pH 6.2" will say "your pH is
+ * 6.2" — fluently, confidently, and wrongly — and a farmer who believes it may
+ * skip the Soil Health Card test that would have told them the truth. So the
+ * §7 label vocabulary is defined in the prompt and each label is tied to what it
+ * licenses the model to claim. It is stated unconditionally, even when no
+ * labelled fact follows, because a rule that appears only sometimes is a rule
+ * the model learns to treat as optional.
  */
-export function buildSystemPrompt(context: AssistantContext | undefined): string {
+export function buildSystemPrompt(
+  context: AssistantContext | undefined,
+  knowledge: readonly KnowledgeEntry[] = [],
+): string {
   const languageName = LANGUAGE_NAMES[context?.language ?? 'en'] ?? 'English';
 
   const lines: string[] = [
@@ -206,23 +438,58 @@ export function buildSystemPrompt(context: AssistantContext | undefined): string
     '',
     `Reply in ${languageName}. If the farmer writes in another language or mixes languages, answer in ${languageName} unless they clearly asked for something else. Use plain everyday words, not agronomy jargon.`,
     '',
-    'Keep answers to 2-4 short sentences. The farmer is reading this on a phone, often standing in the field, and it may be read aloud to them.',
+    'Keep answers short — normally 2-4 sentences. When the farmer asks "what should I do today" or similar, a short numbered or bulleted list of concrete actions (3-4 items max, each one line) is better than a paragraph. The farmer is reading this on a phone, often standing in the field, and it may be read aloud to them.',
     '',
     'THE NUMBERS ARE ALREADY DECIDED.',
     "The app's irrigation engine has already computed today's advice from an FAO-56 crop water balance, the farm's soil, and the weather forecast. Those figures appear below. Your job is to explain them, not to recompute them.",
     '- Quote the depth, volume, run time and timing exactly as given. Never round them differently, never re-derive them, never offer an alternative figure.',
     '- If the farmer asks something the figures below do not cover, say plainly that you do not have that information rather than estimating it.',
     '',
+    'WHERE THE FACTS BELOW COME FROM.',
+    'Some facts carry a label in square brackets. The label says how the app knows that fact, and it changes what you are allowed to call it:',
+    '- MEASURED — an actual reading from this field. Only this label may be spoken of as a measurement of their land.',
+    '- USER_PROVIDED — the farmer told the app. Treat it as true about their field; they can see it and you cannot.',
+    "- REGIONAL_ESTIMATE — a prediction for the wider area from a coarse map, NOT a test of this field. Their neighbours' land is inside the same figure.",
+    '- FORECAST — a weather prediction that has not happened yet and can change.',
+    '- CALCULATED — worked out by the app from the figures above it, so it inherits their uncertainty.',
+    '- INFERRED — deduced indirectly, weaker still.',
+    '- UNKNOWN — the app does not have it. Say so; do not fill the gap.',
+    '',
+    'RULES YOU MUST FOLLOW ABOUT THOSE LABELS.',
+    '- Never present a REGIONAL_ESTIMATE as if it were a field measurement. Do not say "your soil pH is 6.2" when 6.2 is a REGIONAL_ESTIMATE. Say it is an estimate for the area, and name what it came from.',
+    '- If the farmer asks for an exact, actual or true value and all the app has is a REGIONAL_ESTIMATE, your FIRST sentence must say that the app does not have a test of their field, and you must point them at a Soil Health Card soil test. Give the estimate afterwards, labelled as one, or not at all. Never answer such a question with a bare number.',
+    '- Never overrule a USER_PROVIDED fact with a REGIONAL_ESTIMATE one. If the map and the farmer disagree, say both and say the farmer is the better source for their own field.',
+    '- Never state a quantity of lime, gypsum, sulphur, fertiliser, manure or any soil amendment or chemical OF YOUR OWN, even when the app has told you a value is out of range. The single exception is an OFFICIAL STATE SCHEDULE line below: those figures are transcriptions of the State Agriculture Department (West Bengal) fertilizer schedule — the same official booklet the app\'s Fertilizer tab displays — and you may quote them verbatim with attribution ("as per the State schedule"). Never scale, combine or re-derive a schedule figure, and when no schedule line is present for a crop or zone, say so plainly instead of giving a number.',
+    '- Never turn a CALCULATED or INFERRED figure into a certainty. "The app works it out as about X" is honest; "your soil holds exactly X" is not.',
+    '',
     'WHAT YOU MUST NOT DO.',
     '- Never name a fungicide, pesticide, insecticide or any plant-protection chemical, and never give a dose, concentration or spray schedule. You cannot see the crop, so naming a product would mean guessing at a diagnosis you have not made, and a wrong spray costs the farmer money and can harm the crop.',
-    '- Never state that a disease is present. The app can only say that the weather favours a disease, or that a photo looks similar to one. Phrase it that way.',
-    '- For pest and disease treatment, fertiliser doses, seed choice, market prices or government schemes, say this is outside what the app can advise and point the farmer to their local Krishi Vigyan Kendra (KVK) or agriculture extension officer.',
+    '- The leaf-photo check may name a condition outright (e.g. "The photo shows Rice Blast") — when it does, report the finding plainly, in the same words. Never attach a percentage, probability, "confidence" or similar figure to it, and never soften it back into a hedge.',
+    '- Outside the OFFICIAL STATE SCHEDULE lines, never state an exact quantity of fertiliser, urea, lime, gypsum, sulphur, manure or any other soil amendment or chemical that you worked out yourself.',
+    '- For pest and disease questions, follow ON DISEASE AND PEST QUESTIONS below instead of giving a bare referral. For seed choice, market prices or government schemes, say this is outside what the app can advise and point the farmer to their local Krishi Vigyan Kendra (KVK) or agriculture extension officer.',
     '- Do not invent local details you were not given: village names, prices, dates or scheme names.',
     '',
+    'ON DISEASE AND PEST QUESTIONS ("what spray", "is this blight", "my leaves have spots"), NEVER A BARE REFERRAL AND NEVER A CHEMICAL. DO THIS INSTEAD:',
+    '- Lead with scouting: the disease facts below say where to look and what the signs look like. Tell the farmer exactly that — which leaves, what the spots look like — and suggest checking in the morning while the leaves are dry. If the facts carry no scouting detail, say you do not know this disease\'s specific signs rather than describing some.',
+    '- Add prevention that is always safe to state: remove infected plant debris, improve drainage, avoid wetting the leaves in the evening, keep plant spacing for air movement. Present these as good practice, never as a cure.',
+    '- Then the photo check: the app has a "Check a leaf photo" card on the Today screen that compares a leaf photo against common diseases entirely on the phone, no internet needed. Tell the farmer to use it.',
+    '- End with a prepared referral, not a dead end: if they find the signs, show the photo to the local Krishi Vigyan Kendra or input dealer, who will confirm and name what is approved for the crop stage.',
+    '- If a "latest leaf-photo check" fact is present below, the farmer has already used the photo check — report its verdict sentence as worded, plainly. Never attach a percentage or confidence figure to it, and if it names a condition, add the scouting facts from the weather section so they know what to confirm on the leaf. If no photo fact is present, tell them the card exists on the Today screen.',
+    '- Still never name a chemical or product, never give a dose, and never attach a percentage or confidence figure to any finding (see WHAT YOU MUST NOT DO).',
+    '',
+    'ON FERTILITY AND SOIL-HEALTH QUESTIONS (how much fertiliser, is my soil deficient, should I add lime, how do I improve my soil, what could I grow instead), DO THIS INSTEAD OF REFUSING.',
+    '- If an OFFICIAL STATE SCHEDULE line is present below, lead with it: name the dose, the manure and amendment lines, and the split timing, attributed to the State schedule. That IS the exact answer the farmer is asking for.',
+    '- Otherwise answer with what the app actually has: its pH figure and verdict, its organic-carbon estimate, and any fertility issue already listed under "Improvements the app has already flagged" below, each with its own [LABEL] caveat exactly as the RULES above require.',
+    '- When the pH sits outside the crop\'s optimal band, give the farmer a plan, not just the number: say which way the pH needs to move and the usual correction for that direction on these soils — lime or dolomite to raise pH, gypsum to lower it — always adding that the amount needs a soil test and the local KVK. Then, if a crop-alternatives line is present below, name the best-suited crops from it as a second option.',
+    '- When the farmer says they HAVE a Soil Health Card or lab report: if the numbers are in their message, interpret them; if not, show them the two ways to use it — send the numbers here in the chat (pH 6.2, organic carbon 0.8%, N 240, P 12, K 150 kg/ha, and any S, Zn, B, Fe, Mn, Cu), or open the Fertilizer tab, choose crop and soil zone, tap the soil-test option, enter the card\'s numbers and tap "Save reading" — after which the app stores them on the farm, uses their fertility band for the official schedule dose, and remembers them.',
+    '- If the farmer has no soil test, recommending one (a Soil Health Card at the local KVK) is a next step on the list — not a substitute for the figures you have already given.',
+    '- If the app has no pH, schedule or fertility figure at all for this farm, say so plainly and go straight to recommending a soil test — there is nothing to estimate from.',
+    '',
     'WHAT YOU SHOULD DO.',
-    '- Answer the actual question first, in the first sentence.',
+    "- Answer the actual question first, in the first sentence, using the app's own figures whenever it has any that bear on the question — an estimate with its caveat stated is more useful to a farmer than an instant refusal.",
     '- Explain reasoning in terms the farmer can check against what they can see: rain that fell, how dry the soil is, how hot it is.',
     '- If the farmer disagrees with the advice, take it seriously. They can see the field and you cannot. Explain what the app assumed, and say that their own reading of the soil should win when the two conflict.',
+    '- When an APP KNOWLEDGE section follows, ground your answer in it: state the facts it gives rather than your general memory, and name the source it cites when the fact is the heart of the answer. If it does not cover what was asked, say so plainly and answer from the farm figures where you can — never blend your general memory into a sourced claim.',
   ];
 
   const facts = describeContext(context);
@@ -235,6 +502,19 @@ export function buildSystemPrompt(context: AssistantContext | undefined): string
     );
   }
 
+  // --- Retrieved app knowledge (V2.2 RAG foundation) ---
+  //
+  // Entries the deterministic retriever matched to this question, each with its
+  // source. The "ground your answer in it" rule lives in WHAT YOU SHOULD DO;
+  // the section itself is omitted entirely when nothing matched, because an
+  // empty section header invites the model to imagine its contents.
+  if (knowledge.length > 0) {
+    lines.push('', 'APP KNOWLEDGE (checked against this question, with sources):');
+    for (const entry of knowledge) {
+      lines.push(`- ${entry.text} [${entry.source}]`);
+    }
+  }
+
   return lines.join('\n');
 }
 
@@ -243,6 +523,13 @@ export function buildSystemPrompt(context: AssistantContext | undefined): string
  *
  * Absent fields are skipped entirely. A line reading "soil: unknown" would invite
  * the model to fill the gap; a line that is not there cannot.
+ *
+ * WHY EVERY UNCERTAIN FIGURE CARRIES ITS SOURCE IN THE SAME LINE
+ * A model given "Topsoil pH: 6.2" will say "your soil pH is 6.2", because that
+ * is what the sentence it was handed means. The provenance is therefore not a
+ * separate note further down the prompt — it is welded into the same line as the
+ * number, so there is no phrasing of that fact available to the model that omits
+ * it (PRD §7, §28 Guardrail 1).
  */
 export function describeContext(context: AssistantContext | undefined): string[] {
   if (!context) return [];
@@ -252,11 +539,26 @@ export function describeContext(context: AssistantContext | undefined): string[]
     facts.push(`${label}: ${String(value)}`);
   };
 
+  /**
+   * Attach the §7 label to a value, e.g. "Loamy [USER_PROVIDED]".
+   *
+   * The bracketed token is the machine-readable half; the RULES section of the
+   * prompt defines what each one licenses the model to say. An empty or absent
+   * value passes straight through so `add` can still drop it.
+   */
+  const labelled = (
+    value: string | undefined,
+    provenance: string | undefined,
+  ): string | undefined => {
+    if (!value) return value;
+    return provenance ? `${value} [${provenance}]` : value;
+  };
+
   add('Farm', context.farmName);
   add('Location', context.locationLabel);
   add('Crop', context.cropName);
   add('Growth stage', context.growthStage);
-  add('Soil', context.soilType);
+  add('Soil', labelled(context.soilType, context.soilTypeProvenance));
   add('Irrigation method', context.irrigationMethod);
   add('Field size', context.areaLabel);
 
@@ -288,6 +590,15 @@ export function describeContext(context: AssistantContext | undefined): string[]
     'Rain expected today',
     context.rainfallForecastMm === undefined ? undefined : `${context.rainfallForecastMm} mm`,
   );
+  const hasWeather =
+    context.temperatureC !== undefined ||
+    context.humidityPercent !== undefined ||
+    context.rainfallForecastMm !== undefined;
+  if (hasWeather && context.weatherProvenance !== undefined) {
+    facts.push(
+      `Provenance of those weather figures: ${context.weatherProvenance}. A FORECAST is a prediction, not something that has already happened — word it that way.`,
+    );
+  }
 
   if (context.depletionMm !== undefined) {
     const parts = [`the root zone is ${context.depletionMm} mm short of full`];
@@ -297,19 +608,199 @@ export function describeContext(context: AssistantContext | undefined): string[]
     if (context.totalAvailableMm !== undefined) {
       parts.push(`this soil can hold ${context.totalAvailableMm} mm in total`);
     }
+    // There is no moisture sensor in this field and there never has been. The
+    // depletion figure is a running FAO-56 water balance on top of a
+    // map-derived holding capacity, so the model must not describe it as a
+    // reading taken from the soil.
+    if (
+      context.soilMoistureProvenance !== undefined &&
+      context.soilMoistureProvenance !== 'MEASURED'
+    ) {
+      parts.push(
+        `the holding figures behind this are ${context.soilMoistureProvenance} — worked out from a soil map and a texture table, NOT read from a sensor in this field`,
+      );
+    }
     facts.push(`Soil moisture: ${parts.join('; ')}`);
+  }
+
+  // --- Soil fertility: the farmer's own Soil Health Card reading, cited
+  // before the pH/carbon map estimates below — it is USER_PROVIDED and specific
+  // to this field, so it is the better answer to "how is my soil doing"
+  // whenever it exists. ---
+
+  if (
+    context.fertilityN !== undefined ||
+    context.fertilityP2O5 !== undefined ||
+    context.fertilityK2O !== undefined
+  ) {
+    const parts: string[] = [];
+    if (context.fertilityN !== undefined) parts.push(`available N ${context.fertilityN} kg/ha`);
+    if (context.fertilityP2O5 !== undefined) parts.push(`available P2O5 ${context.fertilityP2O5} kg/ha`);
+    if (context.fertilityK2O !== undefined) parts.push(`available K2O ${context.fertilityK2O} kg/ha`);
+    const band = context.fertilityBand === undefined ? '' : ` — the app classifies this as ${context.fertilityBand} overall fertility`;
+    facts.push(
+      `Soil Health Card reading the farmer entered [USER_PROVIDED]: ${parts.join(', ')}${band}. This is the farmer's own field, not a map estimate — you may state it as their reading. Still never turn it into an exact fertiliser, urea, lime or amendment QUANTITY (see WHAT YOU MUST NOT DO); say what it suggests and point to a soil test / local KVK for the rate.`,
+    );
+  }
+
+  // --- Water & soil quality tests (V2.2) ---
+  //
+  // The farmer's own lab numbers, quoted with their safe limits from FAO-29
+  // (the same source the engine's leaching step and the improvement detector
+  // use) so the model interprets rather than guesses. ECw+ECe together also
+  // explain any leaching uplift already folded into today's advised depth.
+  {
+    const quality: string[] = [];
+    if (context.waterEcw !== undefined) quality.push(`water salinity ECw ${context.waterEcw} dS/m (usable up to ~0.7 for most crops; higher needs leaching)`);
+    if (context.soilEce !== undefined) quality.push(`soil salinity ECe ${context.soilEce} dS/m (above 2.0 counts as saline)`);
+    if (context.waterSar !== undefined) quality.push(`water sodium SAR ${context.waterSar} (above 3.0 risks sodium build-up)`);
+    if (context.soilEsp !== undefined) quality.push(`soil sodium ESP ${context.soilEsp}% (above 5% closes soil pores)`);
+    if (context.waterBoron !== undefined) quality.push(`water boron ${context.waterBoron} mg/L (above 0.7 is toxic to sensitive crops)`);
+    if (context.waterBicarbonate !== undefined) quality.push(`water bicarbonate ${context.waterBicarbonate} meq/L (above 1.5 clogs drip emitters with white scale)`);
+    if (context.waterPh !== undefined) quality.push(`water pH ${context.waterPh}`);
+    if (quality.length > 0) {
+      facts.push(
+        `Soil and water tests the farmer entered [USER_PROVIDED]: ${quality.join('; ')}. Interpret these against the limits given (FAO-29); you may explain what a breach means for watering practice, but never name a corrective product or dose — that is the local KVK's call.`,
+      );
+    }
+  }
+
+  // --- Soil chemistry: the figures a farmer is most likely to mistake for a
+  // lab result, so each one names what produced it in the same breath. ---
+
+  if (context.soilPh !== undefined) {
+    const label =
+      context.soilPhProvenance === undefined ? '' : ` [${context.soilPhProvenance}]`;
+    const from = context.soilPhOrigin ? `, from ${context.soilPhOrigin}` : '';
+    facts.push(
+      context.soilPhProvenance === 'MEASURED'
+        ? `Topsoil pH from a field test${label}: ${context.soilPh}${from}. This one you may state as this field's own measured value.`
+        : `Topsoil pH ESTIMATE${label}: ${context.soilPh}${from}. This is NOT a test of this field. If the farmer asks for their exact or actual pH, say plainly that this is an area estimate and that a Soil Health Card soil test is what gives their field's own value.`,
+    );
+  }
+
+  if (context.phOptimalMin !== undefined && context.phOptimalMax !== undefined) {
+    const verdict =
+      context.phSuitability === undefined ? '' : ` The app's verdict: ${context.phSuitability}.`;
+    facts.push(
+      `pH band this crop prefers: ${context.phOptimalMin} to ${context.phOptimalMax}.${verdict} The verdict is only as good as the pH figure above. Never state a lime, gypsum or sulphur quantity — that needs a soil test and the local KVK.`,
+    );
+  }
+
+  if (context.soilTextureClass !== undefined) {
+    facts.push(
+      `Soil texture class from the same soil map: ${labelled(context.soilTextureClass, context.soilTextureProvenance)}. If this disagrees with the farmer's own soil choice above, THEIRS wins — they have dug in this field and the map has not.`,
+    );
+  }
+
+  if (context.organicCarbonPct !== undefined) {
+    facts.push(
+      `Topsoil organic carbon: ${context.organicCarbonPct}% (the same 250 m map estimate, not a test of this field)`,
+    );
   }
 
   if (context.diseaseRiskLevel !== undefined) {
     const named = context.diseaseName ? ` for ${context.diseaseName}` : '';
+    // Scouting detail rides the same line: "where to look" and "what the signs
+    // look like" are Knowledge Base facts (docs/10 §10.5), and a risk figure a
+    // farmer can act on TODAY beats a number they must interpret themselves.
+    // They appear only with the disease they belong to.
+    const scout =
+      context.diseaseWhere !== undefined ? `; where to look: ${context.diseaseWhere}` : '';
+    const signs =
+      context.diseaseWhat !== undefined ? `; what the signs look like: ${context.diseaseWhat}` : '';
     facts.push(
-      `Disease risk from weather${named}: ${context.diseaseRiskLevel}. This means the weather favours it — NOT that the disease is present.`,
+      `Disease risk from weather${named}: ${context.diseaseRiskLevel}. This means the weather favours it — NOT that the disease is present.${scout}${signs}`,
+    );
+  }
+
+  // --- Latest leaf-photo check (V2.2) ---
+  //
+  // The verdict arrives PRE-WORDED by the client ("The photo shows X") because
+  // that wording is a product boundary, and the model must re-quote it, not
+  // re-word it, and not attach any percentage to it. photoPlant is included in
+  // the same line for the same reason the scouting detail is: a reading about
+  // a different plant explains itself or it misleads.
+  if (context.photoVerdict !== undefined) {
+    const plant = context.photoPlant ? ` (the photo looked like a ${context.photoPlant} leaf)` : '';
+    facts.push(
+      `Result of the farmer's latest leaf-photo check, from the app's on-device photo model: ${context.photoVerdict}${plant}. Quote it as worded, plainly and confidently — never attach a percentage, probability or "confidence" figure to it, never soften it into a hedge, and never name a treatment.`,
     );
   }
 
   if (context.slopePercent !== undefined) {
     facts.push(
       `Approximate land slope: ${context.slopePercent}% (from a coarse ~90 m elevation map, so treat it as rough)`,
+    );
+  }
+
+  // Array.isArray rather than a length check: the context arrives from a client
+  // and `parseRequest` does not validate its interior, so a string here would
+  // otherwise reach `.join` and throw a 500 on a farmer's question.
+  if (Array.isArray(context.topIssues) && context.topIssues.length > 0) {
+    facts.push(
+      `Improvements the app has already flagged for this farm, most important first: ${context.topIssues.join('; ')}. If the farmer asks what to fix, work from this list — it was produced by the same rules that produced the figures above. Do not invent a different one.`,
+    );
+  }
+
+  // --- OFFICIAL STATE SCHEDULE (quotable, unlike everything above) ---
+  //
+  // Assembled from the fertSchedule* fields into one block the prompt's rules
+  // can name ("an OFFICIAL STATE SCHEDULE line"). Every figure is a direct
+  // transcription of the State Agriculture Department booklet — never a value
+  // the model derived — so the instructions tell it to quote verbatim with
+  // attribution and the worst it can do is paraphrase an official number.
+  if (
+    context.fertScheduleNpk !== undefined ||
+    context.fertScheduleNoDose === true ||
+    context.fertScheduleManure !== undefined ||
+    context.fertScheduleAmeliorant !== undefined
+  ) {
+    const where = [
+      context.fertScheduleVariety,
+      context.fertScheduleZone ? `${context.fertScheduleZone} zone` : undefined,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    facts.push(
+      `OFFICIAL STATE SCHEDULE — State Agriculture Department fertilizer recommendation${where ? ` (${where})` : ''}:`,
+    );
+    if (context.fertScheduleNpk !== undefined && context.fertScheduleBand !== undefined) {
+      facts.push(
+        `- NPK dose for ${context.fertScheduleBand} fertility soil: ${context.fertScheduleNpk}. Quote these numbers exactly, attributed to the State schedule.`,
+      );
+    }
+    if (context.fertScheduleNoDose === true) {
+      facts.push(
+        '- The schedule booklet has NO NPK dose for this crop and zone — say so plainly; do not offer a number.',
+      );
+    }
+    if (context.fertScheduleManure !== undefined) {
+      facts.push(`- Manure / bio-fertilizer line: ${context.fertScheduleManure}`);
+    }
+    if (context.fertScheduleAmeliorant !== undefined) {
+      facts.push(`- Soil amendment line: ${context.fertScheduleAmeliorant}`);
+    }
+    if (context.fertScheduleSulphur !== undefined) {
+      facts.push(`- Sulphur line: ${context.fertScheduleSulphur}`);
+    }
+    if (context.fertScheduleMicronutrients !== undefined) {
+      facts.push(`- Micronutrient line: ${context.fertScheduleMicronutrients}`);
+    }
+    if (context.fertScheduleTiming !== undefined) {
+      facts.push(`- Split timing / general note: ${context.fertScheduleTiming}`);
+    }
+  }
+
+  // --- Crop alternatives by pH suitability ---
+  //
+  // Ranked by deterministic code (frontend assistantContext), not by the model:
+  // each crop is scored against the farm's pH by CROP_PH_RANGE exactly as the
+  // pH suitability card scores the current crop. The model presents; it never
+  // ranks.
+  if (Array.isArray(context.phAltCrops) && context.phAltCrops.length > 0) {
+    facts.push(
+      `Crops the app's pH data ranks as well-suited to this farm's soil, best first: ${context.phAltCrops.join(', ')}. These are pH-suitability options only — water, market and labour are the farmer's to weigh.`,
     );
   }
 
@@ -388,48 +879,67 @@ export function buildMessages(request: AssistantRequest): Anthropic.MessageParam
   ];
 }
 
-/** Lazily constructed so the module can be imported without a key present. */
-let client: Anthropic | null = null;
+/** Which network provider a deployment is configured to use. */
+type Provider = 'anthropic' | 'gemini';
 
-function getClient(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey || apiKey.trim().length === 0) {
-    // Not a 500: the deployment simply has no key, and the frontend's offline
-    // rules have already answered. Saying so plainly makes the state
-    // diagnosable instead of looking like an outage.
-    throw new AssistantError('assistant is not configured', 503, 'ASSISTANT_DISABLED');
-  }
-  client ??= new Anthropic({ apiKey, timeout: REQUEST_TIMEOUT_MS });
-  return client;
+/**
+ * Which provider this deployment should call, or null if neither key is set.
+ *
+ * Anthropic takes priority when both are present, mirroring the order these
+ * providers were added to the project. A deployment only ever needs one key —
+ * setting both is not a supported way to get a fallback between them, because
+ * a farmer cannot tell "the model answered" from "which of two models
+ * answered", so there is nothing to gain from silently trying a second
+ * provider after the first fails.
+ */
+function activeProvider(): Provider | null {
+  if ((process.env.ANTHROPIC_API_KEY ?? '').trim().length > 0) return 'anthropic';
+  if ((process.env.GEMINI_API_KEY ?? '').trim().length > 0) return 'gemini';
+  return null;
 }
 
 /** True when the route can serve requests. Reported by /health. */
 export function assistantConfigured(): boolean {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  return typeof apiKey === 'string' && apiKey.trim().length > 0;
+  return activeProvider() !== null;
+}
+
+/** Lazily constructed so the module can be imported without a key present. */
+let anthropicClient: Anthropic | null = null;
+let geminiClient: GoogleGenAI | null = null;
+
+function getAnthropicClient(): Anthropic {
+  anthropicClient ??= new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    timeout: REQUEST_TIMEOUT_MS,
+  });
+  return anthropicClient;
+}
+
+function getGeminiClient(): GoogleGenAI {
+  // Only called once activeProvider() has confirmed GEMINI_API_KEY is set, but
+  // exactOptionalPropertyTypes still requires the string to be narrowed here.
+  const apiKey = process.env.GEMINI_API_KEY ?? '';
+  geminiClient ??= new GoogleGenAI({ apiKey, httpOptions: { timeout: REQUEST_TIMEOUT_MS } });
+  return geminiClient;
 }
 
 /**
- * Answer a farmer's question.
- *
- * Non-streaming: the reply is a few sentences well inside `MAX_TOKENS`, and the
- * client shows a typing indicator rather than a partial answer — a half-rendered
- * irrigation figure is worse than a short wait.
+ * Answer via the Anthropic Messages API.
  *
  * `thinking` is left at the model's default (adaptive on this model) and no
  * sampling parameters are sent: `temperature`, `top_p`, `top_k` and
- * `budget_tokens` are all rejected with a 400 here. Steering is done through the
- * prompt.
+ * `budget_tokens` are all rejected with a 400 here. Steering is done through
+ * the prompt.
  */
-export async function askAssistant(request: AssistantRequest): Promise<AssistantReply> {
-  const anthropic = getClient();
+async function askAnthropic(request: AssistantRequest): Promise<{ answer: string; model: string }> {
+  const anthropic = getAnthropicClient();
 
   let response: Anthropic.Message;
   try {
     response = await anthropic.messages.create({
       model: MODEL,
       max_tokens: MAX_TOKENS,
-      system: buildSystemPrompt(request.context),
+      system: buildSystemPrompt(request.context, retrieve(request.question)),
       messages: buildMessages(request),
     });
   } catch (error) {
@@ -454,6 +964,75 @@ export async function askAssistant(request: AssistantRequest): Promise<Assistant
     .join('\n')
     .trim();
 
+  return { answer, model: response.model };
+}
+
+/**
+ * Answer via the Gemini API.
+ *
+ * Gemini has no separate "system" message slot in the chat history the way
+ * `buildMessages` shapes it for Anthropic — the SDK takes the system prompt as
+ * `config.systemInstruction` instead, and the conversation as `contents` with
+ * `role: 'user' | 'model'` (Gemini's name for the assistant turn, not `role:
+ * 'assistant'`). Mapped here rather than in `buildMessages`, so that function
+ * stays specific to the Anthropic shape it was written for.
+ */
+async function askGemini(request: AssistantRequest): Promise<{ answer: string; model: string }> {
+  const ai = getGeminiClient();
+  const messages = buildMessages(request);
+  // Resolved once, so the id reported back is provably the id that was called.
+  const model = geminiModel();
+
+  let response: Awaited<ReturnType<GoogleGenAI['models']['generateContent']>>;
+  try {
+    response = await ai.models.generateContent({
+      model,
+      contents: messages.map((message) => ({
+        role: message.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: typeof message.content === 'string' ? message.content : '' }],
+      })),
+      config: {
+        systemInstruction: buildSystemPrompt(request.context, retrieve(request.question)),
+        maxOutputTokens: MAX_TOKENS,
+      },
+    });
+  } catch (error) {
+    // The SDK throws ApiError with an HTTP status for provider-side failures.
+    // Mapped the same way as the Anthropic branch, so the frontend's handling
+    // of ASSISTANT_DISABLED / ASSISTANT_BUSY / ASSISTANT_UNAVAILABLE does not
+    // need to know which provider is behind this deployment.
+    const status = (error as { status?: number } | null)?.status;
+    if (status === 400 || status === 401 || status === 403) {
+      throw new AssistantError('assistant credentials are not valid', 503, 'ASSISTANT_DISABLED');
+    }
+    if (status === 429) {
+      throw new AssistantError('assistant is busy, try again shortly', 429, 'ASSISTANT_BUSY');
+    }
+    throw new AssistantError('assistant is unavailable', 502, 'ASSISTANT_UNAVAILABLE');
+  }
+
+  const answer = (response.text ?? '').trim();
+  return { answer, model };
+}
+
+/**
+ * Answer a farmer's question.
+ *
+ * Non-streaming: the reply is a few sentences well inside `MAX_TOKENS`, and the
+ * client shows a typing indicator rather than a partial answer — a half-rendered
+ * irrigation figure is worse than a short wait.
+ */
+export async function askAssistant(request: AssistantRequest): Promise<AssistantReply> {
+  const provider = activeProvider();
+  if (!provider) {
+    // Not a 500: the deployment simply has no key, and the frontend's offline
+    // rules have already answered. Saying so plainly makes the state
+    // diagnosable instead of looking like an outage.
+    throw new AssistantError('assistant is not configured', 503, 'ASSISTANT_DISABLED');
+  }
+
+  const { answer, model } = provider === 'anthropic' ? await askAnthropic(request) : await askGemini(request);
+
   if (answer.length === 0) {
     // A refusal or an empty completion. The frontend falls back to its rules.
     throw new AssistantError('assistant returned no answer', 502, 'ASSISTANT_UNAVAILABLE');
@@ -464,5 +1043,5 @@ export async function askAssistant(request: AssistantRequest): Promise<Assistant
     console.warn('[IrrigaSmart] assistant reply blocked: it named a plant-protection product');
   }
 
-  return { answer: text, source: 'claude', model: response.model };
+  return { answer: text, source: 'claude', model };
 }

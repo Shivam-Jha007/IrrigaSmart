@@ -59,13 +59,21 @@ export interface ModelSpec {
 }
 
 /**
- * The only model that exists today. A second entry (rice, say) needs no change
- * to anything below — `loadModel` takes the spec.
+ * The only model that exists today. A future retrain needs no change to
+ * anything below — `loadModel` takes the spec.
+ *
+ * `-v2` filenames rather than overwriting the v1 files: the Workbox
+ * `CacheFirst` rule in vite.config.ts matches the `/models/` path prefix, not
+ * a content hash, so a phone that already cached `plant-disease-mobilenetv3.onnx`
+ * would never see a same-named replacement. v2 adds rice (Bacterial blight,
+ * Blast, Brown spot, Tungro) to the original 23 classes; the v1 files are left
+ * in place rather than deleted, since removing them buys nothing once the spec
+ * below points elsewhere.
  */
 export const PLANT_DISEASE_MODEL: ModelSpec = {
-  id: 'plant-disease-mobilenetv3',
-  modelUrl: '/models/plant-disease-mobilenetv3.onnx',
-  manifestUrl: '/models/plant-disease-labels.json',
+  id: 'plant-disease-mobilenetv3-v3',
+  modelUrl: '/models/plant-disease-mobilenetv3-v3.onnx',
+  manifestUrl: '/models/plant-disease-labels-v3.json',
 };
 
 /** A raw reading, before the crop-awareness in `verdictFor` is applied. */
@@ -340,13 +348,37 @@ export async function decodeToRgba(
   }
 }
 
+function cropClassIndices(classes: readonly string[], crop: CropName): number[] {
+  const prefix = crop === 'Maize' ? 'Corn_(maize)___' : `${crop}___`;
+  return classes.flatMap((rawClass, index) => (rawClass.startsWith(prefix) ? [index] : []));
+}
+
+export function cropConditionedReading(
+  scores: ArrayLike<number>,
+  classes: readonly string[],
+  crop: CropName,
+): Reading | null {
+  const indices = cropClassIndices(classes, crop);
+  const total = indices.reduce((sum, index) => sum + (scores[index] ?? 0), 0);
+  if (indices.length === 0 || total <= 0) return null;
+
+  let bestIndex = indices[0] ?? 0;
+  for (const index of indices.slice(1)) {
+    if ((scores[index] ?? 0) > (scores[bestIndex] ?? 0)) bestIndex = index;
+  }
+  return {
+    classIndex: bestIndex,
+    rawClass: classes[bestIndex] ?? '',
+    confidence: (scores[bestIndex] ?? 0) / total,
+  };
+}
+
 /**
  * Classify one photo.
  *
- * `crop` is the selected farm's crop, used only to decide presentation
- * (`verdictFor`) — it never filters or biases the model's own output, so the
- * reading stays honest and the UI can say "this looks like a tomato disease,
- * but your field is maize".
+ * `crop` constrains rice readings to the model's rice classes. This uses the
+ * farmer's selected crop to prevent a known failure mode where rice lesions are
+ * ranked as healthy maize. Other crops retain the model's global ranking.
  */
 export async function classifyPhoto(
   file: Blob,
@@ -378,12 +410,21 @@ export async function classifyPhoto(
     throw new VisionError('inferenceFailed', `inference threw: ${String(cause)}`);
   }
   const elapsedMs = performance.now() - startedAt;
-
   const { index, value } = argmax(scores);
-  const rawClass = manifest.classes[index] ?? '';
-  const reading: Reading = { classIndex: index, rawClass, confidence: value };
 
-  return { reading, verdict: verdictFor(rawClass, value, crop), elapsedMs };
+  const reading = crop === 'Rice'
+    ? cropConditionedReading(scores, manifest.classes, crop) ?? {
+        classIndex: index,
+        rawClass: manifest.classes[index] ?? '',
+        confidence: value,
+      }
+    : { classIndex: index, rawClass: manifest.classes[index] ?? '', confidence: value };
+
+  return {
+    reading,
+    verdict: verdictFor(reading.rawClass, reading.confidence, crop),
+    elapsedMs,
+  };
 }
 
 /** Re-exported so the UI imports one module. */

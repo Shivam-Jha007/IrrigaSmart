@@ -6,7 +6,10 @@ import type {
   Farm,
   GrowthStage,
   Soil,
+  SoilNutrientReading,
+  SoilQualityReading,
   SoilType,
+  WaterQualityReading,
   WeatherData,
 } from '../../types';
 
@@ -53,6 +56,11 @@ export function makeFarm(overrides: Partial<Farm> = {}): Farm {
   };
 }
 
+/** An irrigation-water test report, for the V2.2 leaching tests. */
+export function makeWaterQuality(overrides: Partial<WaterQualityReading> = {}): WaterQualityReading {
+  return { recordedAt: NOW, ...overrides };
+}
+
 export function makeCrop(name: CropName, stage: GrowthStage): Crop {
   return {
     id: 'crop-1',
@@ -63,12 +71,18 @@ export function makeCrop(name: CropName, stage: GrowthStage): Crop {
   };
 }
 
-export function makeSoil(name: SoilType): Soil {
+export function makeSoil(
+  name: SoilType,
+  qualityReading?: SoilQualityReading,
+  nutrientReading?: SoilNutrientReading,
+): Soil {
   return {
     id: 'soil-1',
     name,
     waterRetention: 'Moderate',
     drainage: 'Moderate',
+    ...(qualityReading ? { qualityReading } : {}),
+    ...(nutrientReading ? { nutrientReading } : {}),
   };
 }
 

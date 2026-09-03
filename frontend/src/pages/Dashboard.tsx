@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AppStore } from '../app/useAppStore';
 import type { FarmSummary, RecommendationView, WaterProgress } from '../app/appTypes';
 import type { AppNotification, DailyWeather, WeatherData } from '../types';
 import { DbBlockedError, getCachedWeather } from '../storage';
-import { buildAssistantContext, localDayString } from '../services';
-import { FarmerAssistant } from '../components/FarmerAssistant';
+import {
+  buildFarmContext,
+  detectFarmIssues,
+  localDayString,
+  TOP_ISSUE_COUNT,
+  type AssistantEngineInputs,
+  type VisionResult,
+} from '../services';
 import { RecommendationCard } from '../components/RecommendationCard';
 import { WeatherSummary } from '../components/WeatherSummary';
 import { FarmCard } from '../components/FarmCard';
@@ -14,6 +20,8 @@ import { SeasonalGuidance } from '../components/SeasonalGuidance';
 import { DiseaseRiskCard } from '../components/DiseaseRiskCard';
 import { DiseasePhotoCard } from '../components/DiseasePhotoCard';
 import { SoilMoistureCard } from '../components/SoilMoistureCard';
+import { PhSuitabilityCard } from '../components/PhSuitabilityCard';
+import { ImprovementPlanCard } from '../components/ImprovementPlanCard';
 import { ReminderPlanner } from '../components/ReminderPlanner';
 import { WaterChecklist } from '../components/WaterChecklist';
 
@@ -31,9 +39,15 @@ import { WaterChecklist } from '../components/WaterChecklist';
 interface Props {
   store: AppStore;
   onGoToFarms(): void;
+  /**
+   * Receives the engine outputs for the shell-level chat panel (V2.2). The
+   * shell builds the assistant's context from these plus the live store, so
+   * facts changed on other tabs reach the bot without a visit back here.
+   */
+  onAssistantInputs(inputs: AssistantEngineInputs): void;
 }
 
-export function Dashboard({ store, onGoToFarms }: Props) {
+export function Dashboard({ store, onGoToFarms, onAssistantInputs }: Props) {
   const {
     farmer,
     profiles,
@@ -46,6 +60,15 @@ export function Dashboard({ store, onGoToFarms }: Props) {
   const [selectedFarmId, setSelectedFarmId] = useState<string>('');
   const [view, setView] = useState<RecommendationView | null>(null);
   const [weather, setWeather] = useState<WeatherData | null>(null);
+  // The latest leaf-photo check, kept so the assistant can answer "what did
+  // the photo show?" from the same result the card just displayed. Session
+  // state, deliberately not persisted: a photo verdict is about a leaf in the
+  // farmer's hand today, and a stored one would be quietly stale tomorrow.
+  // Cleared when the selected farm changes — a photo of one farm's leaf must
+  // not be quoted as another farm's.
+  const [lastPhoto, setLastPhoto] = useState<{ result: VisionResult; checkedAt: string } | null>(
+    null,
+  );
   // Today's daily record, held beside the weather because the sunshine figure
   // lives only in the daily series — WeatherData carries the current snapshot.
   const [today, setToday] = useState<DailyWeather | null>(null);
@@ -148,6 +171,10 @@ export function Dashboard({ store, onGoToFarms }: Props) {
     if (selectedFarmId) {
       void refresh(selectedFarmId);
     }
+    // The photo belongs to the farm it was taken on. Not conditional on the
+    // id CHANGING (initial selection must clear the null state too, and an
+    // effect keyed on selectedFarmId is the one place both cases meet).
+    setLastPhoto(null);
   }, [selectedFarmId, refresh]);
 
   // Load card overviews whenever the farm list changes.
@@ -157,6 +184,35 @@ export function Dashboard({ store, onGoToFarms }: Props) {
 
   const greeting = t('dashboard.greeting', { name: farmer?.name ?? 'Farmer' });
   const selectedProfile = profiles.find((p) => p.farm.id === selectedFarmId);
+
+  // The improvement plan (PRD §15). Derived, never stored: it is a reading of the
+  // same context the assistant gets, so the card and the Copilot cannot disagree
+  // about what this farm's problems are. Empty until a farm is selected, and
+  // empty again for a farm whose detectors all lack the data they need.
+  const farmIssues = detectFarmIssues(
+    buildFarmContext({ profile: selectedProfile, view, weather, today, waterProgress }),
+  );
+
+  // What the shell-level chat panel needs from this screen (V2.2): the
+  // selected farm and the engine outputs, MEMOIZED so the report effect fires
+  // only when one of them actually changed. The profile itself is deliberately
+  // NOT sent — the shell reads it from the live store, so a fertilizer
+  // selection saved on the Fertilizer tab is in the bot's context immediately.
+  const assistantInputs = useMemo<AssistantEngineInputs>(
+    () => ({
+      farmId: selectedProfile?.farm.id ?? null,
+      view,
+      weather,
+      today,
+      waterProgress,
+      photoCheck: lastPhoto,
+    }),
+    [selectedProfile, view, weather, today, waterProgress, lastPhoto],
+  );
+
+  useEffect(() => {
+    onAssistantInputs(assistantInputs);
+  }, [assistantInputs, onAssistantInputs]);
 
   if (profiles.length === 0) {
     return (
@@ -168,14 +224,9 @@ export function Dashboard({ store, onGoToFarms }: Props) {
             {t('dashboard.addFarm')}
           </button>
         </div>
-        {/* Offered before the first farm exists too: "what can you do?" and
-            "which spray should I use?" are both answerable with no farm data,
-            and the second one especially should never wait for onboarding. */}
-        <FarmerAssistant
-          context={undefined}
-          language={store.settings.preferredLanguage}
-          t={t}
-        />
+        {/* The chat panel itself now lives at the app-shell level (V2.2), so
+            the pre-onboarding questions it used to answer here are still
+            answerable — the floating circle is present on this screen too. */}
       </div>
     );
   }
@@ -236,6 +287,33 @@ export function Dashboard({ store, onGoToFarms }: Props) {
                 }}
               />
             )}
+            {/* Seasonal guidance, soil pH suitability and the weather-based
+                disease watch live here rather than in the aside column below.
+                On desktop the aside is narrower (1fr vs 1.55fr) and was
+                carrying most of the supporting cards, which left the two
+                columns visibly unbalanced — a tall left column and a much
+                taller right one. Moving these three across evens out both
+                columns' length without changing what any card shows or how
+                it gets its data; every prop below is identical to before. */}
+            {selectedProfile && (
+              <SeasonalGuidance crop={selectedProfile.crop} language={store.settings.preferredLanguage} t={t} />
+            )}
+            {selectedProfile && (
+              <PhSuitabilityCard
+                crop={selectedProfile.crop}
+                soil={selectedProfile.soil}
+                fetchStatus={store.soilFetchStatus[selectedProfile.soil.id] ?? null}
+                t={t}
+              />
+            )}
+            {selectedProfile && view && (
+              <DiseaseRiskCard
+                risk={view.diseaseRisk}
+                crop={selectedProfile.crop}
+                language={store.settings.preferredLanguage}
+                t={t}
+              />
+            )}
             {/* Reminders are useful on every outcome, not only when irrigating:
                 a "monitor tomorrow" day is exactly when a farmer wants a nudge. */}
             <ReminderPlanner
@@ -262,6 +340,18 @@ export function Dashboard({ store, onGoToFarms }: Props) {
 
           {/* Aside zone: supporting context */}
           <div className="dashboard__aside">
+            {/* First: it answers "what should I fix about this farm", which is
+                the question a farmer has left over once the recommendation
+                above has answered "what should I do today". Only shown for a
+                selected farm, because there is nothing to assess without one. */}
+            {selectedProfile && (
+              <ImprovementPlanCard
+                issues={farmIssues}
+                topCount={TOP_ISSUE_COUNT}
+                t={t}
+                language={store.settings.preferredLanguage}
+              />
+            )}
             {weather && selectedProfile && (
               <WeatherSummary
                 weather={weather}
@@ -275,50 +365,32 @@ export function Dashboard({ store, onGoToFarms }: Props) {
             {view?.plan && (
               <PlanOutlook plan={view.plan} language={store.settings.preferredLanguage} t={t} />
             )}
-            {selectedProfile && (
-              <SeasonalGuidance crop={selectedProfile.crop} language={store.settings.preferredLanguage} t={t} />
-            )}
-            {selectedProfile && view && (
-              <DiseaseRiskCard
-                risk={view.diseaseRisk}
-                crop={selectedProfile.crop}
-                language={store.settings.preferredLanguage}
-                t={t}
-              />
-            )}
-            {/* Beside the weather-based watch, not instead of it: the two
-                answer different questions. Disease watch says the weather
-                favours something; this says what a leaf in front of you looks
-                like. It needs no weather series, so it renders whenever a farm
-                is selected — including for the seven crops the model was never
-                trained on, which it says plainly rather than hiding. */}
+            {/* Beside the weather-based watch (now in the left column), not
+                instead of it: the two answer different questions. Disease
+                watch says the weather favours something; this says what a
+                leaf in front of you looks like. It needs no weather series, so
+                it renders whenever a farm is selected — including for the
+                seven crops the model was never trained on, which it says
+                plainly rather than hiding. */}
             {selectedProfile && (
               <DiseasePhotoCard
                 crop={selectedProfile.crop.name}
-                language={store.settings.preferredLanguage}
                 t={t}
+                onResult={(result) =>
+                  setLastPhoto(
+                    result ? { result, checkedAt: new Date().toISOString() } : null,
+                  )
+                }
               />
             )}
           </div>
         </div>
       )}
-
-      {/* The assistant knows what this farm is doing: its context is the same
-          engine output the cards above render. It floats because a farmer must
-          be able to ask without losing their place in the decision. */}
-      <FarmerAssistant
-        context={buildAssistantContext({
-          profile: selectedProfile,
-          view,
-          weather,
-          today,
-          waterProgress,
-          language: store.settings.preferredLanguage,
-          t,
-        })}
-        language={store.settings.preferredLanguage}
-        t={t}
-      />
+      {/* The assistant panel is rendered by the app shell (V2.2): it used to
+          live here, but its own deep-link buttons send the farmer to other
+          tabs, and a chat that vanishes the moment its advice is followed
+          could not answer the follow-up. Its context is reported upward from
+          this component — the same engine output the cards above render. */}
     </div>
   );
 }

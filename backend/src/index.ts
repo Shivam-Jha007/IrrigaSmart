@@ -33,12 +33,20 @@ const app = express();
  *
  * In production the API must only be callable from the deployed frontend, so the
  * allowed origin(s) come from the CORS_ORIGIN environment variable
- * (comma-separated). When unset — i.e. local development — we fall back to the
- * Vite dev server origin so `npm run dev` works without extra configuration.
- * Requests without an Origin header (curl, health checks, same-origin) are always
- * allowed.
+ * (comma-separated). When unset OR blank — i.e. local development — we fall back
+ * to the Vite dev server origin so `npm run dev` works without extra
+ * configuration. Requests without an Origin header (curl, health checks,
+ * same-origin) are always allowed.
+ *
+ * `?.trim()` then a length check, not `??`: an `.env` file with a present but
+ * empty `CORS_ORIGIN=` line (a normal thing to leave in a template) loads as
+ * `""`, and `"" ?? fallback` returns `""` — not the fallback, since `??` only
+ * triggers on null/undefined. Treating blank the same as unset is what keeps a
+ * harmless empty line in `.env` from silently emptying the allowlist and
+ * locking every browser out of the API with no visible server-side error.
  */
-const allowedOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:5173')
+const rawCorsOrigin = process.env.CORS_ORIGIN?.trim();
+const allowedOrigins = (rawCorsOrigin ? rawCorsOrigin : 'http://localhost:5173')
   .split(',')
   .map((origin) => origin.trim())
   .filter((origin) => origin.length > 0);

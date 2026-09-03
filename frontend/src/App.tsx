@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import './App.css';
 import { useAppStore } from './app/useAppStore';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { BottomNav, type Tab } from './components/BottomNav';
 import { OfflineBanner } from './components/OfflineBanner';
+import { FarmerAssistant } from './components/FarmerAssistant';
 import { Dashboard } from './pages/Dashboard';
 import { FarmsPage } from './pages/FarmsPage';
-import { HistoryPage } from './pages/HistoryPage';
+import { FertilizerPage } from './pages/FertilizerPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { Onboarding } from './pages/Onboarding';
+import { buildAssistantContext, type AssistantEngineInputs } from './services';
 
 /**
  * Application shell (docs/05_UI_UX_Spec.md Navigation).
@@ -25,8 +27,36 @@ function App() {
   const online = useOnlineStatus();
   const [tab, setTab] = useState<Tab>('dashboard');
   const [showOnboarding, setShowOnboarding] = useState(false);
+  // The assistant panel is rendered by the shell (see the return below), so it
+  // outlives every tab; the Dashboard reports the engine inputs it produces.
+  const [assistantInputs, setAssistantInputs] = useState<AssistantEngineInputs | null>(null);
   const { t } = store;
   const isRtl = store.settings.preferredLanguage === 'ur';
+
+  // The chat panel's farm context (V2.2), computed HERE from the reported
+  // engine inputs plus the LIVE store profiles: a fertilizer selection saved
+  // on the Fertilizer tab refreshes store.profiles, this memo recomputes, and
+  // the bot quotes the new selection immediately — no return to Today needed.
+  // Before the Dashboard has reported anything (or with no farms), the panel
+  // answers generally.
+  const assistantContext = useMemo(() => {
+    if (!assistantInputs || store.profiles.length === 0) return undefined;
+    const profile = assistantInputs.farmId
+      ? store.profiles.find((p) => p.farm.id === assistantInputs.farmId)
+      : undefined;
+    return buildAssistantContext({
+      profile,
+      view: assistantInputs.view,
+      weather: assistantInputs.weather,
+      today: assistantInputs.today,
+      waterProgress: assistantInputs.waterProgress,
+      ...(assistantInputs.photoCheck !== undefined
+        ? { photoCheck: assistantInputs.photoCheck }
+        : {}),
+      language: store.settings.preferredLanguage,
+      t,
+    });
+  }, [assistantInputs, store.profiles, store.settings.preferredLanguage, t]);
 
   if (store.loading) {
     return (
@@ -84,9 +114,11 @@ function App() {
       {!online && <OfflineBanner message={t('app.offlineBanner')} />}
 
       <main className="app-main">
-        {tab === 'dashboard' && <Dashboard store={store} onGoToFarms={() => setTab('farms')} />}
+        {tab === 'dashboard' && (
+          <Dashboard store={store} onGoToFarms={() => setTab('farms')} onAssistantInputs={setAssistantInputs} />
+        )}
         {tab === 'farms' && <FarmsPage store={store} />}
-        {tab === 'history' && <HistoryPage store={store} />}
+        {tab === 'fertilizer' && <FertilizerPage store={store} />}
         {tab === 'settings' && <SettingsPage store={store} onShowOnboarding={() => setShowOnboarding(true)} />}
       </main>
 
@@ -96,9 +128,19 @@ function App() {
         labels={{
           dashboard: t('nav.today'),
           farms: t('nav.farms'),
-          history: t('nav.history'),
+          fertilizer: t('nav.fertilizer'),
           settings: t('nav.settings'),
         }}
+      />
+
+      {/* Above every tab on purpose (V2.2): the assistant must still be
+          askable from the Fertilizer tab its own deep-link buttons send the
+          farmer to. Fixed-positioned, so it floats over whatever tab shows. */}
+      <FarmerAssistant
+        context={assistantContext}
+        language={store.settings.preferredLanguage}
+        t={t}
+        onNavigate={() => setTab('fertilizer')}
       />
     </div>
   );

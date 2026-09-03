@@ -224,6 +224,38 @@
             }
           }
         ]
+      },
+      {
+        "name": "phh2o",
+        "unit_measure": {
+          "d_factor": 10
+        },
+        "depths": [
+          {
+            "label": "0-5cm",
+            "values": {
+              "mean": 64
+            }
+          },
+          {
+            "label": "5-15cm",
+            "values": {
+              "mean": 64
+            }
+          },
+          {
+            "label": "15-30cm",
+            "values": {
+              "mean": 65
+            }
+          },
+          {
+            "label": "30-60cm",
+            "values": {
+              "mean": 65
+            }
+          }
+        ]
       }
     ]
   }

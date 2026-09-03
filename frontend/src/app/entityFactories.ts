@@ -1,4 +1,4 @@
-import type { Crop, MeasuredSoilProfile, Soil } from '../types';
+import type { Crop, MeasuredSoilProfile, Soil, SoilQualityReading } from '../types';
 import type { CropCategory, CropName, SoilType } from '../types';
 import { SOIL_PROFILES } from '../services';
 
@@ -44,7 +44,12 @@ const CROP_WATER_REQUIREMENT: Record<CropName, Crop['typicalWaterRequirement']> 
  * profile lands simply has none, and `rootZoneWater` uses the table until it
  * does — which is the same path a farm created offline takes.
  */
-export function buildSoil(id: string, soilType: SoilType, measured?: MeasuredSoilProfile): Soil {
+export function buildSoil(
+  id: string,
+  soilType: SoilType,
+  measured?: MeasuredSoilProfile,
+  qualityReading?: SoilQualityReading,
+): Soil {
   const profile = SOIL_PROFILES[soilType];
   return {
     id,
@@ -53,6 +58,7 @@ export function buildSoil(id: string, soilType: SoilType, measured?: MeasuredSoi
     drainage: profile.drainage,
     // exactOptionalPropertyTypes: the key must be absent, not present-undefined.
     ...(measured ? { measured } : {}),
+    ...(qualityReading ? { qualityReading } : {}),
   };
 }
 

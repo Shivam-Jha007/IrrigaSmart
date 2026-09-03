@@ -88,6 +88,7 @@ Fields
 - Soil Type
 - Irrigation Method
 - Primary Crop
+- Water Quality (V2.2) — optional farmer-entered irrigation-water lab test: `{ ecwDsm?, sar?, boronMgl?, bicarbonateMeql?, ph?, recordedAt }`. ECw gates the engine's salinity-leaching step together with the soil's ECe; the rest surface as improvement-plan issues and assistant facts. USER_PROVIDED.
 
 Each farm belongs to exactly one farmer.
 
@@ -119,6 +120,10 @@ Fields
 - Soil Name
 - Water Retention Category
 - Drainage Category
+- Measured Profile (V1.7) — optional per-coordinate ISRIC SoilGrids prediction; see `types/soil.ts` `MeasuredSoilProfile`.
+- Nutrient Reading (Fertilizer feature) — optional farmer-entered Soil Health Card N-P-K reading with optional pH, EC, organic carbon and micronutrient values. USER_PROVIDED.
+- Fertilizer Selection (V2.2) — optional `{ varietyId, zone, recordedAt }`: the variety and soil zone the farmer last chose on the Fertilizer tab, so the assistant can resolve the same official State schedule. USER_PROVIDED; stores no crop.
+- Quality Reading (V2.2) — optional farmer-entered soil chemistry beyond the card: `{ eceDsm?, espPct?, recordedAt }`. ECe gates the engine's salinity-leaching step (with the card's EC as fallback); ESP feeds the water-quality improvement detector. USER_PROVIDED.
 
 Future versions may include additional physical properties.
 

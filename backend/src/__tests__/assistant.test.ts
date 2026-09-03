@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   AssistantError,
   buildMessages,
   buildSystemPrompt,
   describeContext,
+  geminiModel,
   MAX_HISTORY_TURNS,
   MAX_QUESTION_CHARS,
   parseRequest,
@@ -76,6 +77,23 @@ describe('sanitizeReply — the chemical safety net', () => {
   it('is case-insensitive', () => {
     expect(sanitizeReply('MANCOZEB').blocked).toBe(true);
     expect(sanitizeReply('Fungicide').blocked).toBe(true);
+  });
+
+  it('strips provenance tokens a small model failed to paraphrase', () => {
+    // The prompt asks the model to express [USER_PROVIDED] and friends in
+    // words; when it prints the token instead, the farmer must never see it.
+    // Mechanical, like the chemical net, because a hope is not a guardrail.
+    const result = sanitizeReply(
+      'Your loamy soil [USER_PROVIDED] wins over the map [REGIONAL_ESTIMATE], and the forecast [FORECAST] may change.',
+    );
+    expect(result.blocked).toBe(false);
+    expect(result.text).not.toContain('[');
+    expect(result.text).toContain('Your loamy soil wins');
+  });
+
+  it('keeps ordinary square brackets that are not provenance tokens', () => {
+    const result = sanitizeReply('The dose is 50:25:25 [State schedule].');
+    expect(result.text).toContain('[State schedule]');
   });
 });
 
@@ -237,9 +255,70 @@ describe('describeContext — absent fields leave no trace', () => {
     expect(line).toContain('NOT that the disease is present');
   });
 
+  it('carries the scouting detail with the disease it belongs to', () => {
+    // V2.2: a risk figure a farmer can act on today (where to look, what the
+    // signs look like) replaces a number they must interpret themselves. The
+    // detail rides the same fact line as the risk, so it can never be quoted
+    // detached from the disease it scouts for.
+    const line = describeContext(
+      context({
+        diseaseRiskLevel: 'Moderate',
+        diseaseName: 'Rice Blast',
+        diseaseWhere: 'leaves, then the nodes and the neck of the panicle',
+        diseaseWhat: 'Spindle-shaped spots with grey centres and brown borders.',
+      }),
+    ).find((fact) => fact.startsWith('Disease risk'));
+    expect(line).toContain('where to look: leaves, then the nodes');
+    expect(line).toContain('what the signs look like: Spindle-shaped spots');
+    // No disease named → no scouting detail either; it has nothing to attach to.
+    const bare = describeContext(context({ diseaseRiskLevel: 'Moderate' })).find((fact) =>
+      fact.startsWith('Disease risk'),
+    );
+    expect(bare).not.toContain('where to look');
+  });
+
   it('marks the slope as approximate', () => {
     const facts = describeContext(context({ slopePercent: 3.2 }));
     expect(facts.join('\n')).toContain('rough');
+  });
+
+  it('quotes the quality fact line with its FAO-29 limits when tests exist', () => {
+    // V2.2: the farmer's own water and soil tests reach the prompt with the
+    // limits they are judged against, so the model interprets rather than
+    // guesses. Absent tests leave no line, like every other fact.
+    const line = describeContext(
+      context({
+        waterEcw: 1.2,
+        soilEce: 4.1,
+        waterSar: 5.5,
+        waterBoron: 1.1,
+      }),
+    ).find((fact) => fact.includes('Soil and water tests'));
+    expect(line).toContain('ECw 1.2 dS/m');
+    expect(line).toContain('ECe 4.1 dS/m');
+    expect(line).toContain('SAR 5.5');
+    expect(line).toContain('boron 1.1 mg/L');
+    expect(line).toContain('FAO-29');
+    expect(line).toContain('never name a corrective product or dose');
+    expect(describeContext(context()).join('\n')).not.toContain('Soil and water tests');
+  });
+
+  it('quotes a photo-check verdict plainly, with no percentage license', () => {
+    // V2.2: the leaf-photo verdict arrives pre-worded by the client because the
+    // wording IS the boundary. The fact line must carry the no-percentages rule
+    // alongside the sentence, so no re-wording can quietly attach a confidence
+    // figure the app never shows the farmer.
+    const line = describeContext(
+      context({
+        photoVerdict: 'The photo shows Rice Blast.',
+        photoPlant: 'rice',
+      }),
+    ).find((fact) => fact.includes('leaf-photo check'));
+    expect(line).toContain('The photo shows Rice Blast.');
+    expect(line).toContain('never attach a percentage');
+    expect(line).toContain('rice leaf');
+    // Absent when no check happened — a missing photo is not a photo fact.
+    expect(describeContext(context()).join('\n')).not.toContain('leaf-photo check');
   });
 
   it('describes soil moisture against its threshold', () => {
@@ -250,6 +329,219 @@ describe('describeContext — absent fields leave no trace', () => {
     expect(line).toContain('22 mm short of full');
     expect(line).toContain('stress past 18 mm');
     expect(line).toContain('hold 64 mm');
+  });
+});
+
+/**
+ * Provenance in the prompt (PRD §7, §28 Guardrail 1).
+ *
+ * A model says whatever the sentence it was handed means. Given "Topsoil pH:
+ * 6.2" it will tell the farmer their soil pH is 6.2 — fluently, and wrongly,
+ * because 6.2 is a prediction for a 250 m map cell that also contains their
+ * neighbours' land. So these tests assert that no uncertain figure ever reaches
+ * the model as a bare number: the §7 label and the caveat are welded into the
+ * same line as the value, and there is no branch that emits one without the
+ * other.
+ */
+describe('describeContext — no estimate is handed over as a measurement', () => {
+  it('labels the pH figure an ESTIMATE and names what produced it', () => {
+    const line = describeContext(
+      context({
+        soilPh: 6.3,
+        soilPhProvenance: 'REGIONAL_ESTIMATE',
+        soilPhOrigin: 'a 250 m soil map prediction (ISRIC SoilGrids v2.0)',
+      }),
+    ).find((fact) => fact.includes('Topsoil pH'));
+    expect(line).toContain('ESTIMATE');
+    expect(line).toContain('[REGIONAL_ESTIMATE]');
+    expect(line).toContain('6.3');
+    expect(line).toContain('NOT a test of this field');
+    expect(line).toContain('Soil Health Card');
+    // The source is named so the model can say where the figure came from
+    // instead of inventing a provenance that sounds plausible.
+    expect(line).toContain('SoilGrids');
+  });
+
+  it('keeps the caveat when the origin sentence is missing', () => {
+    const line = describeContext(
+      context({ soilPh: 6.3, soilPhProvenance: 'REGIONAL_ESTIMATE' }),
+    ).find((fact) => fact.includes('Topsoil pH'));
+    expect(line).toContain('NOT a test of this field');
+    expect(line).not.toContain('from ,');
+  });
+
+  it('never hands the figure over with no qualification at all', () => {
+    // A context that lost its provenance en route must still not read as a
+    // measurement, so ESTIMATE is in the prose and not only in the bracket.
+    const line = describeContext(context({ soilPh: 6.3 })).find((fact) =>
+      fact.includes('Topsoil pH'),
+    );
+    expect(line).toContain('ESTIMATE');
+    expect(line).toContain('NOT a test of this field');
+  });
+
+  it('words a genuine field test differently', () => {
+    // Nothing in the app produces MEASURED today. The branch exists so that a
+    // future Soil Health Card import is worded honestly from the start, rather
+    // than inheriting a caveat that would then be a lie.
+    const line = describeContext(
+      context({ soilPh: 6.3, soilPhProvenance: 'MEASURED' }),
+    ).find((fact) => fact.includes('Topsoil pH'));
+    expect(line).toContain('from a field test');
+    expect(line).not.toContain('NOT a test of this field');
+  });
+
+  it('forbids an amendment quantity in the same line as the crop band', () => {
+    const line = describeContext(
+      context({ phOptimalMin: 5.5, phOptimalMax: 6.5, phSuitability: 'Too acidic' }),
+    ).find((fact) => fact.startsWith('pH band'));
+    expect(line).toContain('5.5 to 6.5');
+    expect(line).toContain('Too acidic');
+    expect(line).toContain('Never state a lime, gypsum or sulphur quantity');
+  });
+
+  it('omits the crop band unless both ends of it are known', () => {
+    expect(describeContext(context({ phOptimalMin: 5.5 })).join('\n')).not.toContain('pH band');
+  });
+
+  it('labels the farmer’s own soil choice USER_PROVIDED', () => {
+    expect(
+      describeContext(context({ soilType: 'Loamy', soilTypeProvenance: 'USER_PROVIDED' })),
+    ).toContain('Soil: Loamy [USER_PROVIDED]');
+  });
+
+  it('leaves an unlabelled soil type unbracketed rather than guessing a label', () => {
+    expect(describeContext(context({ soilType: 'Loamy' }))).toContain('Soil: Loamy');
+  });
+
+  it('says the farmer outranks the map when the texture disagrees', () => {
+    const line = describeContext(
+      context({
+        soilType: 'Loamy',
+        soilTypeProvenance: 'USER_PROVIDED',
+        soilTextureClass: 'clay loam',
+        soilTextureProvenance: 'REGIONAL_ESTIMATE',
+      }),
+    ).find((fact) => fact.startsWith('Soil texture class'));
+    expect(line).toContain('clay loam [REGIONAL_ESTIMATE]');
+    expect(line).toContain('THEIRS wins');
+  });
+
+  it('marks organic carbon as a map estimate', () => {
+    const line = describeContext(context({ organicCarbonPct: 1.8 })).find((fact) =>
+      fact.startsWith('Topsoil organic carbon'),
+    );
+    expect(line).toContain('1.8%');
+    expect(line).toContain('not a test of this field');
+  });
+
+  it('says the weather figures have not happened yet', () => {
+    const facts = describeContext(context({ temperatureC: 32, weatherProvenance: 'FORECAST' }));
+    expect(facts.join('\n')).toContain('not something that has already happened');
+  });
+
+  it('does not label a weather group with no figures in it', () => {
+    // The label qualifies figures. With none — offline, no cache — a bare
+    // "Provenance: FORECAST" line would qualify nothing.
+    expect(describeContext(context({ weatherProvenance: 'FORECAST' })).join('\n')).not.toContain(
+      'Provenance of those weather figures',
+    );
+  });
+
+  it('says the moisture figures were not read from a sensor', () => {
+    const line = describeContext(
+      context({
+        depletionMm: 22,
+        readilyAvailableMm: 18,
+        totalAvailableMm: 64,
+        soilMoistureProvenance: 'REGIONAL_ESTIMATE',
+      }),
+    ).find((fact) => fact.startsWith('Soil moisture'));
+    // The three figures the moisture test above pins are untouched; the caveat
+    // is appended to them rather than replacing any of them.
+    expect(line).toContain('22 mm short of full');
+    expect(line).toContain('stress past 18 mm');
+    expect(line).toContain('hold 64 mm');
+    expect(line).toContain('NOT read from a sensor in this field');
+  });
+
+  it('drops the sensor caveat only for a genuinely measured figure', () => {
+    const line = describeContext(
+      context({ depletionMm: 22, soilMoistureProvenance: 'MEASURED' }),
+    ).find((fact) => fact.startsWith('Soil moisture'));
+    expect(line).toContain('22 mm short of full');
+    expect(line).not.toContain('NOT read from a sensor');
+  });
+
+  it('passes the flagged improvements through in the order it was given', () => {
+    const line = describeContext(
+      context({
+        topIssues: ['Soil pH is below what rice prefers', 'Surface method on sloping land'],
+      }),
+    ).find((fact) => fact.startsWith('Improvements'));
+    expect(line).toContain('Soil pH is below what rice prefers; Surface method on sloping land');
+    expect(line).toContain('Do not invent a different one');
+  });
+
+  it('survives a malformed topIssues from an untrusted client', () => {
+    // `parseRequest` passes the context through without validating its interior,
+    // so a string here is reachable from a broken or hostile client. It must not
+    // turn a farmer's question into a 500.
+    const malformed = context({ topIssues: 'not an array' as unknown as string[] });
+    expect(() => describeContext(malformed)).not.toThrow();
+    expect(describeContext(malformed).join('\n')).not.toContain('Improvements');
+  });
+
+  it('states an official schedule dose as quotable with attribution', () => {
+    const facts = describeContext(
+      context({
+        fertScheduleNpk: 'N 50, P2O5 25, K2O 25 kg/ha',
+        fertScheduleBand: 'Medium',
+        fertScheduleVariety: 'Kharif (monsoon) rice',
+        fertScheduleZone: 'Terai',
+        fertScheduleManure: 'FYM @ 5 t/ha or green manuring with Dhaincha',
+        fertScheduleAmeliorant: 'Dolomite @ 1-2 t/ha',
+        fertScheduleTiming: '¼ N, full P & K as basal; ½ N at tillering',
+      }),
+    );
+    const joined = facts.join('\n');
+    expect(joined).toContain('OFFICIAL STATE SCHEDULE');
+    expect(joined).toContain('Kharif (monsoon) rice, Terai zone');
+    expect(joined).toContain('N 50, P2O5 25, K2O 25 kg/ha');
+    expect(joined).toContain('Quote these numbers exactly');
+    expect(joined).toContain('FYM @ 5 t/ha');
+    expect(joined).toContain('Dolomite @ 1-2 t/ha');
+    expect(joined).toContain('¼ N, full P & K as basal');
+  });
+
+  it('says a schedule gap is a gap, not a zero dose', () => {
+    const facts = describeContext(
+      context({ fertScheduleNoDose: true, fertScheduleVariety: 'Wheat', fertScheduleZone: 'Hill' }),
+    );
+    const line = facts.find((fact) => fact.includes('NO NPK dose'));
+    expect(line).toBeDefined();
+  });
+
+  it('omits the schedule block entirely when the farm resolved none', () => {
+    expect(describeContext(context()).join('\n')).not.toContain('OFFICIAL STATE SCHEDULE');
+  });
+
+  it('lists pH-suited crop alternatives in the order it was given', () => {
+    const facts = describeContext(context({ phAltCrops: ['Potato', 'Rice', 'Groundnut'] }));
+    const line = facts.find((fact) => fact.startsWith('Crops the app'));
+    expect(line).toContain('Potato, Rice, Groundnut');
+    expect(line).toContain('best first');
+  });
+
+  it('survives malformed schedule and alternatives fields from an untrusted client', () => {
+    const malformed = context({
+      phAltCrops: 'nope' as unknown as string[],
+      fertScheduleNpk: 42 as unknown as string,
+    });
+    expect(() => describeContext(malformed)).not.toThrow();
+    const joined = describeContext(malformed).join('\n');
+    expect(joined).not.toContain('Crops the app');
+    expect(joined).toContain('OFFICIAL STATE SCHEDULE'); // string fields pass through
   });
 });
 
@@ -285,5 +577,151 @@ describe('buildSystemPrompt', () => {
     const prompt = buildSystemPrompt(undefined);
     expect(prompt).toContain('NO FARM DATA');
     expect(prompt).not.toContain("TODAY'S SITUATION");
+  });
+
+  it('defines all seven §7 provenance labels', () => {
+    // The vocabulary is closed. A label the prompt does not define is a label the
+    // model will interpret for itself, which is the whole failure this section
+    // exists to prevent.
+    const prompt = buildSystemPrompt(context());
+    for (const label of [
+      'MEASURED',
+      'USER_PROVIDED',
+      'REGIONAL_ESTIMATE',
+      'FORECAST',
+      'CALCULATED',
+      'INFERRED',
+      'UNKNOWN',
+    ]) {
+      expect(prompt, `${label} is not defined in the prompt`).toContain(`- ${label} —`);
+    }
+  });
+
+  it('forbids presenting an estimate as a field measurement', () => {
+    const prompt = buildSystemPrompt(context());
+    expect(prompt).toContain('Never present a REGIONAL_ESTIMATE as if it were a field measurement');
+    expect(prompt).toContain('Never answer such a question with a bare number');
+    expect(prompt).toContain('Soil Health Card');
+  });
+
+  it('forbids an amendment quantity of the model’s own even when a value is out of range', () => {
+    // Guardrail 2, restated for the schedule era: the model may quote the
+    // OFFICIAL STATE SCHEDULE verbatim, and it may still never invent a
+    // quantity of its own — the exception is narrow and named.
+    expect(buildSystemPrompt(context())).toContain(
+      'Never state a quantity of lime, gypsum, sulphur, fertiliser, manure or any soil amendment or chemical OF YOUR OWN',
+    );
+    expect(buildSystemPrompt(context())).toContain('OFFICIAL STATE SCHEDULE');
+  });
+
+  it('instructs the model to lead with an official schedule when one is present', () => {
+    // The behaviour change under test: a fertiliser question on a covered crop
+    // is answered with the State schedule's own numbers, attributed — not with
+    // a refusal. The no-invention rule still covers everything else.
+    const prompt = buildSystemPrompt(context());
+    expect(prompt).toContain('DO THIS INSTEAD OF REFUSING');
+    expect(prompt).toContain('If an OFFICIAL STATE SCHEDULE line is present below, lead with it');
+    expect(prompt).toContain('That IS the exact answer the farmer is asking for');
+  });
+
+  it('turns disease questions into scouting instead of a bare referral', () => {
+    // V2.2: "what spray for blight?" is answered with where to look, what the
+    // signs look like, the on-phone photo check and a prepared referral —
+    // never a chemical, never a claim the disease is present.
+    const prompt = buildSystemPrompt(context());
+    expect(prompt).toContain('NEVER A BARE REFERRAL AND NEVER A CHEMICAL');
+    expect(prompt).toContain('Lead with scouting');
+    expect(prompt).toContain('Check a leaf photo');
+    expect(prompt).toContain('End with a prepared referral, not a dead end');
+  });
+
+  it('tells the model to quote a photo verdict as worded when one exists', () => {
+    const prompt = buildSystemPrompt(context());
+    expect(prompt).toContain('latest leaf-photo check');
+    expect(prompt).toContain('quote its verdict sentence as worded');
+  });
+
+  it('turns an out-of-range pH into a plan and onboards a Soil Health Card', () => {
+    // The two behaviours behind the farmer's transcript complaint: a pH
+    // mismatch must produce direction + alternatives (not just the number and
+    // a referral), and a farmer holding a card must be told how to enter it.
+    const prompt = buildSystemPrompt(context());
+    expect(prompt).toContain('give the farmer a plan, not just the number');
+    expect(prompt).toContain('lime or dolomite to raise pH, gypsum to lower it');
+    expect(prompt).toContain('show them the two ways to use it');
+    expect(prompt).toContain('Save reading');
+  });
+
+  it('keeps the farmer’s own answer above the map', () => {
+    expect(buildSystemPrompt(context())).toContain(
+      'Never overrule a USER_PROVIDED fact with a REGIONAL_ESTIMATE one',
+    );
+  });
+
+  it('states the provenance rules even with no labelled fact to apply them to', () => {
+    // Unconditional on purpose: a rule that appears only sometimes is a rule the
+    // model learns to treat as optional.
+    const prompt = buildSystemPrompt(undefined);
+    expect(prompt).toContain('WHERE THE FACTS BELOW COME FROM');
+    expect(prompt).toContain('RULES YOU MUST FOLLOW ABOUT THOSE LABELS');
+  });
+
+  it('injects retrieved app knowledge with its source', () => {
+    // V2.2 RAG foundation: matched corpus entries appear as an APP KNOWLEDGE
+    // section, each line carrying its source so the model can cite it.
+    const prompt = buildSystemPrompt(context(), [
+      {
+        id: 'crop.rice.water',
+        text: 'Rice has a crop coefficient of 1.2 in mid season.',
+        source: 'FAO-56 Tables 12 and 22, as used by the app',
+        keywords: ['rice'],
+      },
+    ]);
+    expect(prompt).toContain('APP KNOWLEDGE');
+    expect(prompt).toContain('crop coefficient of 1.2');
+    expect(prompt).toContain('[FAO-56 Tables 12 and 22');
+    expect(prompt).toContain('ground your answer in it');
+  });
+
+  it('omits the knowledge section entirely when nothing matched', () => {
+    // An empty section header invites the model to imagine its contents. The
+    // RULES text mentions "APP KNOWLEDGE" unconditionally, so the assertion
+    // targets the section HEADER, which exists only when entries were passed.
+    expect(buildSystemPrompt(context())).not.toContain('APP KNOWLEDGE (');
+  });
+});
+
+describe('geminiModel', () => {
+  const original = process.env.GEMINI_MODEL;
+
+  afterEach(() => {
+    // Restore rather than delete: the variable may legitimately be set in the
+    // environment this suite runs in, and a test must not change that.
+    if (original === undefined) delete process.env.GEMINI_MODEL;
+    else process.env.GEMINI_MODEL = original;
+  });
+
+  it('defaults to Flash, not Flash-Lite, since replies quote schedules and list actions', () => {
+    delete process.env.GEMINI_MODEL;
+    expect(geminiModel()).toBe('gemini-2.5-flash');
+  });
+
+  it('lets a deployment move models without a code change', () => {
+    process.env.GEMINI_MODEL = 'gemini-2.5-flash';
+    expect(geminiModel()).toBe('gemini-2.5-flash');
+  });
+
+  it('trims a value pasted with surrounding whitespace', () => {
+    // A trailing space from a dashboard paste would otherwise be sent verbatim
+    // and rejected by the provider for a reason no log would make obvious.
+    process.env.GEMINI_MODEL = '  gemini-2.5-flash\n';
+    expect(geminiModel()).toBe('gemini-2.5-flash');
+  });
+
+  it('falls back to the default for a variable set but empty', () => {
+    // Render writes an empty string for a declared-but-unfilled variable, which
+    // is the shape most likely to reach production by accident.
+    process.env.GEMINI_MODEL = '   ';
+    expect(geminiModel()).toBe('gemini-2.5-flash');
   });
 });

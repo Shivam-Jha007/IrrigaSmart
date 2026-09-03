@@ -13,7 +13,7 @@ import type {
   SoilType,
   TimingReason,
 } from '../types';
-import type { DiseaseId, VisionErrorCode, VisionLabelId, VisionPlant } from '../services';
+import type { DiseaseId, Provenance, VisionErrorCode, VisionLabelId, VisionPlant } from '../services';
 import { TRANSLATIONS, type TranslationKey } from './translations';
 
 /**
@@ -25,6 +25,9 @@ import { TRANSLATIONS, type TranslationKey } from './translations';
  * to translation keys here for display only.
  */
 export type { TranslationKey } from './translations';
+
+/** Re-exported so UI components can take `language` as a prop without importing types/. */
+export type { Language } from '../types';
 
 /** Signature of the language-bound translate function passed through the UI. */
 export type TranslateFn = (key: TranslationKey, vars?: Record<string, string | number>) => string;
@@ -159,9 +162,22 @@ export function visionErrorKey(code: VisionErrorCode): TranslationKey {
   return `vision.error.${code}`;
 }
 
+// --- Provenance mappers (PRD §7) ---
+
+/**
+ * The farmer-facing name of a data source label.
+ *
+ * A chip reading "REGIONAL_ESTIMATE" means nothing to anyone; the translation
+ * behind this key is the short human phrase ("area estimate", "you told us")
+ * that lets a farmer see at a glance which numbers on a screen are measurements
+ * of their own field and which are predictions for the area around it.
+ */
+export function provenanceLabelKey(provenance: Provenance): TranslationKey {
+  return `provenance.${provenance}`;
+}
+
 /** BCP-47 locale for date formatting in the farmer's language. */
-export function localeFor(language: Language): string {
-  switch (language) {
+export function localeFor(language: Language): string {  switch (language) {
     case 'hi':
       return 'hi-IN';
     case 'bn':

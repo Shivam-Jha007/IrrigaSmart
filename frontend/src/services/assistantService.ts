@@ -1,6 +1,41 @@
-import type { TranslateFn } from '../i18n';
 import { ApiError, apiPost } from './apiClient';
+import type { TranslateFn, TranslationKey } from '../i18n';
 import { answerFromRules, type AssistantContext, type AssistantIntent } from './assistantRules';
+
+export type AssistantTopic = 'today' | 'irrigation' | 'soil' | 'weather' | 'fertilizer' | 'disease';
+
+export interface AssistantAction {
+  type: 'ask';
+  topic: AssistantTopic;
+  question: string;
+}
+
+const TOPIC_QUESTIONS: Record<AssistantTopic, TranslationKey> = {
+  today: 'assistant.topic.todayQuestion',
+  irrigation: 'assistant.topic.irrigationQuestion',
+  soil: 'assistant.topic.soilQuestion',
+  weather: 'assistant.topic.weatherQuestion',
+  fertilizer: 'assistant.topic.fertilizerQuestion',
+  disease: 'assistant.topic.diseaseQuestion',
+};
+
+export function assistantTopicActions(t: TranslateFn): AssistantAction[] {
+  return (Object.keys(TOPIC_QUESTIONS) as AssistantTopic[]).map((topic) => ({
+    type: 'ask',
+    topic,
+    question: t(TOPIC_QUESTIONS[topic]),
+  }));
+}
+
+export function farmBriefing(context: AssistantContext | undefined, t: TranslateFn): string | null {
+  if (!context?.farmName && !context?.status && context?.depthMm === undefined) return null;
+  const status = context.status ?? t('assistant.briefing.noRecommendation');
+  const crop = context.cropName ? ` ${context.cropName}.` : '';
+  const water = context.volumeLiters !== undefined
+    ? ` ${t('assistant.rule.amount', { mm: context.depthMm ?? 0, litres: Math.round(context.volumeLiters) })}`
+    : '';
+  return `${t('assistant.briefing.today', { farm: context.farmName ?? t('nav.today'), crop, status })}${water}`.trim();
+}
 
 /**
  * Assistant dispatcher (item 17).
@@ -29,11 +64,16 @@ import { answerFromRules, type AssistantContext, type AssistantIntent } from './
 /** Where an answer came from. Shown to the farmer so the two are never confused. */
 export type AssistantSource = 'rules' | 'claude' | 'unavailable';
 
+/** An app destination an answer points at, rendered as a button by the panel. */
+export type AssistantActionTarget = 'fertilizer';
+
 export interface AssistantAnswer {
   text: string;
   source: AssistantSource;
   /** Set when the rules answered, for tests and for the UI's offline badge. */
   intent?: AssistantIntent;
+  /** Set when the answer's advice has a screen for it (offline rules only). */
+  action?: AssistantActionTarget;
 }
 
 export interface AssistantTurn {
@@ -96,7 +136,12 @@ export async function askAssistant({
   // 1. The device's own knowledge. No network, no key, no wait.
   const rule = answerFromRules(trimmed, context, t);
   if (rule) {
-    return { text: rule.answer, source: 'rules', intent: rule.intent };
+    return {
+      text: rule.answer,
+      source: 'rules',
+      intent: rule.intent,
+      ...(rule.action !== undefined ? { action: rule.action } : {}),
+    };
   }
 
   // 2. Offline and the rules fell short — say so instead of hanging on a fetch

@@ -26,11 +26,19 @@ export {
 } from './knowledgeBase';
 export { ApiError, apiGet, apiPost } from './apiClient';
 export { fetchWeather, getWeatherForFarm } from './weatherService';
-export { fetchMeasuredSoil, fetchSoilSuggestion } from './soilService';
 export {
+  fetchMeasuredSoil,
+  fetchSoilSuggestion,
+  type MeasuredSoilOutcome,
+} from './soilService';
+export {
+  profileCarriesEveryReadProperty,
   rootZoneWater,
   sameCoordinate,
+  soilTypeFromTexture,
   textureDisagreement,
+  topsoilOrganicCarbon,
+  topsoilPh,
   type RootZoneWater,
 } from './soilProfile';
 export {
@@ -74,8 +82,10 @@ export {
 export {
   COVERED_CROPS,
   MIN_CONFIDENCE,
+  PLANTS_WITH_HEALTHY_CLASS,
   VISION_CLASSES,
   lookupVisionClass,
+  plantHasHealthyClass,
   verdictFor,
   visionCoversCrop,
   type VisionClass,
@@ -102,6 +112,16 @@ export {
   type VisionResult,
 } from './diseaseVision';
 export {
+  REFERENCE_IMAGES,
+  WEATHER_REFERENCE_IMAGES,
+  creditLineFor,
+  referenceImagesFor,
+  weatherReferenceImagesFor,
+  type DiseaseReferenceImage,
+  type ImageCredit,
+} from './diseaseReference';
+export { summarizePhotoCheck, type PhotoCheckSummary } from './photoCheckSummary';
+export {
   dayFor,
   dryingPotential,
   isOvercast,
@@ -109,7 +129,76 @@ export {
   type DryingPotential,
 } from './sunshine';
 export { fetchTerrain } from './terrainService';
-export { intakeFactor, runoffFactor, warnsSurfaceMethod } from './slopeAdjustment';
+
+// --- Fertilizer recommendation (soil-test-based dosing tables) ---
+export {
+  classifyNutrient,
+  classifySoilFertility,
+  FERTILIZER_COVERED_CROPS,
+  FERTILIZER_TABLES,
+  fertilizerCoversCrop,
+  fertilizerVarietiesFor,
+  fertilizerZonesFor,
+  getFertilizerRecommendation,
+  type FertilityLevel,
+  type FertilizerCropTable,
+  type FertilizerRecommendation,
+  type FertilizerSoilZone,
+  type FertilizerZoneEntry,
+  type NpkDoseKgHa,
+  type SoilNutrientReadingKgHa,
+} from './fertilizerKnowledge';
+export {
+  intakeFactor,
+  isSurfaceMethod,
+  runoffFactor,
+  surfaceMethodWarned,
+  warnsSurfaceMethod,
+} from './slopeAdjustment';
+export {
+  CROP_PH_RANGE,
+  phSuitability,
+  TOLERANCE_MARGIN_PH,
+  type CropPhRange,
+  type PhSuitability,
+} from './cropPhKnowledge';
+// --- Data provenance (PRD §7 / Guardrail 1) ---
+export {
+  isFieldMeasurement,
+  ORIGIN,
+  PROVENANCE_LABELS,
+  sourced,
+  unknown,
+  type Provenance,
+  type Sourced,
+} from './provenance';
+// --- Canonical farm picture (PRD §6) ---
+export {
+  buildFarmContext,
+  isKnown,
+  type FarmContext,
+  type FarmContextCrop,
+  type FarmContextDisease,
+  type FarmContextFarm,
+  type FarmContextFertility,
+  type FarmContextHistory,
+  type FarmContextImpact,
+  type FarmContextInput,
+  type FarmContextIrrigation,
+  type FarmContextSoil,
+  type FarmContextWater,
+  type FarmContextWeather,
+} from './farmContext';
+// --- Farm improvement plan (PRD §15) ---
+export {
+  detectFarmIssues,
+  resolveIssueVars,
+  TOP_ISSUE_COUNT,
+  type FarmIssue,
+  type FarmIssueCategory,
+  type FarmIssueId,
+  type FarmIssueSeverity,
+} from './farmImprovement';
 export { DAY_MS, localDayString } from './dateUtils';
 export {
   chooseIrrigationWindow,
@@ -134,16 +223,24 @@ export {
   type AssistantIntent,
   type RuleAnswer,
 } from './assistantRules';
+export { detectSpokenLanguage } from './languageDetection';
 export {
   askAssistant,
+  assistantTopicActions,
+  farmBriefing,
   MAX_QUESTION_CHARS,
+  type AssistantAction,
+  type AssistantActionTarget,
   type AssistantAnswer,
   type AssistantSource,
+  type AssistantTopic,
   type AssistantTurn,
   type AskOptions,
 } from './assistantService';
-export { buildAssistantContext, type ContextInput } from './assistantContext';
+export { buildAssistantContext, type AssistantEngineInputs, type ContextInput } from './assistantContext';
 export {
+  alternatesFor,
+  chooseVoice,
   speak,
   speechInputSupported,
   speechOutputSupported,
@@ -152,3 +249,12 @@ export {
   type ListenHandlers,
   type ListenSession,
 } from './speech';
+// --- Live audio Copilot seam (PRD §13). Interface only; nothing implements it. ---
+export {
+  unavailableVoiceProvider,
+  voiceConversationSupported,
+  VoiceUnavailableError,
+  type VoiceProvider,
+  type VoiceProviderId,
+  type VoiceUnavailableReason,
+} from './voiceProvider';
