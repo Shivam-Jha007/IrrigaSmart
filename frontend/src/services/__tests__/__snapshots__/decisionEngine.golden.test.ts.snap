@@ -1567,6 +1567,7 @@ exports[`decision engine — full result shape > delay 1`] = `
   "waterBalance": {
     "carryDepletionMm": 12,
     "carryValidAsOfDate": "2026-06-14",
+    "daysOfWaterLeft": 42.9,
     "depletionMm": 0,
     "rawMm": 92.93,
     "rootDepthM": 1,
@@ -1786,6 +1787,7 @@ exports[`decision engine — full result shape > irrigate 1`] = `
   "waterBalance": {
     "carryDepletionMm": 20,
     "carryValidAsOfDate": "2026-06-14",
+    "daysOfWaterLeft": 11.3,
     "depletionMm": 30.81,
     "rawMm": 48.59,
     "rootDepthM": 1,

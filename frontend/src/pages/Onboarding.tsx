@@ -51,6 +51,9 @@ const FEATURES: Array<{ icon: string; key: TranslationKey }> = [
   { icon: '🌦️', key: 'onb.feature.weather' },
   { icon: '📴', key: 'onb.feature.offline' },
   { icon: '💬', key: 'onb.feature.explain' },
+  { icon: '🍃', key: 'onb.feature.disease' },
+  { icon: '🧪', key: 'onb.feature.tests' },
+  { icon: '📋', key: 'onb.feature.fert' },
   { icon: '🌐', key: 'onb.feature.language' },
 ];
 

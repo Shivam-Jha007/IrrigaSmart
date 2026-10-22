@@ -2,11 +2,6 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { deleteDB, openDB } from 'idb';
 import { closeDb, DB_NAME, DB_VERSION, getDb, SETTINGS_KEY } from '../db';
-import {
-  getAssistantChat,
-  MAX_STORED_MESSAGES,
-  saveAssistantChat,
-} from '../assistantChatStore';
 import type { Crop, Farm, Farmer, Settings } from '../../types';
 
 /**
@@ -39,6 +34,7 @@ const ALL_STORES = [
   'waterLedger',
   'depletionState',
   'assistantChat',
+  'ttsCache',
 ] as const;
 
 const farmer: Farmer = {
@@ -180,34 +176,8 @@ describe('IndexedDB schema', () => {
   });
 });
 
-describe('assistantChatStore — conversation persistence (V2.2)', () => {
-  it('round-trips a transcript, optional fields intact', async () => {
-    await saveAssistantChat([
-      { role: 'user', text: 'how much water today?' },
-      { role: 'assistant', text: 'Give 12.4 mm.', source: 'rules', action: 'fertilizer' },
-      { role: 'assistant', text: 'Try again later.', source: 'unavailable' },
-    ]);
-    expect(await getAssistantChat()).toEqual([
-      { role: 'user', text: 'how much water today?' },
-      { role: 'assistant', text: 'Give 12.4 mm.', source: 'rules', action: 'fertilizer' },
-      { role: 'assistant', text: 'Try again later.', source: 'unavailable' },
-    ]);
-  });
-
-  it('caps the stored transcript at MAX_STORED_MESSAGES, newest kept', async () => {
-    const many = Array.from({ length: MAX_STORED_MESSAGES + 20 }, (_, i) => ({
-      role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
-      text: `turn ${i}`,
-    }));
-    await saveAssistantChat(many);
-    const stored = await getAssistantChat();
-    expect(stored).toHaveLength(MAX_STORED_MESSAGES);
-    expect(stored[0]!.text).toBe('turn 20');
-    expect(stored.at(-1)!.text).toBe(`turn ${MAX_STORED_MESSAGES + 19}`);
-  });
-
-  it('returns an empty transcript for a fresh database', async () => {
-    await getDb(); // ensure the schema exists
-    expect(await getAssistantChat()).toEqual([]);
-  });
-});
+// The assistantChat persistence store module was removed with the chatbot
+// (V2.3), but the IndexedDB STORE itself is still created by db.ts: removing
+// it from the schema would break the v6→v7 upgrade path for every farmer who
+// already has the store on their device. The `assistantChat` entry in
+// ALL_STORES above pins its continued existence.

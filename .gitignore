@@ -8,6 +8,9 @@ build/
 
 # Environment
 .env
+.env.*
+!.env.example
+!.env.*.example
 .env.local
 .env.*.local
 
@@ -23,3 +26,15 @@ Thumbs.db
 
 # PWA generated assets
 frontend/dev-dist/
+
+# Test and tool caches
+coverage/
+.vite/
+.cache/
+
+# Local assistant workspace files
+.claude/settings.local.json
+.claude/worktrees/
+
+# Temporary local probe
+backend/edge_probe.mjs

@@ -11,6 +11,7 @@ import {
   type TranslateFn,
 } from '../i18n';
 import { formatDayMonth } from './format';
+import { SpeakButton } from './SpeakButton';
 
 /**
  * DiseaseRiskCard — weather-based disease risk on the dashboard
@@ -35,6 +36,8 @@ interface Props {
   risk: DiseaseRiskAssessment | null;
   crop: Crop;
   language: Language;
+  /** Pre-built spoken line (V2.3), from the shared fragment builders. */
+  speech?: string | null;
   t: TranslateFn;
 }
 
@@ -43,7 +46,7 @@ function levelModifier(level: DiseaseRiskLevel): string {
   return level.toLowerCase();
 }
 
-export function DiseaseRiskCard({ risk, crop, language, t }: Props) {
+export function DiseaseRiskCard({ risk, crop, language, speech, t }: Props) {
   const cropLabel = t(cropLabelKey(crop.name));
 
   // No daily series — say so rather than implying the crop is safe.
@@ -81,6 +84,15 @@ export function DiseaseRiskCard({ risk, crop, language, t }: Props) {
         <span className={`disease__badge disease__badge--${levelModifier(risk.level)}`}>
           {t(diseaseLevelKey(risk.level))}
         </span>
+        {speech && language && (
+          <SpeakButton
+            text={speech}
+            language={language}
+            speakId="disease-card"
+            label={t('assistant.readAloud')}
+            t={t}
+          />
+        )}
       </div>
 
       <p className="disease__headline">{t('disease.headline', { disease: diseaseName })}</p>

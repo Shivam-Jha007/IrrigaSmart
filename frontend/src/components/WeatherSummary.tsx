@@ -1,6 +1,7 @@
-import type { DailyWeather, WeatherData } from '../types';
+import type { DailyWeather, Language, WeatherData } from '../types';
 import type { TranslateFn } from '../i18n';
 import { dryingPotential, type DryingPotential } from '../services';
+import { SpeakButton } from './SpeakButton';
 
 /**
  * WeatherSummary — shows only irrigation-relevant weather
@@ -20,6 +21,10 @@ interface Props {
   /** Farm latitude, for daylight hours when the provider omits them. */
   latitude: number;
   fromCache: boolean;
+  /** Pre-built spoken line (V2.3), from the shared fragment builders. */
+  speech?: string | null;
+  /** UI language for speech synthesis. */
+  language?: Language;
   t: TranslateFn;
 }
 
@@ -30,7 +35,7 @@ const DRYING_KEY = {
   good: 'weather.dryingGood',
 } as const satisfies Record<DryingPotential, string>;
 
-export function WeatherSummary({ weather, today, latitude, fromCache, t }: Props) {
+export function WeatherSummary({ weather, today, latitude, fromCache, speech, language, t }: Props) {
   // Absent sunshine is shown as absent, never as zero: a pre-V1.7 cache would
   // otherwise render every day as sunless and contradict what the farmer sees.
   const sunshineHours = today?.sunshineHours;
@@ -38,6 +43,17 @@ export function WeatherSummary({ weather, today, latitude, fromCache, t }: Props
 
   return (
     <section className="weather" aria-label="Weather summary">
+      {speech && language && (
+        <div className="weather__speakrow">
+          <SpeakButton
+            text={speech}
+            language={language}
+            speakId="weather-card"
+            label={t('assistant.readAloud')}
+            t={t}
+          />
+        </div>
+      )}
       <div className="weather__items">
         <div className="weather__item">
           <span className="weather__value">{Math.round(weather.temperature)}°C</span>

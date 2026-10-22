@@ -5,6 +5,7 @@ import {
   classifySoilFertility,
   FERTILIZER_COVERED_CROPS,
   fertilizerCoversCrop,
+  fertilizerDoseZonesFor,
   fertilizerVarietiesFor,
   fertilizerZonesFor,
   getFertilizerRecommendation,
@@ -56,6 +57,41 @@ describe('fertilizerVarietiesFor', () => {
   it('returns an empty list for an uncovered crop rather than throwing', () => {
     expect(fertilizerVarietiesFor('Tomato')).toEqual([]);
     expect(fertilizerVarietiesFor('Onion')).toEqual([]);
+  });
+});
+
+describe('fertilizerDoseZonesFor — the zones the page may offer (V2.3)', () => {
+  it('excludes Hill from every crop: the booklet has no dose there, only a row', () => {
+    // Hill appears as a zone entry in all six crops' tables but carries no
+    // NPK cell in any of them. The page must not offer it.
+    for (const crop of FERTILIZER_COVERED_CROPS) {
+      for (const variety of fertilizerVarietiesFor(crop)) {
+        expect(fertilizerDoseZonesFor(crop, variety.varietyId), `${crop}/${variety.varietyId}`).not.toContain('Hill');
+      }
+    }
+  });
+
+  it('keeps Coastal only where a dose exists: Kharif rice alone', () => {
+    expect(fertilizerDoseZonesFor('Rice', 'kharif')).toContain('Coastal');
+    expect(fertilizerDoseZonesFor('Rice', 'boro')).not.toContain('Coastal');
+    for (const crop of ['Wheat', 'Maize', 'Cotton', 'Potato', 'Groundnut'] as const) {
+      expect(fertilizerDoseZonesFor(crop, 'default'), crop).not.toContain('Coastal');
+    }
+    expect(fertilizerDoseZonesFor('Potato', 'hybrid')).not.toContain('Coastal');
+  });
+
+  it('every offered zone resolves to a recommendation with an NPK dose', () => {
+    // The point of the narrowed list: every button the page shows must be a
+    // complete journey. A zone in the dose list cannot produce a dose-less
+    // recommendation.
+    for (const crop of FERTILIZER_COVERED_CROPS) {
+      for (const variety of fertilizerVarietiesFor(crop)) {
+        for (const zone of fertilizerDoseZonesFor(crop, variety.varietyId)) {
+          const rec = getFertilizerRecommendation(crop, variety.varietyId, zone);
+          expect(rec?.zone.npk, `${crop}/${variety.varietyId}/${zone}`).toBeDefined();
+        }
+      }
+    }
   });
 });
 

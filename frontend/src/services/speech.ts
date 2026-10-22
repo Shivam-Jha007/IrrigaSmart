@@ -1,59 +1,27 @@
 /**
- * Voice input and output for the farmer assistant (item 17).
+ * Speech output for the audio briefing and card speakers (V2.3).
  *
- * WHY VOICE IS PART OF THIS FEATURE AND NOT A NICETY
+ * WHY VOICE IS PART OF THIS APP AND NOT A NICETY
  * The farmer this app is built for may read slowly, may be holding a spade, and
- * may be looking at a phone in bright sunlight. Typing a question in Devanagari
- * on a phone keyboard is a real barrier; speaking one is not. So voice is
- * offered on equal footing with text, in the farmer's own language.
+ * may be looking at a phone in bright sunlight. The briefing and every card's
+ * speaker button turn the dashboard's own sentences into something a farmer can
+ * hear in their own language, offline, at no cost.
  *
- * WHY THE SHIM
- * `SpeechRecognition` is not in TypeScript's DOM library: browsers ship it
- * prefixed (`webkitSpeechRecognition` in Chrome, which is what nearly every
- * Android farmer will have) and the standard is still unratified. The minimal
- * interface below declares only what this module actually calls. Declaring it
- * here rather than reaching for `any` keeps `no-explicit-any` intact and means
- * a typo in an event name is a compile error rather than a silent dead mic.
+ * WHAT SURVIVED THE CHATBOT REMOVAL
+ * The chat panel (item 17) was removed in V2.3 — its answers drifted from the
+ * dashboard, and speech RECOGNITION (its mic) is online-only in every browser,
+ * which contradicted the offline-first product. Synthesis is the opposite: it
+ * is on-device on every browser that ships Indic voices, works with no network,
+ * needs no key, and its output text is built by deterministic code. So the
+ * output half of the old voice module survives, now serving the briefing
+ * fragment library, and the input half is gone with the chat.
  *
  * WHAT IS DELIBERATELY NOT ASSUMED
- * Recognition is online-only in most browsers — it streams audio to the vendor.
- * That makes it the ONE part of the assistant that cannot work in a field with
- * no signal, which is exactly why it is an alternative input and never the only
- * one. Speech synthesis, by contrast, is usually on-device and does work
- * offline. Both are capability-checked before being offered, so a browser
- * without them shows no dead button.
+ * No browser guarantees any particular voice, so `chooseVoice` picks the best
+ * available match and `speak` still works (via the engine's default-voice
+ * fallback) when none matches at all. Capability is checked before a speaker
+ * button renders, so a browser without synthesis shows no dead button.
  */
-
-interface SpeechRecognitionLike extends EventTarget {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  maxAlternatives: number;
-  start(): void;
-  stop(): void;
-  abort(): void;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: ((event: { error: string }) => void) | null;
-  onend: (() => void) | null;
-}
-
-interface SpeechRecognitionEventLike {
-  resultIndex: number;
-  results: SpeechRecognitionResultList;
-}
-
-type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
-
-interface SpeechWindow {
-  SpeechRecognition?: SpeechRecognitionCtor;
-  webkitSpeechRecognition?: SpeechRecognitionCtor;
-}
-
-function recognitionCtor(): SpeechRecognitionCtor | null {
-  if (typeof window === 'undefined') return null;
-  const w = window as unknown as SpeechWindow;
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-}
 
 /**
  * Same-language regional voice-pack alternates to try when the requested
@@ -71,9 +39,7 @@ function recognitionCtor(): SpeechRecognitionCtor | null {
  * `utterance.lang = 'bn-IN'`, found no voice reporting that exact tag, and the
  * browser silently substituted its own default voice (usually English)
  * reading Bengali script, rather than the Bengali voice that was present all
- * along under a different regional tag. Recognition (`startListening`) can
- * fail the same way in reverse: some engines report 'language-not-supported'
- * for 'bn-IN' while 'bn-BD' would have worked.
+ * along under a different regional tag.
  *
  * ONLY SAME-LANGUAGE VARIANTS ARE LISTED, NEVER A DIFFERENT LANGUAGE
  * Assamese and Bengali share a script and much vocabulary, but they are not
@@ -144,10 +110,11 @@ export function chooseVoice<T extends { lang: string }>(
  * Chrome commonly returns an empty array from `getVoices()` until the first
  * call has triggered it to load the list in the background — a well-documented
  * quirk, not a bug in this module. Calling it once early, from
- * `speechOutputSupported()` (already invoked when the panel opens, to decide
- * whether to show the speaker button at all), means the list is very likely
- * populated by the time the farmer actually taps to hear an answer, without
- * making `speak()` itself asynchronous or ever delaying it.
+ * `speechOutputSupported()` (already invoked when a briefing card or speaker
+ * button first renders, to decide whether to show the button at all), means
+ * the list is very likely populated by the time the farmer actually taps to
+ * hear the briefing, without making `speak()` itself asynchronous or ever
+ * delaying it.
  */
 let voicesWarmed = false;
 function warmVoices(): void {
@@ -156,12 +123,7 @@ function warmVoices(): void {
   window.speechSynthesis.getVoices();
 }
 
-/** True when this browser can listen. Checked before showing the mic button. */
-export function speechInputSupported(): boolean {
-  return recognitionCtor() !== null;
-}
-
-/** True when this browser can speak. Checked before showing the speaker button. */
+/** True when this browser can speak. Checked before showing a speaker button. */
 export function speechOutputSupported(): boolean {
   const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
   // Called here, not only inside speak(), so the voice list has as much time as
@@ -170,161 +132,127 @@ export function speechOutputSupported(): boolean {
   return supported;
 }
 
-export interface ListenHandlers {
-  /** Fired as the farmer speaks, so the input box fills in visibly. */
-  onPartial(text: string): void;
-  /** Fired once with the final transcript. */
-  onFinal(text: string): void;
-  /**
-   * Fired on failure. `code` is the browser's own error string — 'not-allowed'
-   * (permission refused), 'no-speech', 'network', 'audio-capture'. The UI maps
-   * these to messages rather than showing the raw code.
-   */
-  onError(code: string): void;
-  /**
-   * Fired when the session ends with no result and no error at all.
-   *
-   * WHY THIS EXISTS
-   * Not every browser fires `onerror` for a timeout with no speech detected —
-   * some (observed on Android WebView and some Edge builds) simply end the
-   * session silently. Without this, the farmer sees the mic icon light up,
-   * says something, and watches it turn off again with no explanation at
-   * all — indistinguishable from a broken microphone. This handler is the
-   * difference between that silence and "I did not hear anything, try again."
-   */
-  onSilentEnd(): void;
-  onEnd(): void;
+/**
+ * Wait for the browser's async voice list to load, once per session.
+ *
+ * Chrome returns an EMPTY array from `getVoices()` until the voiceschanged
+ * event fires — and on a cold low-end device that can take a second or more.
+ * A farmer who taps play in that window used to fall through `chooseVoice`
+ * with an empty list, get no voice, and hear the browser's DEFAULT voice read
+ * their language: the gibberish case (see `speak`). Waiting briefly here is
+ * the difference between "spoke correctly" and "spoke garbage on the first
+ * tap" for the very first utterance of a session.
+ *
+ * Resolves (rather than rejecting) on timeout: the caller then treats an
+ * empty list as "no voice" and says so instead of guessing.
+ */
+let voicesOnce: Promise<void> | null = null;
+function waitForVoices(timeoutMs = 2000): Promise<void> {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return Promise.resolve();
+  const synth = window.speechSynthesis;
+  if (synth.getVoices().length > 0) return Promise.resolve();
+  voicesOnce ??= new Promise<void>((resolve) => {
+    const finish = (): void => {
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    synth.addEventListener('voiceschanged', finish, { once: true });
+  });
+  return voicesOnce;
 }
 
-/** A running recognition session; call stop() to end it early. */
-export interface ListenSession {
-  stop(): void;
-}
+/** Chunk length for `speak` — below the point where Chrome desktop's
+ *  speechSynthesis is known to cut long utterances off mid-sentence. */
+export const SPEAK_CHUNK_MAX = 200;
 
 /**
- * Start listening in the given BCP-47 locale.
+ * Split text into speakable chunks at sentence boundaries (V2.3).
  *
- * Interim results are on so the farmer can see the phone is hearing them —
- * several seconds of a blank box while speaking reads as a broken microphone,
- * and a farmer who cannot tell will simply stop using it.
+ * WHY CHUNKS AT ALL
+ * Chrome desktop's speechSynthesis is widely reported to stop speaking an
+ * utterance after roughly 15 seconds — a full spoken briefing runs well past
+ * that, so unchunked speech could die halfway with the button still showing
+ * "playing". Queuing sentence-sized utterances sidesteps the cutoff entirely:
+ * each chunk is short, and the browser queues them seamlessly.
  *
- * `locale` is the FIRST of `alternatesFor(locale)` tried — recognition engines
- * (unlike synthesis, see `speak`) give no list to choose from up front, only a
- * pass/fail per attempt, so `FarmerAssistant` retries with the next alternate
- * itself on a `language-not-supported` error rather than this function trying
- * several silently. Kept as a single, explicit-locale function so a retry is a
- * visible second call the caller controls, not a hidden loop in here.
- *
- * Returns null when unsupported, so the caller never has to guard twice.
+ * Sentence enders cover every script this app speaks: Latin `.!?`, the danda
+ * `।`/`॥` shared by Bengali, Assamese and Devanagari, the Arabic question
+ * mark `؟` used in Urdu, and newlines. A sentence longer than `maxLen`
+ * (a long URL-less chemical line, say) is hard-split — being cut at an
+ * arbitrary word beats not being spoken at all.
  */
-export function startListening(locale: string, handlers: ListenHandlers): ListenSession | null {
-  const Ctor = recognitionCtor();
-  if (!Ctor) return null;
-
-  const recognition = new Ctor();
-  recognition.lang = locale;
-  // Single-utterance: a farmer asks one question and expects the mic to stop by
-  // itself. Continuous mode leaves a hot microphone open on someone's phone.
-  recognition.continuous = false;
-  recognition.interimResults = true;
-  recognition.maxAlternatives = 1;
-
-  // Tracks whether ANYTHING was reported before the session ended — a final
-  // transcript, a partial one, or an explicit error. If `onend` fires with
-  // none of those having happened, the session failed silently (see
-  // `onSilentEnd` above), and the caller needs to be told so explicitly.
-  let reported = false;
-
-  recognition.onresult = (event) => {
-    let interim = '';
-    let final = '';
-    for (let i = event.resultIndex; i < event.results.length; i += 1) {
-      const result = event.results[i];
-      if (!result) continue;
-      const alternative = result[0];
-      if (!alternative) continue;
-      if (result.isFinal) {
-        final += alternative.transcript;
+export function chunkSentences(text: string, maxLen = SPEAK_CHUNK_MAX): string[] {
+  const trimmed = text.trim();
+  if (trimmed === '') return [];
+  const parts = trimmed.match(/[^.!?\u0964\u0965\u061F\n]+[.!?\u0964\u0965\u061F\n]*/g) ?? [trimmed];
+  const chunks: string[] = [];
+  let current = '';
+  for (const part of parts) {
+    let rest = part;
+    while (current.length + rest.length > maxLen) {
+      if (current.trim()) chunks.push(current.trim());
+      current = '';
+      if (rest.length > maxLen) {
+        chunks.push(rest.slice(0, maxLen).trim());
+        rest = rest.slice(maxLen);
       } else {
-        interim += alternative.transcript;
+        break;
       }
     }
-    if (final.trim()) {
-      reported = true;
-      handlers.onFinal(final.trim());
-    } else if (interim.trim()) {
-      // A non-empty interim result is real progress, even before any final
-      // transcript arrives — it proves the engine is hearing something, so a
-      // session that later ends without a final result is not "silent" in
-      // the sense `onSilentEnd` cares about (that case reads as "try
-      // speaking louder / check your connection", not "the mic is dead").
-      reported = true;
-      handlers.onPartial(interim.trim());
-    }
-  };
-
-  recognition.onerror = (event) => {
-    reported = true;
-    handlers.onError(event.error);
-  };
-
-  recognition.onend = () => {
-    if (!reported) handlers.onSilentEnd();
-    handlers.onEnd();
-  };
-
-  try {
-    recognition.start();
-  } catch {
-    // start() throws if a session is already running on this instance. Treat it
-    // as a normal failure rather than letting it escape into a React handler.
-    handlers.onError('already-started');
-    return null;
+    current += rest;
   }
-
-  return {
-    stop() {
-      try {
-        recognition.stop();
-      } catch {
-        // Already stopped; nothing to do.
-      }
-    },
-  };
+  if (current.trim()) chunks.push(current.trim());
+  return chunks.filter((chunk) => chunk.length > 0);
 }
+
+/** What `speak` did, so the caller can react to the one failure a farmer can
+ *  actually do something about: the missing voice. */
+export type SpeakOutcome = 'spoken' | 'noVoice';
 
 /**
  * Read text aloud in the farmer's language.
  *
- * Any utterance already playing is cancelled first: two answers spoken over
- * each other is worse than the second one simply replacing the first, and a
- * farmer tapping the speaker twice expects the second tap to restart it.
+ * THE GIBBERISH GATE (V2.3) — written after a demo where Bengali speech came
+ * out as garbage. Root cause: this function used to set `utterance.lang`,
+ * find no matching voice, and speak anyway — and the browser, given no voice
+ * but a language tag, substitutes its DEFAULT voice. An English default voice
+ * reading Bengali script produces phonetic gibberish. Hindi happened to work
+ * on that machine only because a Hindi voice happened to be installed; the
+ * app had no way to know either fact.
  *
- * `utterance.voice` is set explicitly via `chooseVoice`, not left for the
- * browser to pick from `utterance.lang` alone — see the Bengali note on
- * `LOCALE_ALTERNATES` above for why that distinction matters. Setting `.lang`
- * as well, even once a voice is chosen, is not redundant: it is what the
- * browser falls back to correctly if no voice matched at all, which is still a
- * real case for a browser with no Indic voices installed at all.
+ * Now: wait for the voice list, and if NO voice exists for the language
+ * (including the regional alternates), DO NOT SPEAK AT ALL — return
+ * 'noVoice' and let the caller tell the farmer, in text, that the device
+ * needs the voice installed. Silence with an explanation is recoverable;
+ * gibberish reads as a broken app.
  *
- * That "no voice for the locale" case is still not treated as an error.
- * Browsers fall back to a default voice, which reads Devanagari or Bengali
- * imperfectly but audibly — better than silence with no explanation.
+ * When a voice does exist, the text is queued as sentence chunks (see
+ * `chunkSentences`) so a long briefing cannot trip Chrome's long-utterance
+ * cutoff. `utterance.voice` is still set explicitly — see the Bengali
+ * bn-IN/bn-BD note on `LOCALE_ALTERNATES`.
  */
-export function speak(text: string, locale: string): void {
-  if (!speechOutputSupported()) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = locale;
-  const voice = chooseVoice(window.speechSynthesis.getVoices(), locale);
-  if (voice) utterance.voice = voice;
-  // Slightly slower than default: this is agronomic advice with numbers in it,
-  // often heard once, sometimes over the noise of a field.
-  utterance.rate = 0.95;
-  window.speechSynthesis.speak(utterance);
+export async function speak(text: string, locale: string): Promise<SpeakOutcome> {
+  if (!speechOutputSupported()) return 'noVoice';
+  await waitForVoices();
+  const synth = window.speechSynthesis;
+  const voice = chooseVoice(synth.getVoices(), locale);
+  if (!voice) return 'noVoice';
+
+  synth.cancel();
+  for (const chunk of chunkSentences(text)) {
+    const utterance = new SpeechSynthesisUtterance(chunk);
+    utterance.lang = locale;
+    utterance.voice = voice;
+    // Slightly slower than default: this is agronomic advice with numbers in
+    // it, often heard once, sometimes over the noise of a field.
+    utterance.rate = 0.95;
+    synth.speak(utterance);
+  }
+  return 'spoken';
 }
 
-/** Stop any speech in progress. Called when the panel closes. */
+/** Stop any speech in progress. Called when a card unmounts or a stop is tapped. */
 export function stopSpeaking(): void {
   if (!speechOutputSupported()) return;
   window.speechSynthesis.cancel();

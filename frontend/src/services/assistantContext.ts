@@ -27,7 +27,147 @@ import {
   type FertilityLevel,
 } from './fertilizerKnowledge';
 import type { CropName } from '../types';
-import type { AssistantContext } from './assistantRules';
+
+/**
+ * The farm's situation as the device already knows it (V2.3 home: this type
+ * was born in the chat rules module, which the chatbot removal deleted; it
+ * survives here because the audio briefing, the card speaker buttons and
+ * `buildAssistantContext` all consume it).
+ *
+ * Every field is optional because the briefing must render partially — the
+ * farmer may open the app before a farm exists, or while offline with no
+ * cached weather. Absent is absent: `buildAssistantContext` omits a field the
+ * app has no figure for, and the briefing fragment builders turn that absence
+ * into a missing sentence, never a defaulted number.
+ *
+ * Provenance fields carry the raw §7 vocabulary ('MEASURED',
+ * 'REGIONAL_ESTIMATE', …) rather than translated chips: the fragment builders
+ * branch on the closed vocabulary to pick the right caveat sentence, and a
+ * branch on a translated string would break in one language out of five.
+ */
+export interface AssistantContext {
+  language?: string;
+  farmName?: string;
+  locationLabel?: string;
+  cropName?: string;
+  growthStage?: string;
+  soilType?: string;
+  irrigationMethod?: string;
+  areaLabel?: string;
+  status?: string;
+  depthMm?: number;
+  volumeLiters?: number;
+  durationMinutes?: number;
+  windowStart?: string;
+  windowEnd?: string;
+  explanation?: string;
+  confidence?: string;
+  temperatureC?: number;
+  humidityPercent?: number;
+  rainfallForecastMm?: number;
+  depletionMm?: number;
+  readilyAvailableMm?: number;
+  totalAvailableMm?: number;
+  /** Days of water left at today's demand, (TAW − Dr) ÷ ETc (V2.3). */
+  daysOfWaterLeft?: number;
+  diseaseRiskLevel?: string;
+  diseaseName?: string;
+  /** Where on the plant to look for the at-risk disease (translated). */
+  diseaseWhere?: string;
+  /** What the signs look like (translated). */
+  diseaseWhat?: string;
+
+  /** Pre-translated photo verdict, e.g. "The photo shows Rice Blast." */
+  photoVerdict?: string;
+  /** Which crop the checked photo was of, when it differed from the farm's. */
+  photoPlant?: string;
+  /** When the photo was checked. ISO 8601. */
+  photoCheckedAt?: string;
+  slopePercent?: number;
+  /** Litres saved today versus the baseline practice, from the water ledger. */
+  savedTodayLiters?: number;
+  savedLifetimeLiters?: number;
+  /** Tomorrow's advised action from the multi-day plan, e.g. "Irrigate Today". */
+  tomorrowStatus?: string;
+
+  /** Topsoil pH. An area prediction unless `soilPhProvenance` says MEASURED. */
+  soilPh?: number;
+  /** §7 label for `soilPh`, e.g. 'REGIONAL_ESTIMATE'. */
+  soilPhProvenance?: string;
+  /** Plain-language sentence naming what produced `soilPh`. */
+  soilPhOrigin?: string;
+  /** Already-translated verdict for the crop, e.g. "Well suited". */
+  phSuitability?: string;
+  phOptimalMin?: number;
+  phOptimalMax?: number;
+  /** USDA texture class from the soil map, e.g. "clay loam". */
+  soilTextureClass?: string;
+  soilTextureProvenance?: string;
+  /** Topsoil organic carbon, percent by mass. */
+  organicCarbonPct?: number;
+  /** §7 label for `soilType` — USER_PROVIDED when the farmer chose it. */
+  soilTypeProvenance?: string;
+  /** §7 label for the weather figures, normally FORECAST. */
+  weatherProvenance?: string;
+  /** §7 label for the water-holding figures the moisture answer rests on. */
+  soilMoistureProvenance?: string;
+  /** Pre-translated top farm issues (Phase 3), highest severity first. */
+  topIssues?: string[];
+
+  /** Irrigation-water salinity (ECw), dS/m. */
+  waterEcw?: number;
+  /** Water sodium adsorption ratio. */
+  waterSar?: number;
+  /** Water boron, mg/L. */
+  waterBoron?: number;
+  /** Water bicarbonate, meq/L. */
+  waterBicarbonate?: number;
+  /** Water pH. */
+  waterPh?: number;
+  /** Soil saturation-extract salinity (ECe), dS/m. */
+  soilEce?: number;
+  /** Soil exchangeable sodium percentage, %. */
+  soilEsp?: number;
+
+  /** Available nitrogen from the farmer's own reading, kg/ha. */
+  fertilityN?: number;
+  fertilityP2O5?: number;
+  fertilityK2O?: number;
+  fertilityProvenance?: string;
+  fertilityBand?: string;
+  fertilityPh?: number;
+  fertilityEc?: number;
+  fertilityOrganicCarbonPct?: number;
+  fertilitySulphur?: number;
+  fertilityZinc?: number;
+  fertilityBoron?: number;
+  fertilityIron?: number;
+  fertilityManganese?: number;
+  fertilityCopper?: number;
+
+  /** Official schedule dose for the selected band, e.g. "N 50, P2O5 25, K2O 25 kg/ha". */
+  fertScheduleNpk?: string;
+  /** The band the dose was resolved for, e.g. "Medium". */
+  fertScheduleBand?: string;
+  /** Variety label, e.g. "Kharif (monsoon) rice" or "Potato". */
+  fertScheduleVariety?: string;
+  /** Soil zone label the schedule was resolved for, e.g. "Terai". */
+  fertScheduleZone?: string;
+  /** Booklet soil amendment line, e.g. "Dolomite @ 1-2 t/ha". */
+  fertScheduleAmeliorant?: string;
+  /** Booklet manure/bio-fertilizer line, e.g. "FYM @ 5 t/ha ...". */
+  fertScheduleManure?: string;
+  /** Booklet sulphur line, e.g. "S @ 20 kg/ha at land preparation". */
+  fertScheduleSulphur?: string;
+  /** Booklet micronutrient line. */
+  fertScheduleMicronutrients?: string;
+  /** Booklet split-timing / general note for this crop table. */
+  fertScheduleTiming?: string;
+  /** True when the booklet has no NPK cell for this zone (Hill/Coastal gaps). */
+  fertScheduleNoDose?: boolean;
+  /** Crop alternatives ranked by pH suitability for this farm's soil. */
+  phAltCrops?: string[];
+}
 
 /**
  * Build the assistant's view of the farm (item 17).
@@ -169,6 +309,12 @@ export function buildAssistantContext({
   }
   if (isKnown(fc.water.totalAvailableMm)) {
     context.totalAvailableMm = round1(fc.water.totalAvailableMm.value);
+  }
+  // Days of water left (V2.3): the farmer-legible reading of the balance.
+  // `maybe` yields UNKNOWN (not a null value) when the balance path did not
+  // run, so a KNOWN node here always carries a real number.
+  if (isKnown(fc.water.daysOfWaterLeft)) {
+    context.daysOfWaterLeft = round1(fc.water.daysOfWaterLeft.value);
   }
   // The label belongs to the BASIS of the holding figures, not to the depletion
   // number itself. Depletion is a running FAO-56 balance — arithmetic the app
@@ -413,6 +559,3 @@ export function buildAssistantContext({
 
   return context;
 }
-
-/** Re-exported so callers need only one import for the assistant's data shape. */
-export type { AssistantContext };

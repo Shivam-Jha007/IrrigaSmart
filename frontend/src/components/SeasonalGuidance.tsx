@@ -1,6 +1,8 @@
 import type { Crop, Language, Season } from '../types';
 import { getSeasonalGuidance } from '../services';
-import { cropLabelKey, localeFor, type TranslateFn, type TranslationKey } from '../i18n';
+import { monthNameFor } from '../services/briefingFragments';
+import { cropLabelKey, type TranslateFn, type TranslationKey } from '../i18n';
+import { SpeakButton } from './SpeakButton';
 
 /**
  * SeasonalGuidance — regional agricultural knowledge on the dashboard
@@ -13,6 +15,8 @@ import { cropLabelKey, localeFor, type TranslateFn, type TranslationKey } from '
 interface Props {
   crop: Crop;
   language: Language;
+  /** Pre-built spoken line (V2.3), from the shared fragment builders. */
+  speech?: string | null;
   t: TranslateFn;
 }
 
@@ -24,24 +28,35 @@ function seasonGuideKey(season: Season): TranslationKey {
   return `season.guide.${season}`;
 }
 
-/** Locale-aware short month name (e.g. "Jun" / "जून" / "জুন"). */
-function monthName(month: number, locale: string): string {
-  return new Date(2000, month - 1, 1).toLocaleDateString(locale, { month: 'short' });
-}
-
-export function SeasonalGuidance({ crop, language, t }: Props) {
+export function SeasonalGuidance({ crop, language, speech, t }: Props) {
   const guidance = getSeasonalGuidance(crop.name, new Date().toISOString());
-  const locale = localeFor(language);
   const cropLabel = t(cropLabelKey(crop.name));
 
-  const sowing = `${monthName(guidance.sowingMonths[0], locale)}–${monthName(guidance.sowingMonths[1], locale)}`;
-  const harvest = `${monthName(guidance.harvestMonths[0], locale)}–${monthName(guidance.harvestMonths[1], locale)}`;
+  const sowing = `${monthNameFor(guidance.sowingMonths[0]!, language)}–${monthNameFor(
+    guidance.sowingMonths[1]!,
+    language,
+  )}`;
+  const harvest = `${monthNameFor(guidance.harvestMonths[0]!, language)}–${monthNameFor(
+    guidance.harvestMonths[1]!,
+    language,
+  )}`;
 
   return (
     <section className="seasonal" aria-label={t('season.title')}>
-      <h3 className="seasonal__title">
-        {t('season.title')} · {t(seasonKey(guidance.season))}
-      </h3>
+      <div className="seasonal__head">
+        <h3 className="seasonal__title">
+          {t('season.title')} · {t(seasonKey(guidance.season))}
+        </h3>
+        {speech && (
+          <SpeakButton
+            text={speech}
+            language={language}
+            speakId="seasonal-card"
+            label={t('assistant.readAloud')}
+            t={t}
+          />
+        )}
+      </div>
       <p className="seasonal__line">
         {guidance.inMainSeason
           ? t('season.inSeason', { crop: cropLabel })

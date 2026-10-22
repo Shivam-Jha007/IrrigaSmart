@@ -4,7 +4,7 @@ import { useAppStore } from './app/useAppStore';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { BottomNav, type Tab } from './components/BottomNav';
 import { OfflineBanner } from './components/OfflineBanner';
-import { FarmerAssistant } from './components/FarmerAssistant';
+import { SpeakButton } from './components/SpeakButton';
 import { Dashboard } from './pages/Dashboard';
 import { FarmsPage } from './pages/FarmsPage';
 import { FertilizerPage } from './pages/FertilizerPage';
@@ -21,14 +21,20 @@ import { buildAssistantContext, type AssistantEngineInputs } from './services';
  * in the language chosen in Settings (docs/12_Product_Roadmap_v2.md Feature 2).
  * The welcome/learning flow (Feature 6.5) gates the app on first run and can
  * be re-opened from Settings.
+ *
+ * The chat assistant (V2.2) was removed in V2.3: its answers could drift from
+ * the dashboard, and the audio briefing + per-card speakers now deliver the
+ * same information deterministically. The shell still builds the assistant
+ * context — it feeds the briefing card, which replaced the chat as the voice
+ * surface.
  */
 function App() {
   const store = useAppStore();
   const online = useOnlineStatus();
   const [tab, setTab] = useState<Tab>('dashboard');
   const [showOnboarding, setShowOnboarding] = useState(false);
-  // The assistant panel is rendered by the shell (see the return below), so it
-  // outlives every tab; the Dashboard reports the engine inputs it produces.
+  // The Dashboard reports the engine inputs it produces; the shell turns them
+  // into the briefing context that the TodayBriefingCard renders and speaks.
   const [assistantInputs, setAssistantInputs] = useState<AssistantEngineInputs | null>(null);
   const { t } = store;
   const isRtl = store.settings.preferredLanguage === 'ur';
@@ -101,6 +107,18 @@ function App() {
         />
         <span className="app-header__brand">IrrigaSmart</span>
         {!online && <span className="app-header__offline-dot" aria-label="Offline" />}
+        {/* The orientation speaker (V2.3): a first-time farmer's "what is this
+            app?" answered out loud, in their language, before they can read
+            anything. Same deterministic-text rule as every other voice
+            surface — a fixed translated sentence, no generation. */}
+        <SpeakButton
+          text={t('app.intro')}
+          language={store.settings.preferredLanguage}
+          speakId="app-intro"
+          label={t('app.introButton')}
+          variantClass="app-header__speak"
+          t={t}
+        />
         <button
           type="button"
           className="app-header__help"
@@ -115,7 +133,12 @@ function App() {
 
       <main className="app-main">
         {tab === 'dashboard' && (
-          <Dashboard store={store} onGoToFarms={() => setTab('farms')} onAssistantInputs={setAssistantInputs} />
+          <Dashboard
+            store={store}
+            onGoToFarms={() => setTab('farms')}
+            onAssistantInputs={setAssistantInputs}
+            briefingContext={assistantContext}
+          />
         )}
         {tab === 'farms' && <FarmsPage store={store} />}
         {tab === 'fertilizer' && <FertilizerPage store={store} />}
@@ -131,16 +154,6 @@ function App() {
           fertilizer: t('nav.fertilizer'),
           settings: t('nav.settings'),
         }}
-      />
-
-      {/* Above every tab on purpose (V2.2): the assistant must still be
-          askable from the Fertilizer tab its own deep-link buttons send the
-          farmer to. Fixed-positioned, so it floats over whatever tab shows. */}
-      <FarmerAssistant
-        context={assistantContext}
-        language={store.settings.preferredLanguage}
-        t={t}
-        onNavigate={() => setTab('fertilizer')}
       />
     </div>
   );

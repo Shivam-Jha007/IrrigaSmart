@@ -24,6 +24,7 @@ import { TRANSLATIONS, type TranslationKey } from './translations';
  * are stored in English in the data model (docs/03_Data_Models.md) and mapped
  * to translation keys here for display only.
  */
+
 export type { TranslationKey } from './translations';
 
 /** Re-exported so UI components can take `language` as a prop without importing types/. */
