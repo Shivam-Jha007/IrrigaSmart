@@ -109,3 +109,44 @@ export async function apiPost<T>(path: string, body: unknown, signal?: AbortSign
     ...(signal ? { signal } : {}),
   });
 }
+
+/**
+ * Perform a POST request whose success payload is BINARY (not the JSON
+ * envelope), returning it as a Blob.
+ *
+ * Added for /api/tts (V2.4), which answers raw audio/mpeg bytes on success.
+ * The base URL, the network-unreachable classification and the error-envelope
+ * handling stay in this module so "what offline means" is still defined in
+ * exactly one place — only the success decoding differs from `apiPost`, and
+ * it differs because the response is not JSON when it succeeds.
+ */
+export async function apiPostBinary(path: string, body: unknown): Promise<Blob> {
+  const url = new URL(path, API_BASE_URL);
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError('Network request failed', 'NETWORK_ERROR');
+  }
+
+  if (!response.ok) {
+    let envelope: ErrorEnvelope | undefined;
+    try {
+      const parsed: unknown = await response.json();
+      envelope = isErrorEnvelope(parsed) ? parsed : undefined;
+    } catch {
+      // Non-JSON error body (e.g. a proxy's HTML error page) — fall through
+      // with the status code only.
+    }
+    throw new ApiError(
+      envelope?.message ?? `Request failed (${response.status})`,
+      envelope?.errorCode ?? 'REQUEST_FAILED',
+    );
+  }
+
+  return response.blob();
+}

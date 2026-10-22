@@ -93,6 +93,32 @@
   justify-content: center;
   transition: background 0.18s var(--ease);
 }
+/* The orientation speaker sits in the dark header, so it inverts the default
+   blue-soft speak button: transparent until hovered, white ring while
+   speaking — the same visual language as the ? button beside it. */
+.speak-btn.app-header__speak {
+  margin-left: auto;
+  background: transparent;
+  color: var(--color-primary-contrast);
+  border: 1.5px solid rgba(255, 255, 255, 0.65);
+}
+.speak-btn.app-header__speak:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+.speak-btn.app-header__speak.speak-btn--playing {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: var(--color-surface);
+}
+/* Only the FIRST header control owns the auto margin; the ? that follows
+   (LTR) keeps its default margin from .app-header__help. */
+[dir='ltr'] .speak-btn.app-header__speak + .app-header__help {
+  margin-left: 0;
+}
+/* RTL mirrors it: the ? owns the auto margin, the speaker follows without
+   one. */
+[dir='rtl'] .speak-btn.app-header__speak {
+  margin-left: 0;
+}
 .app-header__help:hover {
   background: rgba(255, 255, 255, 0.18);
 }
@@ -630,6 +656,144 @@
   }
 }
 
+/* --- Today's audio briefing (V2.3): the dashboard's own sentences, shown
+    and spoken from one fragment library. Text is the product; the speaker
+    button reads exactly the lines on screen. --- */
+.briefing {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  animation: fade-up 0.5s var(--ease-out) both;
+}
+.briefing__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.briefing__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.briefing__lead {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.briefing__toggle {
+  align-self: flex-start;
+  padding: var(--space-1) var(--space-3);
+  font-size: 0.85rem;
+}
+.briefing__lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.briefing__line {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--color-blue-soft);
+  color: var(--color-text);
+}
+
+/* --- Shared speak button (briefing + per-card speakers, V2.3) --- */
+.speak-btn {
+  border: none;
+  background: var(--color-blue-soft);
+  color: var(--color-blue-dark);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: var(--space-2);
+  border-radius: 999px;
+  flex-shrink: 0;
+  transition: background 0.2s var(--ease-out), transform 0.1s var(--ease-out);
+}
+.speak-btn:hover {
+  background: var(--color-surface-alt);
+}
+.speak-btn:active {
+  transform: scale(0.92);
+}
+/* The missing-voice message (V2.3): shown under the button when the device
+   has no voice for the farmer's language — the app refuses to let the wrong
+   voice read the text as gibberish, and says this instead. Overlays content
+   rather than shifting layout, so it never reflows a card or the header. */
+.speak-btn__wrap {
+  position: relative;
+  display: inline-flex;
+}
+.speak-btn__error {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: max-content;
+  max-width: 260px;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: #fdecea;
+  color: var(--color-danger);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.45;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  z-index: 60;
+}
+[dir='rtl'] .speak-btn__error {
+  right: auto;
+  left: 0;
+}
+.speak-btn--playing {
+  background: var(--color-blue);
+  color: var(--color-surface);
+  animation: speak-pulse 1.2s ease-in-out infinite;
+}
+@keyframes speak-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+  }
+}
+
+/* --- Per-card speaker rows (V2.3): the card's own pre-built line, spoken. --- */
+.rec-card__statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.moisture__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.weather__speakrow {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-1);
+}
+.seasonal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
 /* --- Water checklist (advised vs applied vs saved) --- */
 .water-checklist {
   background: var(--color-surface);
@@ -1125,9 +1289,6 @@
   background: var(--color-primary-soft);
   box-shadow: var(--shadow-primary);
 }
-.fert-icon-btn--muted {
-  opacity: 0.55;
-}
 .fert-icon-btn__icon {
   font-size: 1.75rem;
   line-height: 1;
@@ -1488,6 +1649,85 @@
   line-height: 1.45;
   color: var(--color-text-muted);
 }
+
+/* --- Disease management panel (V2.3): the "What can I do?" help under a
+   named photo finding — field steps, the standard chemical with its dose,
+   the KVK confirmation and the label disclaimer. Collapsed behind one button
+   so the reading stays the headline; the panel reads as advice-sheet, with
+   the disclaimer set apart so it cannot be mistaken for fine print. --- */
+.treat {
+  margin-top: var(--space-3);
+}
+.treat__toggle {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.treat__toggle:hover {
+  background: var(--color-primary-soft);
+}
+.treat__panel {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.treat__steps-title,
+.treat__chem-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.treat__steps {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+.treat__chem {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.treat__source {
+  margin: 0;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+.treat__kvk {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-primary-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+}
+.treat__disclaimer {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  border-top: 1px dashed var(--color-border);
+  padding-top: var(--space-2);
+}
 .photo-card__reference-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1614,6 +1854,77 @@
   color: var(--color-text-muted);
   border-top: 1px solid var(--color-border);
   padding-top: var(--space-2);
+}
+
+/* The gauge's translation into farmer time (V2.3): "about 3 days of water
+   left". Bold on purpose — it is the line the farmer came for, the number the
+   gauge itself only implies. */
+.moisture__days {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* The sensor anchor input (V2.3): collapsed behind a quiet toggle so the
+   gauge stays the headline; the meter is for the farmer who owns one. */
+.moisture__sensor {
+  margin-top: var(--space-2);
+  border-top: 1px dashed var(--color-border);
+  padding-top: var(--space-2);
+}
+.moisture__sensor-toggle {
+  border: none;
+  background: transparent;
+  color: var(--color-primary-dark);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+.moisture__sensor-body {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.moisture__sensor-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+.moisture__sensor-last {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.moisture__sensor-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.moisture__sensor-input {
+  width: 90px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+}
+.moisture__sensor-unit {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+.moisture__sensor-saved {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
 }
 
 /* --- Soil pH suitability (item: pH-based crop suitability) ---
@@ -2221,627 +2532,13 @@
 }
 
 /* ======================================================================
-   Farmer assistant (item 17) — floating "ask" circle + chat panel.
-
-   The circle sits above the bottom nav, not over it: a farmer must never
-   have to choose between reaching the assistant and reaching Reminders.
-   On phones the panel is a bottom sheet (thumb-reachable, the shape every
-   chat app on the device already uses); from 900px it becomes a docked
-   card so it never covers the decision it is explaining.
-   ====================================================================== */
-.assistant-fab {
-  position: fixed;
-  right: var(--space-4);
-  bottom: calc(var(--nav-height) + var(--space-4));
-  z-index: 40;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border: none;
-  border-radius: var(--radius-pill);
-  background: var(--grad-brand);
-  color: var(--color-primary-contrast);
-  font-size: 0.95rem;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: var(--shadow-primary);
-  transition: transform 160ms var(--ease-out), box-shadow 160ms var(--ease);
-}
-.assistant-fab:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
-.assistant-fab:active {
-  transform: translateY(0);
-}
-.assistant-fab__icon {
-  font-size: 1.25rem;
-  line-height: 1;
-}
-.assistant-fab__label {
-  letter-spacing: 0.01em;
-}
-
-.assistant-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 45;
-  background: rgba(16, 40, 28, 0.42);
-  backdrop-filter: blur(2px);
-  animation: assistant-fade 160ms var(--ease) both;
-}
-
-.assistant {
-  position: fixed;
-  z-index: 50;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  /* Caps the sheet so the farmer can still see part of the dashboard behind
-     it — context they may want to read while typing the question. */
-  max-height: min(78vh, 640px);
-  background: var(--color-surface);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  box-shadow: var(--shadow-lg);
-  animation: assistant-rise 220ms var(--ease-out) both;
-  overflow: hidden;
-}
-
-.assistant__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  background: var(--grad-brand);
-  color: var(--color-primary-contrast);
-  flex-shrink: 0;
-}
-.assistant__title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
-}
-.assistant__close {
-  border: none;
-  background: rgba(255, 255, 255, 0.18);
-  color: inherit;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-pill);
-  font-size: 0.95rem;
-  line-height: 1;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.assistant__close:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.assistant__topics {
-  display: flex;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4) 0;
-  overflow-x: auto;
-  background: var(--color-surface-alt);
-  flex-shrink: 0;
-}
-.assistant__topic {
-  flex: 0 0 auto;
-  min-height: 36px;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  color: var(--color-primary-dark);
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.assistant__topic:hover,
-.assistant__topic:focus-visible {
-  background: var(--color-primary-soft);
-  border-color: var(--color-primary);
-}
-.assistant__topic:disabled {
-  opacity: 0.55;
-  cursor: wait;
-}
-
-.assistant__log {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  background: var(--color-surface-alt);
-  -webkit-overflow-scrolling: touch;
-}
-
-.assistant__intro {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-.assistant__briefing {
-  margin: 0;
-  padding: var(--space-3);
-  border-left: 3px solid var(--color-primary);
-  border-radius: var(--radius-sm);
-  background: var(--color-primary-soft);
-  color: var(--color-primary-dark);
-  font-size: 0.9rem;
-  font-weight: 700;
-  line-height: 1.5;
-}
-
-.assistant__introText {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 0.95rem;
-  line-height: 1.6;
-}
-.assistant__suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-.assistant__suggestion {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  color: var(--color-primary-dark);
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-align: start;
-  transition: background 140ms var(--ease), border-color 140ms var(--ease);
-}
-.assistant__suggestion:hover {
-  background: var(--color-primary-soft);
-  border-color: var(--color-primary);
-}
-
-.assistant__msg {
-  max-width: 88%;
-  padding: var(--space-3);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-}
-.assistant__msg--user {
-  align-self: flex-end;
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
-  border-bottom-right-radius: var(--space-1);
-}
-.assistant__msg--assistant {
-  align-self: flex-start;
-  background: var(--color-surface);
-  color: var(--color-text);
-  border-bottom-left-radius: var(--space-1);
-}
-.assistant__msgText {
-  margin: 0;
-  font-size: 0.95rem;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-/* Deep-link button on answers whose advice has a screen (V2.2 interactive
-   pack): visually distinct from a chip — it goes somewhere, not asks. */
-.assistant__action {
-  display: block;
-  width: 100%;
-  margin-top: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius);
-  background: var(--color-primary-soft);
-  color: var(--color-primary-dark);
-  font-size: 0.9rem;
-  font-weight: 700;
-  cursor: pointer;
-  text-align: center;
-  transition: background 140ms var(--ease);
-}
-.assistant__action:hover {
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
-}
-.assistant__msgFoot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-}
-
-/* The source badge tells a farmer WHY an answer did or did not arrive:
-   green = their own phone answered (works with no signal), blue = the
-   network answered, amber = it needs internet they do not have. */
-.assistant__source {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-pill);
-}
-.assistant__source--rules {
-  background: var(--color-primary-soft);
-  color: var(--color-primary-dark);
-}
-.assistant__source--claude {
-  background: var(--color-blue-soft);
-  color: var(--color-blue-dark);
-}
-.assistant__source--unavailable {
-  background: #fbf1de;
-  color: var(--color-monitor);
-}
-.assistant__speak {
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 1rem;
-  line-height: 1;
-  padding: var(--space-1);
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-.assistant__speak:hover {
-  background: var(--color-surface-alt);
-}
-
-.assistant__thinking {
-  align-self: flex-start;
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-  font-style: italic;
-}
-
-.assistant__voiceError {
-  margin: 0;
-  padding: var(--space-2) var(--space-4);
-  background: #fdecea;
-  color: var(--color-danger);
-  font-size: 0.85rem;
-  flex-shrink: 0;
-}
-
-.assistant__composer {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--color-border);
-  background: var(--color-surface);
-  flex-shrink: 0;
-}
-.assistant__input {
-  flex: 1;
-  min-width: 0;
-  padding: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-alt);
-  color: var(--color-text);
-  font: inherit;
-  font-size: 0.95rem;
-}
-.assistant__input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  background: var(--color-surface);
-}
-.assistant__mic,
-.assistant__send {
-  /* 44px: the minimum comfortable touch target for a hand that has been
-     working in a field, which is the hand this app is designed for. */
-  width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-  border: none;
-  border-radius: var(--radius-pill);
-  font-size: 1.05rem;
-  line-height: 1;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.assistant__mic {
-  background: var(--color-surface-alt);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-}
-.assistant__mic--on {
-  background: var(--color-danger);
-  border-color: var(--color-danger);
-  color: #ffffff;
-  animation: assistant-pulse 1.4s ease-in-out infinite;
-}
-.assistant__send {
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
-}
-.assistant__send:disabled {
-  background: var(--color-border);
-  color: var(--color-text-muted);
-  cursor: not-allowed;
-}
-
-.assistant__note {
-  margin: 0;
-  padding: 0 var(--space-4) var(--space-4);
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
-  line-height: 1.5;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-@keyframes assistant-fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-@keyframes assistant-rise {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-@keyframes assistant-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.5);
-  }
-  50% {
-    box-shadow: 0 0 0 7px rgba(192, 57, 43, 0);
-  }
-}
-
-/* A pulsing mic and a rising sheet are decoration; motion sensitivity is not. */
-@media (prefers-reduced-motion: reduce) {
-  .assistant-fab,
-  .assistant-scrim,
-  .assistant,
-  .assistant__mic--on {
-    animation: none;
-    transition: none;
-  }
-}
-
-@media (min-width: 900px) {
-  .assistant-fab {
-    right: var(--space-6);
-    bottom: var(--space-6);
-  }
-  /* Docked card, not a full-width sheet: on a desktop the recommendation
-     stays readable beside the conversation about it. */
-  .assistant {
-    left: auto;
-    right: var(--space-6);
-    bottom: var(--space-6);
-    width: 400px;
-    max-height: min(70vh, 620px);
-    border-radius: var(--radius-lg);
-  }
-  .assistant-scrim {
-    /* Nothing is hidden behind it on a wide screen, so the scrim only needs
-       to catch the click-outside — it should not dim the dashboard. */
-    background: transparent;
-    backdrop-filter: none;
-  }
-}
-
-/* --- Farm improvement plan (PRD §15) ---
-   First card in the dashboard sidebar. Structurally the same surface as
-   .ph-suitability and .fert-card so it does not read as a different kind of
-   thing; what distinguishes it is the numbered list and the severity rail down
-   the left of each item.
-
-   THE ITEMS ARE NUMBERED BECAUSE THE ORDER IS THE POINT. `detectFarmIssues`
-   ranks by severity then confidence, and a farmer with time for one thing should
-   be able to see which one that is without reading all three. An unordered list
-   would throw that away. */
-.improve-plan {
-  background: var(--color-surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.improve-plan__title {
-  font-size: 1rem;
-  margin: 0;
-}
-.improve-plan__subtitle {
-  margin: 0;
-  font-size: 0.8rem;
-  line-height: 1.45;
-  color: var(--color-text-muted);
-}
-/* The empty state is good news, so it gets the one green marker on this card
-   and reads at full weight rather than as a muted "nothing here". */
-.improve-plan__none {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--color-text);
-}
-.improve-plan__hint {
-  margin: 0;
-  font-size: 0.8rem;
-  line-height: 1.45;
-  color: var(--color-text-muted);
-}
-
-.improve-plan__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  counter-reset: improve-item;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-.improve-plan__item {
-  counter-increment: improve-item;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  /* The severity rail: one glance down the left edge ranks the list without
-     having to read the badges. */
-  border-left: 3px solid var(--color-border);
-  padding-left: var(--space-3);
-}
-.improve-plan__item--high {
-  border-left-color: #c0392b;
-}
-.improve-plan__item--medium {
-  border-left-color: #d9a406;
-}
-.improve-plan__item--low {
-  border-left-color: #4a7fb5;
-}
-.improve-plan__item-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-.improve-plan__item-title {
-  margin: 0;
-  font-size: 0.92rem;
-  font-weight: 700;
-  line-height: 1.35;
-}
-.improve-plan__speak {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  color: var(--color-primary-dark);
-  padding: 5px 10px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.improve-plan__speak:hover,
-.improve-plan__speak:focus-visible {
-  background: var(--color-primary-light);
-}
-.improve-plan__speak:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.improve-plan__item-title::before {
-  content: counter(improve-item) '. ';
-  color: var(--color-text-muted);
-}
-.improve-plan__severity {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: var(--radius-pill);
-  white-space: nowrap;
-}
-.improve-plan__severity--high {
-  background: #f6dede;
-  color: #8f2f2f;
-}
-.improve-plan__severity--medium {
-  background: #fdeecb;
-  color: #8a6400;
-}
-.improve-plan__severity--low {
-  background: #e2ecf6;
-  color: #2f5b8f;
-}
-.improve-plan__explain {
-  margin: 0;
-  font-size: 0.82rem;
-  line-height: 1.5;
-  color: var(--color-text-muted);
-}
-.improve-plan__confidence {
-  margin: 0;
-}
-.improve-plan__actions-label {
-  margin: 0;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--color-text);
-}
-.improve-plan__actions {
-  margin: 0;
-  padding-left: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.82rem;
-  line-height: 1.5;
-  color: var(--color-text-muted);
-}
-
-/* Items past the top few. Same treatment as .fert-card__details: kept rather
-   than dropped, one tap away, so the default view stays a short plan. */
-.improve-plan__details {
-  border-top: 1px solid var(--color-border);
-  padding-top: var(--space-2);
-}
-.improve-plan__details-summary {
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--color-primary-dark);
-  list-style: none;
-}
-.improve-plan__details-summary::-webkit-details-marker {
-  display: none;
-}
-.improve-plan__details-summary::before {
-  content: '▸ ';
-}
-.improve-plan__details[open] .improve-plan__details-summary::before {
-  content: '▾ ';
-}
-/* The expanded items keep counting on from the visible ones — "4." after "3." —
-   rather than restarting at 1 and implying a second, separate list. */
-.improve-plan__list--rest {
-  counter-reset: none;
-  margin-top: var(--space-3);
-}
-
-/* The "some of this rests on maps, not tests of your field" line (PRD §7).
-   Same voice and same weight as .ph-suitability__source, because it is the same
-   caveat about the same data. */
-.improve-plan__source {
-  margin: 0;
-  font-size: 0.75rem;
-  line-height: 1.45;
-  color: var(--color-text-muted);
-  font-style: italic;
-}
+/* --- Farmer assistant (item 17) — REMOVED in V2.3 ---
+   The chat panel was removed: its answers could drift from the dashboard,
+   and the audio briefing now delivers the same facts deterministically.
+   The voice surfaces live in the briefing card and per-card speak
+   buttons. */
+/* --- Farm improvement plan (PRD §15) — REMOVED in V2.3 ---
+   The card was removed from the dashboard: its issue list was the most
+   text-heavy surface, and the top issue now travels in the audio briefing
+   ("also worth a look") and the chat's topIssues context. The detectors in
+   farmImprovement.ts remain — they feed the assistant context. */

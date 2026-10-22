@@ -746,3 +746,22 @@ export function fertilizerZonesFor(crop: CropName, varietyId: string): readonly 
   const table = fertilizerVarietiesFor(crop).find((t) => t.varietyId === varietyId);
   return table ? table.zones.map((z) => z.zone) : [];
 }
+
+/**
+ * The zones a given crop/variety table has an NPK DOSE for (V2.3).
+ *
+ * Hill has zone rows in every table but no dose in any of them — the booklet
+ * leaves those cells blank — and Coastal is blank everywhere except Kharif
+ * rice. Offering those buttons sent farmers down a path that can only end in
+ * "no dose for this zone" (or a dose-less recommendation), which reads as a
+ * broken tool rather than an honest boundary. This is the narrower list the
+ * Fertilizer page offers; `fertilizerZonesFor` remains the full table
+ * content for anything that needs to know a zone row exists.
+ */
+export function fertilizerDoseZonesFor(
+  crop: CropName,
+  varietyId: string,
+): readonly FertilizerSoilZone[] {
+  const table = fertilizerVarietiesFor(crop).find((t) => t.varietyId === varietyId);
+  return table ? table.zones.filter((z) => z.npk !== undefined).map((z) => z.zone) : [];
+}

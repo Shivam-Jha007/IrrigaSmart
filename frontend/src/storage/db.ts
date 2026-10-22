@@ -27,11 +27,14 @@ import type {
  * v4 → no new stores; forces the idempotent upgrade below to run once on every
  * existing client, repairing any schema drift (see `upgrade`);
  * v5 → + depletionState store (root-zone water balance, Decision Logic §4b);
- * v6 → + assistantChat store (V2.2 conversation persistence, single record).
+ * v6 → + assistantChat store (V2.2 conversation persistence, single record);
+ * v7 → + ttsCache store (V2.4: cloud-synthesised MP3 audio, keyed by
+ *       locale+text so a spoken briefing is fetched once and then replayed
+ *       from the device).
  */
 
 export const DB_NAME = 'irrigasmart';
-export const DB_VERSION = 6;
+export const DB_VERSION = 7;
 
 /** Key for the single application settings record. */
 export const SETTINGS_KEY = 'app';
@@ -51,6 +54,21 @@ export interface WeatherCacheEntry {
    * planning is skipped until the next live fetch.
    */
   daily?: DailyWeather[];
+}
+
+/**
+ * One cloud-synthesised MP3, cached so the same sentence is synthesised (and
+ * paid for) once. The key is `locale::text` — the full text, not a hash: a
+ * collision would silently speak the WRONG advice, and IndexedDB keys of a
+ * few kilobytes cost nothing. Audio is a Blob because structured clone
+ * handles it natively in IndexedDB.
+ */
+export interface TtsCacheEntry {
+  /** `${locale}::${text}` — see ttsCacheStore.ttsCacheKey. */
+  key: string;
+  audio: Blob;
+  /** ISO-8601 timestamp of when this entry was written (for LRU pruning). */
+  cachedAt: string;
 }
 
 export interface IrrigaSmartDB extends DBSchema {
@@ -106,6 +124,10 @@ export interface IrrigaSmartDB extends DBSchema {
   assistantChat: {
     key: string;
     value: AssistantChatRecord;
+  };
+  ttsCache: {
+    key: string;
+    value: TtsCacheEntry;
   };
 }
 
@@ -254,6 +276,11 @@ export function getDb(): Promise<IDBPDatabase<IrrigaSmartDB>> {
         // V2.2 — Assistant conversation persistence (single record).
         if (!db.objectStoreNames.contains('assistantChat')) {
           db.createObjectStore('assistantChat', { keyPath: 'id' });
+        }
+
+        // V2.4 — Cloud-synthesised speech audio (see TtsCacheEntry).
+        if (!db.objectStoreNames.contains('ttsCache')) {
+          db.createObjectStore('ttsCache', { keyPath: 'key' });
         }
       },
       blocked() {

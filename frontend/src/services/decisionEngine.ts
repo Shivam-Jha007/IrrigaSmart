@@ -22,7 +22,7 @@ import { buildExplanation, leachingSentence } from './explanationText';
 import { leachingRequirement } from './waterQuality';
 import { estimateEto } from './evapotranspiration';
 import { getSeasonForDate } from './regionalKnowledge';
-import { localDayString, previousDayString } from './dateUtils';
+import { DAY_MS, localDayString, previousDayString } from './dateUtils';
 import { chooseIrrigationWindow, flowLitersPerMinute, runMinutes } from './irrigationTiming';
 import { dryingPotential } from './sunshine';
 import { intakeFactor, runoffFactor } from './slopeAdjustment';
@@ -152,6 +152,18 @@ export interface WaterBalanceState {
   thetaSource: 'measured' | 'table';
   /** Fraction of the root zone covered by measured layers, 0-1. */
   thetaCoverage: number;
+  /**
+   * How many days of TODAY'S demand the remaining root-zone water covers
+   * (V2.3): (TAW − Dr) ÷ ETc_today. Null when today's demand is zero or
+   * unknown, in which case no days figure is shown or spoken.
+   *
+   * Farmers reason in days, not in percent-of-TAW — "about three days of water
+   * left" is actionable in a way "62% available" is not, and it also defuses
+   * the gauge's misleading case where a high percentage sits just under the
+   * stress marker. It is a rate statement, honest only about today: the plan
+   * outlook, not this number, says what rain changes.
+   */
+  daysOfWaterLeft: number | null;
 }
 
 export interface DecisionSuccess {
@@ -380,6 +392,69 @@ interface RolledDepletion {
    */
   carryMm: number;
   carryDate: string;
+}
+
+/**
+ * How fresh a soil-sensor reading may be and still anchor the ledger (V2.3).
+ *
+ * A reading is an OBSERVATION of this field, and an observation outranks any
+ * model integration — but only while it is recent enough to still describe the
+ * field. Beyond this window the replayed weather since the reading says more
+ * than the reading itself, and re-anchoring from a stale θ would discard that.
+ */
+const SENSOR_MAX_AGE_DAYS = 14;
+
+/**
+ * Re-anchor the depletion ledger on the farmer's own soil reading (V2.3).
+ *
+ * THE CLOSED LOOP THIS CLOSES
+ * The balance is otherwise open-loop: model demand against forecast rain and
+ * logged pump-minutes, integrated day after day, with nothing from the field
+ * ever correcting it. A volumetric moisture reading (a ₹200 capacitive probe,
+ * or any meter reporting %) turns it closed-loop: the reading IS the root
+ * zone's water state as of its moment, so the ledger is re-seeded from it and
+ * the normal replay integrates weather and logged irrigation forward from
+ * there — exactly as it does from the persisted carry.
+ *
+ * Dr = 1000 × (θFC − θ) × Zr, clamped to [0, TAW]: θ at field capacity drains
+ * to zero, θ below wilting point saturates at TAW. The θFC here is the SAME
+ * one TAW was built on (the farm's profile, or the table) — a probe's
+ * volumetric % is directly comparable to it, and mixing a probe reading with a
+ * different soil's capacity would be a unit error dressed as calibration.
+ *
+ * The anchor is dated to the DAY BEFORE the reading: the ledger's convention
+ * is end-of-day depletion, so the reading (taken this morning, or whenever)
+ * becomes the carry the reading-day's own demand is then stepped on top of —
+ * the standard conservative scheduling arithmetic.
+ *
+ * Returns null when the reading is absent, non-finite, out of (0, 100], in the
+ * future, or older than SENSOR_MAX_AGE_DAYS — no anchor rather than a bad one.
+ */
+function sensorAnchoredState(
+  soil: Soil,
+  rootZone: RootZoneWater,
+  zr: number,
+  taw: number,
+  todayDate: string,
+  farmId: string,
+  now: string,
+): DepletionState | null {
+  const pct = soil.sensorReading?.moisturePct;
+  if (pct === undefined || !Number.isFinite(pct) || pct <= 0 || pct > 100) return null;
+
+  const sensorDay = localDayString(soil.sensorReading!.recordedAt);
+  const ageDays = Math.round((Date.parse(todayDate) - Date.parse(sensorDay)) / DAY_MS);
+  if (ageDays < 0 || ageDays > SENSOR_MAX_AGE_DAYS) return null;
+
+  const theta = pct / 100;
+  const depletionMm = clamp(1000 * (rootZone.thetaFC - theta) * zr, 0, taw);
+  return {
+    farmId,
+    depletionMm,
+    // The day before the reading, per the end-of-day convention above.
+    validAsOfDate: previousDayString(sensorDay),
+    updatedAt: now,
+  };
 }
 
 /**
@@ -737,7 +812,13 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
       }
     }
 
-    const rolled = bringDepletionToToday(depletionState, raw, daily, todayDate, {
+    // Sensor anchor (V2.3): the farmer's own reading, when fresh, replaces the
+    // persisted carry as the ledger's starting point — the closed loop. See
+    // `sensorAnchoredState` for the date convention and freshness window.
+    const anchoredState =
+      sensorAnchoredState(soil, rootZone, zr, taw, todayDate, farm.id, now) ?? depletionState;
+
+    const rolled = bringDepletionToToday(anchoredState, raw, daily, todayDate, {
       kc,
       soil,
       taw,
@@ -759,6 +840,10 @@ export function generateRecommendation(input: DecisionInput): DecisionResult {
       carryValidAsOfDate: rolled.carryDate,
       thetaSource: rootZone.source,
       thetaCoverage: round(rootZone.coverage, 3),
+      // Days of water left (V2.3): remaining root-zone water over today's
+      // demand. Null when demand is zero — "infinite days" is not a number a
+      // farmer can use, and the plan outlook already says rain is coming.
+      daysOfWaterLeft: etcAdj > 0 ? round((taw - rolled.todayMm) / etcAdj, 1) : null,
     };
   } else {
     // Fallback: V1.2 single-day requirement when no daily series exists at all

@@ -5,14 +5,8 @@
  * from here; nothing outside this folder opens IndexedDB directly
  * (docs/07_Engineering_Rules.md: Storage Rules).
  */
-export { DB_NAME, DB_VERSION, closeDb, DbBlockedError, type WeatherCacheEntry, type AssistantChatMessage, type AssistantChatRecord } from './db';
+export { DB_NAME, DB_VERSION, closeDb, DbBlockedError, type TtsCacheEntry, type WeatherCacheEntry } from './db';
 export { type Repository, createRepository } from './repository';
-export {
-  ASSISTANT_CHAT_KEY,
-  getAssistantChat,
-  MAX_STORED_MESSAGES,
-  saveAssistantChat,
-} from './assistantChatStore';
 export {
   cropRepository,
   depletionStateRepository,
@@ -31,3 +25,10 @@ export {
 } from './repositories';
 export { DEFAULT_SETTINGS, getSettings, saveSettings } from './settingsStore';
 export { cacheWeather, clearCachedWeather, getCachedWeather } from './weatherCacheStore';
+export {
+  cacheTtsAudio,
+  clearTtsCache,
+  getCachedTtsAudio,
+  ttsCacheKey,
+  TTS_CACHE_MAX_ENTRIES,
+} from './ttsCacheStore';

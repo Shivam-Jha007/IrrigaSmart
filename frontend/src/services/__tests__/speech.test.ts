@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alternatesFor, chooseVoice } from '../speech';
+import { alternatesFor, chooseVoice, chunkSentences, SPEAK_CHUNK_MAX } from '../speech';
 
 /**
  * Voice selection (Bengali voice-quality fix).
@@ -97,5 +97,71 @@ describe('chooseVoice — no usable voice at all', () => {
   it('returns null when nothing matches the language at all', () => {
     const voices = [voice('fr-FR'), voice('de-DE')];
     expect(chooseVoice(voices, 'as-IN')).toBeNull();
+  });
+});
+
+describe('chunkSentences — long speech is queued, never gibberish-truncated (V2.3)', () => {
+  // The incident this suite guards: a long briefing died halfway (Chrome's
+  // ~15 s utterance cutoff), and a missing voice played garbage. Chunking
+  // fixes the first; the gibberish gate in speak() fixes the second — these
+  // tests pin the chunking half.
+
+  it('splits at the danda, so Bengali/Assamese sentences stay whole', () => {
+    const text = 'আজ সেচ দিন। প্রায় 12 মিমি জল দিন। বিকেলে আবার দেখুন।';
+    // maxLen 25: no two adjacent sentences fit together, each fits alone —
+    // the split must land on the danda, never inside a word.
+    expect(chunkSentences(text, 25)).toEqual([
+      'আজ সেচ দিন।',
+      'প্রায় 12 মিমি জল দিন।',
+      'বিকেলে আবার দেখুন।',
+    ]);
+  });
+
+  it('splits at Latin sentence enders and keeps the punctuation attached', () => {
+    expect(chunkSentences('Irrigate today. About 12 mm. Done!', 17)).toEqual([
+      'Irrigate today.',
+      'About 12 mm.',
+      'Done!',
+    ]);
+  });
+
+  it('packs sentences that fit together, never splitting mid-sentence', () => {
+    // 10 + 17 = 27 ≤ 30: both sentences ride in ONE chunk — the cutoff is
+    // dodged with the fewest possible utterances, and a short text (any
+    // briefing line) is spoken as a single utterance, not shredded.
+    expect(chunkSentences('Ten chars. More chars here.', 30)).toEqual([
+      'Ten chars. More chars here.',
+    ]);
+    // And when they do NOT fit together, the boundary — not the word — breaks.
+    expect(chunkSentences('Ten chars. More chars here.', 20)).toEqual([
+      'Ten chars.',
+      'More chars here.',
+    ]);
+  });
+
+  it('never emits a chunk longer than the limit, even without enders', () => {
+    const long = 'x'.repeat(500);
+    for (const chunk of chunkSentences(long)) {
+      expect(chunk.length).toBeLessThanOrEqual(SPEAK_CHUNK_MAX);
+    }
+  });
+
+  it('hard-splits a single over-long sentence at the limit', () => {
+    const chunks = chunkSentences('a'.repeat(450) + '.', 200);
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0]).toHaveLength(200);
+    expect(chunks[2]).toBe('a'.repeat(50) + '.');
+  });
+
+  it('returns nothing for empty or whitespace-only text', () => {
+    expect(chunkSentences('')).toEqual([]);
+    expect(chunkSentences('   ')).toEqual([]);
+  });
+
+  it('joins back to the original text (nothing lost, nothing reordered)', () => {
+    const text =
+      'আজ সেচ দিন। Give 12.4 mm today — about 18,500 litres. کیا حال ہے؟؟';
+    const rejoined = chunkSentences(text).join(' ');
+    expect(rejoined.replace(/\s+/g, ' ')).toBe(text.trim().replace(/\s+/g, ' '));
   });
 });

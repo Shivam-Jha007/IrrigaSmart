@@ -9,6 +9,7 @@ import {
   MIN_CONFIDENCE,
   PLANTS_WITH_HEALTHY_CLASS,
   VISION_CLASSES,
+  VISION_ENABLED_CROPS,
   lookupVisionClass,
   plantHasHealthyClass,
   verdictFor,
@@ -195,23 +196,26 @@ describe('reuse of the weather knowledge base', () => {
   });
 });
 
-describe('crop coverage — the six crops the model cannot help', () => {
-  it('covers exactly Maize, Potato, Rice and Tomato', () => {
+describe('crop coverage — offered for Rice only (V2.3 product gate)', () => {
+  it('covers exactly Maize, Potato, Rice and Tomato at the MODEL level', () => {
     expect([...COVERED_CROPS].sort()).toEqual(['Maize', 'Potato', 'Rice', 'Tomato']);
   });
 
-  it('reports coverage for Rice now that it has classes, and none for the other six', () => {
-    // Rice matters specifically: it is the crop of the app's design persona, so
-    // its coverage state was the COMMON path, not an edge case, before this
-    // retrain — and remains worth asserting explicitly now that it is covered.
+  it('offers the check for Rice alone, even though the model knows four crops', () => {
+    // The product decision (V2.3), pinned: the model still carries
+    // maize/potato/tomato classes, but every measurement of non-rice behaviour
+    // is confidently-wrong (docs/14), so the app offers none of them.
+    expect(VISION_ENABLED_CROPS).toEqual(['Rice']);
     expect(visionCoversCrop('Rice')).toBe(true);
     for (const crop of SUPPORTED_CROPS) {
-      expect(visionCoversCrop(crop), crop).toBe(COVERED_CROPS.includes(crop));
+      if (crop === 'Rice') continue;
+      expect(visionCoversCrop(crop), crop).toBe(false);
     }
-    expect(SUPPORTED_CROPS.filter((crop) => !visionCoversCrop(crop))).toHaveLength(6);
+    // The gate is narrower than the model — otherwise it is not a gate.
+    expect(VISION_ENABLED_CROPS.length).toBeLessThan(COVERED_CROPS.length);
   });
 
-  it('derives coverage from the map, so a new model cannot leave it stale', () => {
+  it('derives model coverage from the map, so a new model cannot leave it stale', () => {
     const derived = new Set(
       Object.values(VISION_CLASSES)
         .map((entry) => entry.appCrop)

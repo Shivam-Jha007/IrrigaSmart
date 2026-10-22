@@ -84,6 +84,7 @@ export {
   MIN_CONFIDENCE,
   PLANTS_WITH_HEALTHY_CLASS,
   VISION_CLASSES,
+  VISION_ENABLED_CROPS,
   lookupVisionClass,
   plantHasHealthyClass,
   verdictFor,
@@ -111,6 +112,7 @@ export {
   type VisionErrorCode,
   type VisionResult,
 } from './diseaseVision';
+export { managementFor, type DiseaseManagement } from './diseaseManagement';
 export {
   REFERENCE_IMAGES,
   WEATHER_REFERENCE_IMAGES,
@@ -137,6 +139,7 @@ export {
   FERTILIZER_COVERED_CROPS,
   FERTILIZER_TABLES,
   fertilizerCoversCrop,
+  fertilizerDoseZonesFor,
   fertilizerVarietiesFor,
   fertilizerZonesFor,
   getFertilizerRecommendation,
@@ -214,41 +217,29 @@ export {
   remindersToPrune,
 } from './storageMaintenance';
 
-// --- Farmer assistant (item 17) ---
-export {
-  answerFromRules,
-  classify,
-  normalise,
-  type AssistantContext,
-  type AssistantIntent,
-  type RuleAnswer,
-} from './assistantRules';
-export { detectSpokenLanguage } from './languageDetection';
-export {
-  askAssistant,
-  assistantTopicActions,
-  farmBriefing,
-  MAX_QUESTION_CHARS,
-  type AssistantAction,
-  type AssistantActionTarget,
-  type AssistantAnswer,
-  type AssistantSource,
-  type AssistantTopic,
-  type AssistantTurn,
-  type AskOptions,
-} from './assistantService';
-export { buildAssistantContext, type AssistantEngineInputs, type ContextInput } from './assistantContext';
+// --- Briefing context (V2.3) ---
+// The chatbot (item 17) was removed in V2.3; the context it was built from
+// survives here because the audio briefing and the card speakers consume it.
+export { buildAssistantContext, type AssistantContext, type AssistantEngineInputs, type ContextInput } from './assistantContext';
 export {
   alternatesFor,
   chooseVoice,
   speak,
-  speechInputSupported,
   speechOutputSupported,
-  startListening,
   stopSpeaking,
-  type ListenHandlers,
-  type ListenSession,
 } from './speech';
+// --- The speak chain (V2.4): cached cloud audio → cloud → device voice ---
+// speech.ts remains the device tier (and the only voice Urdu/Assamese have);
+// speechService.ts orchestrates it behind the cloud tiers for en/hi/bn.
+export {
+  CLOUD_TTS_LOCALES,
+  fetchCloudAudio,
+  prefetchTtsAudio,
+  speakViaChain,
+  stopSpeaking as stopChainSpeaking,
+  utteranceStillCurrent,
+  type AudioPlayer,
+} from './speechService';
 // --- Live audio Copilot seam (PRD §13). Interface only; nothing implements it. ---
 export {
   unavailableVoiceProvider,

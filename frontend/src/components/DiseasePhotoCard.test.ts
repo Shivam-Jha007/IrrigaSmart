@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { CropName, Language } from '../types';
 import { cropLabelKey, translate } from '../i18n';
 import { TRANSLATIONS } from '../i18n/translations';
-import { COVERED_CROPS, SUPPORTED_CROPS, visionCoversCrop } from '../services';
+import { SUPPORTED_CROPS, visionCoversCrop, VISION_ENABLED_CROPS } from '../services';
 import { DiseasePhotoCard } from './DiseasePhotoCard';
 
 /**
@@ -17,14 +17,15 @@ import { DiseasePhotoCard } from './DiseasePhotoCard';
  * crops for two months after the retrain made it four. A farmer growing cotton
  * was shown a confident, factually false claim about what the app can do.
  *
- * So the list is derived from COVERED_CROPS now, and this asserts the derivation
- * in all five languages — because a stale translated string is exactly the kind
- * of defect a typecheck cannot see.
+ * The list is derived from VISION_ENABLED_CROPS now — the crops the product
+ * OFFERS (Rice only, V2.3), not everything the model could technically read —
+ * and this asserts the derivation in all five languages, because a stale
+ * translated string is exactly the kind of defect a typecheck cannot see.
  */
 
 const LANGUAGES: readonly Language[] = ['en', 'hi', 'bn', 'as', 'ur'];
 
-/** A crop the model has no classes for. Cotton, today. */
+/** A crop the check is not offered for. Cotton, today. */
 const UNCOVERED: CropName = 'Cotton';
 
 function render(crop: CropName, language: Language): string {
@@ -37,9 +38,10 @@ function render(crop: CropName, language: Language): string {
 }
 
 /**
- * The card names the farmer's own crop twice in the same sentence, so a plain
- * `toContain` on a covered-crop label could be satisfied by the wrong occurrence
- * if the two ever coincide. This strips the farmer's crop label out first.
+ * The card names the farmer's own crop in the same sentence, so a plain
+ * `toContain` on a covered-crop label could be satisfied by the wrong
+ * occurrence if the two ever coincide. This strips the farmer's crop label
+ * out first.
  */
 function markupWithoutCropName(language: Language): string {
   const own = translate(language, cropLabelKey(UNCOVERED));
@@ -48,19 +50,30 @@ function markupWithoutCropName(language: Language): string {
 
 describe('DiseasePhotoCard coverage message', () => {
   it('is the uncovered branch that is under test', () => {
-    // Guards the fixture: if a retrain covers cotton, this test is measuring
-    // nothing and should be pointed at whatever is still uncovered.
+    // Guards the fixture: if the offer ever widens past cotton, this test is
+    // measuring nothing and should be pointed at whatever is still unoffered.
     expect(visionCoversCrop(UNCOVERED)).toBe(false);
     expect(SUPPORTED_CROPS).toContain(UNCOVERED);
   });
 
-  it('names every covered crop, in every language', () => {
+  it('names every offered crop, in every language', () => {
     for (const language of LANGUAGES) {
       const markup = render(UNCOVERED, language);
-      for (const covered of COVERED_CROPS) {
-        const label = translate(language, cropLabelKey(covered));
-        expect(markup, `${language}: ${covered}`).toContain(label);
+      for (const offered of VISION_ENABLED_CROPS) {
+        const label = translate(language, cropLabelKey(offered));
+        expect(markup, `${language}: ${offered}`).toContain(label);
       }
+    }
+  });
+
+  it('does not name crops the model knows but the app does not offer', () => {
+    // Maize is the exact trap this guards: the model HAS maize classes, so a
+    // capability-derived list would name it — but the app does not offer the
+    // check for maize farms, and the message must not claim it does.
+    for (const language of LANGUAGES) {
+      const markup = markupWithoutCropName(language);
+      expect(markup, language).not.toContain(translate(language, cropLabelKey('Maize')));
+      expect(markup, language).not.toContain(translate(language, cropLabelKey('Tomato')));
     }
   });
 
@@ -72,19 +85,24 @@ describe('DiseasePhotoCard coverage message', () => {
     }
   });
 
-  it('does not offer the picker for a crop the model cannot read', () => {
+  it('does not offer the picker for a crop the app does not serve', () => {
     const markup = render(UNCOVERED, 'en');
     expect(markup).toContain('photo-card__blocked');
     expect(markup).not.toContain('<input');
     expect(markup).not.toContain(translate('en', 'vision.choose'));
   });
 
-  it('offers the picker for a covered crop', () => {
-    // The other half: the message must not be blocking crops the model handles.
-    const markup = render('Rice', 'en');
-    expect(markup).toContain('<input');
-    expect(markup).toContain(translate('en', 'vision.choose'));
-    expect(markup).not.toContain('photo-card__blocked');
+  it('offers the picker for Rice, and blocks a model-covered crop too', () => {
+    // The other half: the offer, not the model's capability, decides. Maize
+    // has classes in the model and STILL gets the blocked branch.
+    const rice = render('Rice', 'en');
+    expect(rice).toContain('<input');
+    expect(rice).toContain(translate('en', 'vision.choose'));
+    expect(rice).not.toContain('photo-card__blocked');
+
+    const maize = render('Maize', 'en');
+    expect(maize).toContain('photo-card__blocked');
+    expect(maize).not.toContain('<input');
   });
 
   it('has dropped the hard-coded covered-crop string entirely', () => {

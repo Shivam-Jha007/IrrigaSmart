@@ -3,6 +3,7 @@ import type {
   FactorStrength,
   GrowthStage,
   IrrigationMethod,
+  Language,
   Recommendation,
   RecommendationFactor,
   SoilType,
@@ -22,6 +23,7 @@ import {
   type TranslateFn,
 } from '../i18n';
 import { formatLiters, formatMm, statusColor } from './format';
+import { SpeakButton } from './SpeakButton';
 
 /**
  * RecommendationCard — the most important component (docs/05_UI_UX_Spec.md).
@@ -43,6 +45,14 @@ interface Props {
   recommendation: Recommendation;
   /** Optional note shown under the card (e.g. cached-weather warning). */
   note?: string | undefined;
+  /**
+   * Pre-built spoken line for this card (V2.3), from the shared briefing
+   * fragment builders — the same wording the briefing and the chat quote.
+   * The card never composes its own speech: one sentence, one source.
+   */
+  speech?: string | null;
+  /** UI language for speech synthesis. */
+  language?: Language;
   t: TranslateFn;
 }
 
@@ -101,7 +111,7 @@ function byImpact(a: RecommendationFactor, b: RecommendationFactor): number {
   return weight(b) - weight(a);
 }
 
-export function RecommendationCard({ recommendation, note, t }: Props) {
+export function RecommendationCard({ recommendation, note, speech, language, t }: Props) {
   const {
     status,
     recommendedTime,
@@ -125,9 +135,20 @@ export function RecommendationCard({ recommendation, note, t }: Props) {
 
   return (
     <section className="rec-card" style={{ borderTopColor: color }} aria-label={t('rec.ariaLabel')}>
-      <div className="rec-card__status" style={{ color }}>
-        <span className="rec-card__dot" style={{ backgroundColor: color }} aria-hidden />
-        {t(statusLabelKey(status))}
+      <div className="rec-card__statusbar">
+        <div className="rec-card__status" style={{ color }}>
+          <span className="rec-card__dot" style={{ backgroundColor: color }} aria-hidden />
+          {t(statusLabelKey(status))}
+        </div>
+        {speech && language && (
+          <SpeakButton
+            text={speech}
+            language={language}
+            speakId="rec-card"
+            label={t('assistant.readAloud')}
+            t={t}
+          />
+        )}
       </div>
 
       {irrigating && (

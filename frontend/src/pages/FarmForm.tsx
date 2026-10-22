@@ -41,6 +41,7 @@ function buildQualityTests(
   };
   const ece = parsed(values.ece);
   const esp = parsed(values.esp);
+  const soilPh = parsed(values.soilPh);
   const ecw = parsed(values.ecw);
   const sar = parsed(values.sar);
   const boron = parsed(values.boron);
@@ -48,7 +49,14 @@ function buildQualityTests(
   const waterPh = parsed(values.waterPh);
   const recordedAt = new Date().toISOString();
   const qualityTests =
-    ece === undefined && esp === undefined ? undefined : { recordedAt, ...(ece !== undefined ? { eceDsm: ece } : {}), ...(esp !== undefined ? { espPct: esp } : {}) };
+    ece === undefined && esp === undefined && soilPh === undefined
+      ? undefined
+      : {
+          recordedAt,
+          ...(ece !== undefined ? { eceDsm: ece } : {}),
+          ...(esp !== undefined ? { espPct: esp } : {}),
+          ...(soilPh !== undefined ? { ph: soilPh } : {}),
+        };
   const waterTests =
     ecw === undefined && sar === undefined && boron === undefined && bicarbonate === undefined && waterPh === undefined
       ? undefined
@@ -105,6 +113,7 @@ interface FormValues {
   // numerics. Empty string = field absent on the report.
   ece: string;
   esp: string;
+  soilPh: string;
   ecw: string;
   sar: string;
   boron: string;
@@ -127,6 +136,7 @@ function toFormValues(profile?: FarmProfile): FormValues {
       irrigationMethod: 'Drip',
       ece: '',
       esp: '',
+      soilPh: '',
       ecw: '',
       sar: '',
       boron: '',
@@ -153,6 +163,7 @@ function toFormValues(profile?: FarmProfile): FormValues {
     irrigationMethod: farm.irrigationMethod,
     ece: num(quality?.eceDsm),
     esp: num(quality?.espPct),
+    soilPh: num(quality?.ph),
     ecw: num(water?.ecwDsm),
     sar: num(water?.sar),
     boron: num(water?.boronMgl),
@@ -547,6 +558,19 @@ export function FarmForm({ initial, onSave, onCancel, t }: Props) {
                   value={values.esp}
                   onChange={(e) => set('esp', e.target.value)}
                   placeholder="e.g. 6"
+                />
+              </label>
+            </div>
+            <div className="field-row">
+              <label className="field">
+                <span className="field__label">{t('form.soilPh')}</span>
+                <input
+                  className="field__input"
+                  type="text"
+                  inputMode="decimal"
+                  value={values.soilPh}
+                  onChange={(e) => set('soilPh', e.target.value)}
+                  placeholder="e.g. 6.2"
                 />
               </label>
             </div>

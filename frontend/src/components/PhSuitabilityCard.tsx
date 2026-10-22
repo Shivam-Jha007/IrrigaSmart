@@ -1,4 +1,4 @@
-import type { Crop, Soil } from '../types';
+import type { Crop, Language, Soil } from '../types';
 import type { SoilFetchStatus } from '../app/appTypes';
 import { CROP_PH_RANGE, phSuitability, topsoilPh, type PhSuitability } from '../services';
 import {
@@ -7,6 +7,7 @@ import {
   type TranslateFn,
   type TranslationKey,
 } from '../i18n';
+import { SpeakButton } from './SpeakButton';
 
 /**
  * PhSuitabilityCard — soil-pH-vs-crop traffic light (item: pH-based crop
@@ -58,6 +59,10 @@ interface Props {
    * nothing outstanding. Only consulted when there is no pH to show.
    */
   fetchStatus: SoilFetchStatus | null;
+  /** Pre-built spoken line (V2.3), from the shared fragment builders. */
+  speech?: string | null;
+  /** UI language for speech synthesis. */
+  language?: Language;
   t: TranslateFn;
 }
 
@@ -88,8 +93,15 @@ const EMPTY_KEY: Record<SoilFetchStatus, TranslationKey> = {
   noData: 'ph.unavailable',
 };
 
-export function PhSuitabilityCard({ crop, soil, fetchStatus, t }: Props) {
-  const ph = topsoilPh(soil.measured);
+export function PhSuitabilityCard({ crop, soil, fetchStatus, speech, language, t }: Props) {
+  // The farmer's own lab pH (V2.3) outranks the map: the quality reading the
+  // farm form's Soil test box collects, then the Soil Health Card's own pH
+  // line, then the map estimate. Same precedence as `farmContext`, so the
+  // card, the briefing and the context can never quote different pH figures
+  // for the same farm.
+  const farmerPh = soil.qualityReading?.ph ?? soil.nutrientReading?.ph ?? null;
+  const ph = farmerPh ?? topsoilPh(soil.measured);
+  const isFarmerReading = farmerPh !== null;
   const cropLabel = t(cropLabelKey(crop.name));
 
   if (ph === null) {
@@ -116,11 +128,22 @@ export function PhSuitabilityCard({ crop, soil, fetchStatus, t }: Props) {
         <span className={`ph-suitability__badge ph-suitability__badge--${levelModifier(level)}`}>
           <span aria-hidden="true">{PH_ICON[level]}</span> {t(`ph.level.${level}`)}
         </span>
+        {speech && language && (
+          <SpeakButton
+            text={speech}
+            language={language}
+            speakId="ph-card"
+            label={t('assistant.readAloud')}
+            t={t}
+          />
+        )}
       </div>
 
       <p className="ph-suitability__value">
-        {t('ph.reading', { ph: ph.toFixed(1) })}{' '}
-        <span className="provenance-chip">{t(provenanceLabelKey('REGIONAL_ESTIMATE'))}</span>
+        {t(isFarmerReading ? 'ph.readingMeasured' : 'ph.reading', { ph: ph.toFixed(1) })}{' '}
+        <span className="provenance-chip">
+          {t(provenanceLabelKey(isFarmerReading ? 'USER_PROVIDED' : 'REGIONAL_ESTIMATE'))}
+        </span>
       </p>
       <p className="ph-suitability__range">
         {t('ph.optimalRange', { crop: cropLabel, min: min.toFixed(1), max: max.toFixed(1) })}
@@ -128,8 +151,12 @@ export function PhSuitabilityCard({ crop, soil, fetchStatus, t }: Props) {
 
       <p className="ph-suitability__help">{t(`ph.help.${level}`)}</p>
       {/* Last, not first: the verdict is what the farmer came for, and the
-          caveat is what stops them acting on it as if it were a lab result. */}
-      <p className="ph-suitability__source">{t('ph.source')}</p>
+          caveat is what stops them acting on the map figure as if it were a
+          lab result. A farmer-entered test gets its own, correct attribution
+          line — the 250 m caveat would be false for it. */}
+      <p className="ph-suitability__source">
+        {t(isFarmerReading ? 'ph.measuredSource' : 'ph.source')}
+      </p>
     </section>
   );
 }

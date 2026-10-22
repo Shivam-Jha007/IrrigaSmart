@@ -2,12 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AppStore } from '../app/useAppStore';
 import type { FarmSummary, RecommendationView, WaterProgress } from '../app/appTypes';
 import type { AppNotification, DailyWeather, WeatherData } from '../types';
+import type { AssistantContext } from '../services/assistantContext';
 import { DbBlockedError, getCachedWeather } from '../storage';
 import {
-  buildFarmContext,
-  detectFarmIssues,
   localDayString,
-  TOP_ISSUE_COUNT,
   type AssistantEngineInputs,
   type VisionResult,
 } from '../services';
@@ -21,9 +19,18 @@ import { DiseaseRiskCard } from '../components/DiseaseRiskCard';
 import { DiseasePhotoCard } from '../components/DiseasePhotoCard';
 import { SoilMoistureCard } from '../components/SoilMoistureCard';
 import { PhSuitabilityCard } from '../components/PhSuitabilityCard';
-import { ImprovementPlanCard } from '../components/ImprovementPlanCard';
 import { ReminderPlanner } from '../components/ReminderPlanner';
 import { WaterChecklist } from '../components/WaterChecklist';
+import { TodayBriefingCard } from '../components/TodayBriefingCard';
+import {
+  daysOfWaterLeftSentence,
+  diseaseSpeech,
+  irrigationSpeech,
+  moistureSpeech,
+  phSpeech,
+  seasonalSpeech,
+  weatherSpeech,
+} from '../services/briefingFragments';
 
 /**
  * Dashboard — answers "what should I do today?" immediately
@@ -45,9 +52,16 @@ interface Props {
    * facts changed on other tabs reach the bot without a visit back here.
    */
   onAssistantInputs(inputs: AssistantEngineInputs): void;
+  /**
+   * The shell-built assistant context (V2.3) — the same object the chat
+   * panel answers from. The briefing card renders its fragments, so the
+   * spoken bulletin, the chat answers and the cards quote one source; the
+   * Dashboard does not build a second context of its own.
+   */
+  briefingContext: AssistantContext | undefined;
 }
 
-export function Dashboard({ store, onGoToFarms, onAssistantInputs }: Props) {
+export function Dashboard({ store, onGoToFarms, onAssistantInputs, briefingContext }: Props) {
   const {
     farmer,
     profiles,
@@ -185,14 +199,6 @@ export function Dashboard({ store, onGoToFarms, onAssistantInputs }: Props) {
   const greeting = t('dashboard.greeting', { name: farmer?.name ?? 'Farmer' });
   const selectedProfile = profiles.find((p) => p.farm.id === selectedFarmId);
 
-  // The improvement plan (PRD §15). Derived, never stored: it is a reading of the
-  // same context the assistant gets, so the card and the Copilot cannot disagree
-  // about what this farm's problems are. Empty until a farm is selected, and
-  // empty again for a farm whose detectors all lack the data they need.
-  const farmIssues = detectFarmIssues(
-    buildFarmContext({ profile: selectedProfile, view, weather, today, waterProgress }),
-  );
-
   // What the shell-level chat panel needs from this screen (V2.2): the
   // selected farm and the engine outputs, MEMOIZED so the report effect fires
   // only when one of them actually changed. The profile itself is deliberately
@@ -261,9 +267,22 @@ export function Dashboard({ store, onGoToFarms, onAssistantInputs }: Props) {
         <div className="dashboard__grid">
           {/* Primary zone: the decision */}
           <div className="dashboard__primary">
+            {/* First, above the recommendation itself (V2.3): the audio
+                briefing is the "summarise" surface — what to do, how much,
+                when, and what to watch, in one speakable paragraph built from
+                the same context the cards below render. It renders nothing
+                until the engine has produced figures worth hearing. */}
+            <TodayBriefingCard
+              context={briefingContext}
+              language={store.settings.preferredLanguage}
+              crop={selectedProfile?.crop}
+              t={t}
+            />
             {view && (
               <RecommendationCard
                 recommendation={view.recommendation}
+                speech={irrigationSpeech(briefingContext, t)}
+                language={store.settings.preferredLanguage}
                 t={t}
                 note={
                   view.weatherMissing
@@ -287,29 +306,32 @@ export function Dashboard({ store, onGoToFarms, onAssistantInputs }: Props) {
                 }}
               />
             )}
-            {/* Seasonal guidance, soil pH suitability and the weather-based
-                disease watch live here rather than in the aside column below.
-                On desktop the aside is narrower (1fr vs 1.55fr) and was
-                carrying most of the supporting cards, which left the two
-                columns visibly unbalanced — a tall left column and a much
-                taller right one. Moving these three across evens out both
-                columns' length without changing what any card shows or how
-                it gets its data; every prop below is identical to before. */}
+            {/* Seasonal guidance and soil pH suitability live here rather than
+                in the aside column below. On desktop the aside is narrower
+                (1fr vs 1.55fr) and was carrying most of the supporting cards,
+                which left the two columns visibly unbalanced — a tall left
+                column and a much taller right one. Moving these two across
+                evens out both columns' length without changing what any card
+                shows or how it gets its data; every prop below is identical
+                to before. */}
             {selectedProfile && (
-              <SeasonalGuidance crop={selectedProfile.crop} language={store.settings.preferredLanguage} t={t} />
+              <SeasonalGuidance
+                crop={selectedProfile.crop}
+                language={store.settings.preferredLanguage}
+                speech={seasonalSpeech(
+                  selectedProfile.crop.name,
+                  store.settings.preferredLanguage,
+                  t,
+                )}
+                t={t}
+              />
             )}
             {selectedProfile && (
               <PhSuitabilityCard
                 crop={selectedProfile.crop}
                 soil={selectedProfile.soil}
                 fetchStatus={store.soilFetchStatus[selectedProfile.soil.id] ?? null}
-                t={t}
-              />
-            )}
-            {selectedProfile && view && (
-              <DiseaseRiskCard
-                risk={view.diseaseRisk}
-                crop={selectedProfile.crop}
+                speech={phSpeech(briefingContext, t)}
                 language={store.settings.preferredLanguage}
                 t={t}
               />
@@ -340,38 +362,57 @@ export function Dashboard({ store, onGoToFarms, onAssistantInputs }: Props) {
 
           {/* Aside zone: supporting context */}
           <div className="dashboard__aside">
-            {/* First: it answers "what should I fix about this farm", which is
-                the question a farmer has left over once the recommendation
-                above has answered "what should I do today". Only shown for a
-                selected farm, because there is nothing to assess without one. */}
-            {selectedProfile && (
-              <ImprovementPlanCard
-                issues={farmIssues}
-                topCount={TOP_ISSUE_COUNT}
-                t={t}
-                language={store.settings.preferredLanguage}
-              />
-            )}
+            {/* The improvement plan card was removed here (V2.3): the issues
+                it listed were its most text-heavy surface, and the top issue
+                now travels in the audio briefing's "also worth a look" line
+                and the chat's topIssues context — one line spoken instead of
+                a wall of text read. detectFarmIssues still runs in the
+                assistant context, so the knowledge is not lost. */}
             {weather && selectedProfile && (
               <WeatherSummary
                 weather={weather}
                 today={today}
                 latitude={selectedProfile.farm.location.latitude}
                 fromCache={view?.fromCache ?? false}
+                speech={weatherSpeech(briefingContext, t)}
+                language={store.settings.preferredLanguage}
                 t={t}
               />
             )}
-            {view && <SoilMoistureCard balance={view.waterBalance} t={t} />}
+            {view && (
+              <SoilMoistureCard
+                balance={view.waterBalance}
+                speech={moistureSpeech(briefingContext, t)}
+                daysNote={daysOfWaterLeftSentence(briefingContext, t)}
+                language={store.settings.preferredLanguage}
+                sensorReading={selectedProfile?.soil.sensorReading ?? null}
+                onSensorReading={
+                  selectedProfile
+                    ? async (moisturePct) => {
+                        // The reading anchors the engine's whole water model
+                        // (V2.3); saving it and regenerating is what makes the
+                        // gauge above move to the farmer's own observation.
+                        await store.saveSensorReading(selectedProfile.farm.id, {
+                          moisturePct,
+                          recordedAt: new Date().toISOString(),
+                        });
+                        await refresh(selectedFarmId);
+                      }
+                    : undefined
+                }
+                t={t}
+              />
+            )}
             {view?.plan && (
               <PlanOutlook plan={view.plan} language={store.settings.preferredLanguage} t={t} />
             )}
-            {/* Beside the weather-based watch (now in the left column), not
-                instead of it: the two answer different questions. Disease
-                watch says the weather favours something; this says what a
-                leaf in front of you looks like. It needs no weather series, so
-                it renders whenever a farm is selected — including for the
-                seven crops the model was never trained on, which it says
-                plainly rather than hiding. */}
+            {/* The photo check and the weather-based watch sit together, photo
+                first: the two answer different questions but the same worry —
+                DiseasePhotoCard says what a leaf in front of you looks like,
+                DiseaseRiskCard below says the weather favours something. A
+                farmer who photographs a worrying leaf sees the risk level
+                that explains it directly beneath. The photo card needs no
+                weather series, so it renders whenever a farm is selected. */}
             {selectedProfile && (
               <DiseasePhotoCard
                 crop={selectedProfile.crop.name}
@@ -383,14 +424,20 @@ export function Dashboard({ store, onGoToFarms, onAssistantInputs }: Props) {
                 }
               />
             )}
+            {selectedProfile && view && (
+              <DiseaseRiskCard
+                risk={view.diseaseRisk}
+                crop={selectedProfile.crop}
+                language={store.settings.preferredLanguage}
+                speech={diseaseSpeech(briefingContext, t)}
+                t={t}
+              />
+            )}
           </div>
         </div>
       )}
-      {/* The assistant panel is rendered by the app shell (V2.2): it used to
-          live here, but its own deep-link buttons send the farmer to other
-          tabs, and a chat that vanishes the moment its advice is followed
-          could not answer the follow-up. Its context is reported upward from
-          this component — the same engine output the cards above render. */}
+      {/* The chat assistant panel was removed with the chatbot (V2.3); the
+          shell still collects the engine inputs that feed the briefing. */}
     </div>
   );
 }

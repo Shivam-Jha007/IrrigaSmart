@@ -240,19 +240,38 @@ export const VISION_CLASSES: Readonly<Record<string, VisionClass>> = {
  * The app crops the current model can say anything about at all.
  *
  * Four of ten, now that Rice — the crop of the app's design persona — has
- * coverage. Six still have none, and the UI must present that as a normal
- * state rather than a failure (see `DiseasePhotoCard`). Derived from
- * VISION_CLASSES rather than written out, so a future retrain cannot leave
- * this list stale.
+ * coverage. Derived from VISION_CLASSES rather than written out, so a future
+ * retrain cannot leave this list stale. This is the MODEL'S capability, not
+ * the product's offer — see VISION_ENABLED_CROPS for the narrower list the
+ * app actually exposes.
  */
 export const COVERED_CROPS: readonly CropName[] = Object.values(VISION_CLASSES)
   .map((entry) => entry.appCrop)
   .filter((crop): crop is CropName => crop !== null)
   .filter((crop, index, all) => all.indexOf(crop) === index);
 
-/** Whether the current model was trained on anything resembling this crop. */
+/**
+ * The crops the photo check is OFFERED for — a product decision, narrower than
+ * the model's raw capability (V2.3).
+ *
+ * Rice only. The model still carries maize, potato and tomato classes, but
+ * every measurement this app has made says offering them is a confidently-
+ * wrong risk, not a feature: unfamiliar leaves land in
+ * `Corn_(maize)___healthy` at up to 96% confidence (docs/14 — an onion was
+ * called "healthy maize"), the healthy classes of the other plants are the
+ * dumping ground for out-of-domain photos, and the non-rice classes of the
+ * v3 retrain were never field-measured at all. Rice is the one crop whose
+ * photo flow was measured end-to-end and is crop-conditioned to renormalise
+ * over rice classes only.
+ *
+ * When a retrain is validated for a second crop, add it HERE —
+ * `visionCoversCrop`, the card and the briefing tip all follow.
+ */
+export const VISION_ENABLED_CROPS: readonly CropName[] = ['Rice'];
+
+/** Whether the photo check is offered for this crop (product gate, V2.3). */
 export function visionCoversCrop(crop: CropName): boolean {
-  return COVERED_CROPS.includes(crop);
+  return VISION_ENABLED_CROPS.includes(crop);
 }
 
 /**

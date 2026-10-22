@@ -11,10 +11,11 @@ import {
 } from '../i18n';
 import {
   classifyPhoto,
-  COVERED_CROPS,
   creditLineFor,
+  managementFor,
   referenceImagesFor,
   visionCoversCrop,
+  VISION_ENABLED_CROPS,
   VisionError,
   type VisionFinding,
   type VisionResult,
@@ -35,11 +36,13 @@ import {
  *     A number the farmer cannot check reads as precision this model does not
  *     have, and it invited reading the figure as a probability of disease.
  *  2. Low confidence shows NO disease name at all. Not a hedged name — none.
- *  3. Uncovered crops (six of ten, since the retrain added rice) are told so up
- *     front, and the picker is not offered. The list of covered crops is derived
- *     from COVERED_CROPS rather than written into a translated string, because
- *     the hard-coded version outlived its accuracy: it still named three crops
- *     for two months after rice made it four.
+ *  3. The check is offered for RICE farms only (V2.3): every other crop gets
+ *     the plain "not offered" message and no picker. The model still carries
+ *     maize/potato/tomato classes, but they were never field-measured and the
+ *     one thing this app has measured about them is confidently-wrong output
+ *     (docs/14). The offered list is derived from VISION_ENABLED_CROPS rather
+ *     than written into a translated string, because the hard-coded version
+ *     outlived its accuracy once already.
  *  4. A confident HEALTHY reading is only ever shown for the farmer's own crop.
  *     See `otherPlantHealthy` in diseaseVisionMap — the measurement behind this
  *     is that unfamiliar leaves land in `Corn_(maize)___healthy` at up to 96%
@@ -142,7 +145,7 @@ export function DiseasePhotoCard({ crop, t, onResult }: Props) {
             // Derived, and comma-joined rather than run through a conjunction:
             // `Intl.ListFormat` has no Assamese data and would splice an English
             // "and" into an Assamese sentence.
-            covered: COVERED_CROPS.map((covered) => t(cropLabelKey(covered))).join(', '),
+            covered: VISION_ENABLED_CROPS.map((enabled) => t(cropLabelKey(enabled))).join(', '),
           })}
         </p>
       ) : (
@@ -327,7 +330,67 @@ function Outcome({
               </p>
             </div>
           )}
+
+          {/* The help panel (V2.3): what to DO about the named condition —
+              field steps, the standard chemical recommendation, the KVK
+              pointer and the label disclaimer, one tap away. A finding
+              without curated management renders nothing rather than
+              nearest-neighbour advice. */}
+          <HelpPanel finding={entry.finding} t={t} />
         </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The "what can I do?" panel for a named disease finding.
+ *
+ * Collapsed to a single button under the reading — the verdict is what the
+ * farmer came for, the treatment is what they do next, and hiding next steps
+ * behind one deliberate tap keeps the reading uncluttered while making the
+ * whole journey (reading → steps → chemical → confirm with KVK) reachable.
+ *
+ * The content itself is curated and static (services/diseaseManagement.ts):
+ * cultural steps first, the standard chemical recommendation with its dose,
+ * then the KVK confirmation line and the label disclaimer — in that order,
+ * because the KVK line applies to the chemical above it.
+ */
+function HelpPanel({
+  finding,
+  t,
+}: {
+  readonly finding: VisionFinding;
+  readonly t: TranslateFn;
+}) {
+  const [open, setOpen] = useState(false);
+  const management = managementFor(finding);
+  if (!management) return null;
+
+  return (
+    <div className="treat">
+      <button
+        type="button"
+        className="treat__toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        🩺 {t('treat.button')}
+      </button>
+      {open && (
+        <div className="treat__panel">
+          <p className="treat__steps-title">{t('treat.culturalTitle')}</p>
+          <ul className="treat__steps">
+            {management.steps.map((stepKey) => (
+              <li key={stepKey}>{t(stepKey)}</li>
+            ))}
+          </ul>
+          <p className="treat__chem-title">{t('treat.chemicalTitle')}</p>
+          <p className="treat__chem">{t(management.chemical)}</p>
+          <p className="treat__source">{t('treat.source')}</p>
+          <p className="treat__kvk">{t('treat.kvk')}</p>
+          <p className="treat__disclaimer">{t('treat.disclaimer')}</p>
+        </div>
       )}
     </div>
   );

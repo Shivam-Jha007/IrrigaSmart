@@ -118,6 +118,7 @@ function makeView(overrides: Partial<RecommendationView> = {}): RecommendationVi
       carryValidAsOfDate: '2026-06-14',
       thetaSource: 'measured',
       thetaCoverage: 1,
+      daysOfWaterLeft: 4.1,
     },
     ...overrides,
   };
@@ -233,6 +234,52 @@ describe('buildFarmContext — Guardrail 1: no estimate is ever a measurement', 
     expect(fc.soil.ph.origin).toContain('250 m');
     expect(fc.soil.ph.origin).toContain('not a test of this field');
     expect(fc.soil.ph.asOf).toBe(FETCHED_AT);
+  });
+
+  it("prefers the farmer's own soil-test pH over the map, as USER_PROVIDED", () => {
+    // The farm form's Soil test box (V2.3) writes `qualityReading.ph`; the
+    // Soil Health Card's own pH line writes `nutrientReading.ph`. Both are a
+    // test of THIS field, so both outrank the 250 m map estimate and say so.
+    const soil = makeSoil('Loamy');
+    soil.measured = soilProfileFixture();
+    soil.qualityReading = { eceDsm: 2.0, ph: 5.9, recordedAt: FETCHED_AT };
+    const withTest = buildFarmContext({
+      profile: makeProfile(soil),
+      view: makeView(),
+      weather: makeWeather(),
+      today: null,
+      waterProgress: null,
+    });
+    expect(withTest.soil.ph.value).toBe(5.9);
+    expect(withTest.soil.ph.provenance).toBe('USER_PROVIDED');
+    expect(withTest.soil.ph.asOf).toBe(FETCHED_AT);
+
+    // The Card's pH line alone must win too, when no dedicated quality
+    // reading exists.
+    const cardOnly = makeSoil('Loamy');
+    cardOnly.measured = soilProfileFixture();
+    cardOnly.nutrientReading = {
+      n: 240,
+      p2o5: 20,
+      k2o: 120,
+      ph: 7.4,
+      recordedAt: FETCHED_AT,
+    };
+    const withCard = buildFarmContext({
+      profile: makeProfile(cardOnly),
+      view: makeView(),
+      weather: makeWeather(),
+      today: null,
+      waterProgress: null,
+    });
+    expect(withCard.soil.ph.value).toBe(7.4);
+    expect(withCard.soil.ph.provenance).toBe('USER_PROVIDED');
+
+    // And the suitability verdict follows the farmer's figure, not the map's.
+    expect(withTest.soil.phSuitability.value).toBe(
+      // Rice optimum 5.5-6.5: 5.9 sits inside.
+      'suitable',
+    );
   });
 
   it('labels the soil-water basis a REGIONAL_ESTIMATE even when thetaSource is "measured"', () => {
@@ -438,6 +485,7 @@ describe('buildAssistantContext — unchanged by the FarmContext refactor', () =
       explanation: 'The root zone is dry and no rain is expected.',
       confidence: 'rec.confidenceBadge.high',
       depthMm: 8.4,
+      daysOfWaterLeft: 4.1,
       volumeLiters: 33_993,
       durationMinutes: 72,
       windowStart: '06:00',

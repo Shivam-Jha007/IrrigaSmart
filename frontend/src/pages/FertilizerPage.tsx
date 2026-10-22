@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AppStore } from '../app/useAppStore';
 import type { CropName } from '../types';
-import { CROP_NAMES } from '../types';
 import { cropLabelKey } from '../i18n';
 import {
   classifySoilFertility,
   CROP_PH_RANGE,
+  FERTILIZER_COVERED_CROPS,
   fertilizerCoversCrop,
+  fertilizerDoseZonesFor,
   fertilizerVarietiesFor,
-  fertilizerZonesFor,
   getFertilizerRecommendation,
   phSuitability,
   topsoilPh,
@@ -144,8 +144,12 @@ export function FertilizerPage({ store }: Props) {
   );
 
   const varieties = useMemo(() => (crop ? fertilizerVarietiesFor(crop) : []), [crop]);
+  // DOSE ZONES ONLY (V2.3): zones whose booklet cell is blank (Hill
+  // everywhere, Coastal for all but Kharif rice) are not offered — a button
+  // that can only end in "no dose" is a dead end, not a choice. Derived from
+  // the tables, so a future booklet addition appears automatically.
   const zones = useMemo(
-    () => (crop && varietyId ? fertilizerZonesFor(crop, varietyId) : []),
+    () => (crop && varietyId ? fertilizerDoseZonesFor(crop, varietyId) : []),
     [crop, varietyId],
   );
 
@@ -289,31 +293,28 @@ export function FertilizerPage({ store }: Props) {
       )}
 
       <p className="fert-step-label">{t('fert.stepCrop')}</p>
+      {/* COVERED CROPS ONLY (V2.3): the grid offers the six crops the booklet
+          has tables for. The four uncovered crops used to render muted but
+          tappable, and tapping one led to a "no table" dead end — a choice
+          that cannot be completed is not a choice. The farm-form crop picker
+          still offers every crop the irrigation engine supports; this page
+          just promises only what it can deliver. */}
       <div className="fert-icon-grid">
-        {CROP_NAMES.map((name) => {
-          const covered = fertilizerCoversCrop(name);
-          return (
-            <button
-              key={name}
-              type="button"
-              className={`fert-icon-btn${crop === name ? ' fert-icon-btn--active' : ''}${
-                covered ? '' : ' fert-icon-btn--muted'
-              }`}
-              onClick={() => setCrop(name)}
-              aria-pressed={crop === name}
-            >
-              <span className="fert-icon-btn__icon" aria-hidden="true">
-                {CROP_ICON[name]}
-              </span>
-              <span className="fert-icon-btn__label">{t(cropLabelKey(name))}</span>
-            </button>
-          );
-        })}
+        {FERTILIZER_COVERED_CROPS.map((name) => (
+          <button
+            key={name}
+            type="button"
+            className={`fert-icon-btn${crop === name ? ' fert-icon-btn--active' : ''}`}
+            onClick={() => setCrop(name)}
+            aria-pressed={crop === name}
+          >
+            <span className="fert-icon-btn__icon" aria-hidden="true">
+              {CROP_ICON[name]}
+            </span>
+            <span className="fert-icon-btn__label">{t(cropLabelKey(name))}</span>
+          </button>
+        ))}
       </div>
-
-      {crop && !fertilizerCoversCrop(crop) && (
-        <p className="empty-state">{t('fert.cropNotCovered', { crop: t(cropLabelKey(crop)) })}</p>
-      )}
 
       {crop && phInfo && (
         <p className={`fert-ph-note fert-ph-note--${phInfo.level}`}>

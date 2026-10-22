@@ -184,6 +184,12 @@ export interface FarmContextWater {
   readilyAvailableMm: Sourced<number | null>;
   depletionMm: Sourced<number | null>;
   rootDepthM: Sourced<number | null>;
+  /**
+   * Days of water left at today's demand, (TAW − Dr) ÷ ETc (V2.3). The
+   * farmer-legible reading of the balance; null when today's demand is zero
+   * or the balance path did not run.
+   */
+  daysOfWaterLeft: Sourced<number | null>;
   /** What θFC/θPWP rested on: the farm's SoilGrids profile, or the table. */
   soilWaterBasis: Sourced<'soilgrids' | 'table' | null>;
   /** Fraction of the root zone covered by profile layers, 0-1. */
@@ -441,7 +447,17 @@ export function buildFarmContext({
   const measured = profile?.soil.measured;
   const soilMapOrigin = ORIGIN.soilGrids;
   const fetchedAt = measured?.fetchedAt ?? null;
-  const ph = topsoilPh(measured);
+  // The farmer's own lab pH outranks the map: both estimate the same
+  // quantity, but one is a test of THIS field and the other describes the
+  // 250 m cell around it (docs/07 Provenance rules). The quality reading the
+  // farm form collects and the Soil Health Card's own pH line are both
+  // farmer-supplied; the dedicated quality reading is checked first because
+  // it is the one the farm form's "Soil test" box fills.
+  const farmerPh =
+    profile?.soil.qualityReading?.ph ?? profile?.soil.nutrientReading?.ph ?? null;
+  const mapPh = topsoilPh(measured);
+  const ph = farmerPh ?? mapPh;
+  const phProvenance: Provenance = farmerPh !== null ? 'USER_PROVIDED' : 'REGIONAL_ESTIMATE';
   const range = profile ? CROP_PH_RANGE[profile.crop.name] : null;
   const soil: FarmContextSoil = {
     type: maybe(profile?.soil.name, 'USER_PROVIDED', NO_PROFILE, farmer),
@@ -449,10 +465,14 @@ export function buildFarmContext({
     drainage: maybe(profile?.soil.drainage, 'USER_PROVIDED', NO_PROFILE, farmer),
     ph: maybe(
       ph,
-      'REGIONAL_ESTIMATE',
-      measured ? NO_PH : NO_SOIL_PROFILE,
-      soilMapOrigin,
-      fetchedAt,
+      phProvenance,
+      ph === null ? (measured ? NO_PH : NO_SOIL_PROFILE) : NO_PROFILE,
+      farmerPh !== null ? farmer : soilMapOrigin,
+      farmerPh !== null
+        ? (profile?.soil.qualityReading?.recordedAt ??
+          profile?.soil.nutrientReading?.recordedAt ??
+          null)
+        : fetchedAt,
     ),
     // CALCULATED, not REGIONAL_ESTIMATE: the verdict is a comparison this app
     // performs against a cited extension range. It is only as good as the pH
@@ -589,6 +609,13 @@ export function buildFarmContext({
     totalAvailableMm: maybe(balance?.tawMm, 'CALCULATED', NO_BALANCE, engine, generatedAt),
     readilyAvailableMm: maybe(balance?.rawMm, 'CALCULATED', NO_BALANCE, engine, generatedAt),
     depletionMm: maybe(balance?.depletionMm, 'CALCULATED', NO_BALANCE, engine, generatedAt),
+    daysOfWaterLeft: maybe(
+      balance?.daysOfWaterLeft ?? null,
+      'CALCULATED',
+      NO_BALANCE,
+      engine,
+      generatedAt,
+    ),
     rootDepthM: maybe(balance?.rootDepthM, 'CALCULATED', NO_BALANCE, engine, generatedAt),
     soilWaterBasis: maybe(
       balance ? (balance.thetaSource === 'measured' ? 'soilgrids' : 'table') : null,

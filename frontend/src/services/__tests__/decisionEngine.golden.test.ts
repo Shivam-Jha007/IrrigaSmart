@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { DailyWeather } from '../../types';
 import { CROP_NAMES, GROWTH_STAGES, IRRIGATION_METHODS, SOIL_TYPES } from '../../types';
 import { generateRecommendation, type DecisionResult } from '../decisionEngine';
-import { getDepletionFraction, getKc } from '../knowledgeBase';
+import {
+  getDepletionFraction,
+  getKc,
+  getZr,
+  SOIL_HYDRAULIC_PROPERTIES,
+} from '../knowledgeBase';
+import { previousDayString } from '../dateUtils';
 import {
   makeCrop,
   makeDaily,
@@ -518,3 +524,125 @@ function shiftIso(date: string, days: number): string {
   const dd = String(shifted.getUTCDate()).padStart(2, '0');
   return `${shifted.getUTCFullYear()}-${mm}-${dd}`;
 }
+
+describe('sensor anchor — the reading re-seeds the water ledger (V2.3)', () => {
+  // Same premise as the water-quality suite above: the dry scenario with a
+  // deeply-depleted state irrigates, which is what makes the water figures
+  // under test non-zero and meaningful.
+  const dry = SCENARIOS.find((s) => s.key === 'dry') ?? SCENARIOS[0]!;
+
+  /** Run the dry scenario with a soil sensor reading (or without, for null). */
+  function runWithSensor(
+    reading: { moisturePct: number; recordedAt: string } | null,
+    depletionState = makeDepletion(150),
+  ) {
+    const soil = makeSoil('Loamy');
+    return generateRecommendation({
+      farm: makeFarm(),
+      crop: makeCrop('Wheat', 'Mid Season'),
+      soil: reading ? { ...soil, sensorReading: reading } : soil,
+      weather: dry.weather,
+      daily: dry.daily,
+      depletionState,
+      waterLedger: null,
+      now: NOW,
+      language: 'en',
+    });
+  }
+
+  it('a reading at/below wilting point saturates the ledger at TAW and empties the days figure', () => {
+    const result = runWithSensor({ moisturePct: 2, recordedAt: NOW });
+    if (!result.ok || !result.waterBalance) throw new Error('expected a balance');
+    // Dr clamps at TAW: there is no water left to speak of.
+    expect(result.waterBalance.depletionMm).toBe(result.waterBalance.tawMm);
+    expect(result.waterBalance.daysOfWaterLeft).toBe(0);
+    expect(result.recommendation.status).toBe('Irrigate Today');
+  });
+
+  it('a wet reading (θ at/above field capacity) empties the ledger — the observation beats the model', () => {
+    // The persisted state says deeply dry (150 mm); the farmer's own reading
+    // says the soil is at field capacity. The observation wins.
+    const result = runWithSensor({ moisturePct: 45, recordedAt: NOW });
+    if (!result.ok || !result.waterBalance) throw new Error('expected a balance');
+    // Only today's own demand sits on top of a zero anchor.
+    expect(result.waterBalance.depletionMm).toBeLessThan(
+      result.waterBalance.rawMm,
+    );
+    expect(result.recommendation.status).toBe('Monitor Tomorrow');
+  });
+
+  it('the anchor equals an explicit carry state of the same θ — the formula, pinned', () => {
+    // θ = 18%: Dr = 1000 × (θFC − θ) × Zr with the SAME θFC the TAW used.
+    const theta = 0.18;
+    const zr = getZr('Wheat', 'Mid Season');
+    const hydraulic = SOIL_HYDRAULIC_PROPERTIES.Loamy;
+    const anchoredDr = 1000 * (hydraulic.thetaFC - theta) * zr;
+
+    const viaSensor = runWithSensor({ moisturePct: 18, recordedAt: NOW });
+    const viaState = runWithSensor(null, {
+      farmId: 'farm-1',
+      depletionMm: anchoredDr,
+      validAsOfDate: previousDayString(TODAY),
+      updatedAt: NOW,
+    });
+    if (!viaSensor.ok || !viaState.ok) throw new Error('expected both results');
+    expect(viaSensor.waterBalance).toEqual(viaState.waterBalance);
+  });
+
+  it('a stale reading (older than 14 days) is ignored — the replayed weather knows more', () => {
+    const staleRecordedAt = new Date(Date.parse(NOW) - 30 * 86_400_000).toISOString();
+    const stale = runWithSensor({ moisturePct: 45, recordedAt: staleRecordedAt });
+    const plain = runWithSensor(null);
+    if (!stale.ok || !plain.ok) throw new Error('expected both results');
+    expect(stale.waterBalance).toEqual(plain.waterBalance);
+  });
+
+  it('a future-dated reading is ignored rather than poisoning the carry date', () => {
+    const future = new Date(Date.parse(NOW) + 2 * 86_400_000).toISOString();
+    const futureRun = runWithSensor({ moisturePct: 45, recordedAt: future });
+    const plain = runWithSensor(null);
+    if (!futureRun.ok || !plain.ok) throw new Error('expected both results');
+    expect(futureRun.waterBalance).toEqual(plain.waterBalance);
+  });
+});
+
+describe('daysOfWaterLeft — the balance in farmer time (V2.3)', () => {
+  const dry = SCENARIOS.find((s) => s.key === 'dry') ?? SCENARIOS[0]!;
+
+  function runWithSensorReading(moisturePct: number) {
+    const result = generateRecommendation({
+      farm: makeFarm(),
+      crop: makeCrop('Wheat', 'Mid Season'),
+      soil: { ...makeSoil('Loamy'), sensorReading: { moisturePct, recordedAt: NOW } },
+      weather: dry.weather,
+      daily: dry.daily,
+      depletionState: makeDepletion(150),
+      waterLedger: null,
+      now: NOW,
+      language: 'en',
+    });
+    if (!result.ok || !result.waterBalance) throw new Error('expected a balance');
+    return result.waterBalance;
+  }
+
+  it('is monotonic in the reading: wetter soil, more days of water', () => {
+    const wet = runWithSensorReading(45);
+    const mid = runWithSensorReading(18);
+    const dryReading = runWithSensorReading(2);
+    expect(wet.daysOfWaterLeft!).toBeGreaterThan(mid.daysOfWaterLeft!);
+    expect(mid.daysOfWaterLeft!).toBeGreaterThan(dryReading.daysOfWaterLeft!);
+    expect(dryReading.daysOfWaterLeft).toBe(0);
+  });
+
+  it('is (TAW − Dr) over today’s demand — self-consistent with the figures beside it', () => {
+    const wb = runWithSensorReading(18);
+    // days × demand ≈ remaining: the demand is not exposed on the balance, but
+    // the identity must hold with SOME plausible positive demand — i.e. days
+    // must be a real number, finite, non-negative, and consistent with the
+    // depletion being inside the TAW bounds.
+    expect(Number.isFinite(wb.daysOfWaterLeft)).toBe(true);
+    expect(wb.daysOfWaterLeft!).toBeGreaterThanOrEqual(0);
+    expect(wb.depletionMm).toBeLessThanOrEqual(wb.tawMm);
+    expect(wb.depletionMm).toBeGreaterThanOrEqual(0);
+  });
+});

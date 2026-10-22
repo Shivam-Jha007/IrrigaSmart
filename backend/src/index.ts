@@ -1,8 +1,9 @@
 import cors from 'cors';
 import express, { type Request, type Response } from 'express';
-import { askAssistant, assistantConfigured, AssistantError, parseRequest } from './assistant.js';
 import { fetchLocationInfo, LocationProviderError, searchPlaces } from './location.js';
 import { fetchSoilProperties, SoilProviderError } from './soil.js';
+import { TtsProviderError, TTS_MAX_TEXT_LENGTH } from './tts.js';
+import { createCachedSynthesizer } from './ttsCache.js';
 import { fetchTerrain, TerrainProviderError } from './terrain.js';
 import { fetchWeather, WeatherProviderError } from './weather.js';
 
@@ -11,19 +12,26 @@ import { fetchWeather, WeatherProviderError } from './weather.js';
  *
  * Responsibilities: weather retrieval (Interface 5), reverse geocoding and soil
  * lookup for Smart Farm Location (docs/12_Product_Roadmap_v2.md Feature 1),
- * terrain slope (Interface 7), the farmer assistant (Interface 8), plus future
- * synchronization and shared datasets.
+ * terrain slope (Interface 7), plus future synchronization and shared datasets.
  *
  * The three site lookups — location, soil and terrain — are all fetched once per
  * farm and then stored on the device, so none of them is on any path a farmer
  * waits on twice, and none of them is needed again offline. Persistent farm data
  * lives client-side in IndexedDB for the offline-first MVP
  * (docs/03_Data_Models.md), so the backend only exposes stateless provider
- * proxies, the assistant, and a health check.
+ * proxies and a health check.
  *
- * The assistant is the one route that is not a provider proxy. It exists here
- * rather than in the browser for exactly one reason: ANTHROPIC_API_KEY must
- * never be shipped in a bundle. See assistant.ts.
+ * The farmer assistant route (Interface 8) was removed in V2.3: the chatbot it
+ * served was replaced by the deterministic audio briefing, which is built and
+ * spoken entirely on the device. No LLM key is read, held or proxied here
+ * anymore.
+ *
+ * The optional keys this backend holds today are SARVAM_API_KEY and
+ * GEMINI_API_KEY (V2.4): the key-backed fallback providers behind the
+ * keyless Edge TTS tier. Edge serves en/hi/bn/ur with no key at all; the
+ * keys only decide which providers backstop Edge when it fails, so with
+ * neither key the app still speaks with cloud voices for those languages
+ * and the device's voices elsewhere. Nothing depends on any key.
  */
 
 const app = express();
@@ -73,9 +81,6 @@ app.get('/health', (_req: Request, res: Response) => {
     data: {
       service: 'irrigasmart-backend',
       version: '0.1.0',
-      // Whether the assistant has a key, so a deployment can be checked without
-      // sending a question — and without ever revealing the key itself.
-      assistant: assistantConfigured() ? 'configured' : 'disabled',
     },
     timestamp: nowIso(),
   });
@@ -229,39 +234,77 @@ app.get('/api/terrain', (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/assistant
+ * POST /api/tts — { text, locale } → audio bytes (MP3 from Edge, WAV from the rest)
  *
- * The farmer assistant (docs/04_System_Interfaces.md Interface 8; item 17).
+ * Cloud TTS synthesis for the audio briefing and card speakers (V2.4):
+ * Edge Read Aloud (Azure Neural, keyless) first for en/hi/bn/ur, Sarvam
+ * Bulbul v3 second, Gemini third (and Urdu's key-backed backup). The success
+ * body is raw audio, not the JSON envelope — wrapping base64 audio in JSON
+ * would inflate the payload by a third and buy nothing. The Content-Type is
+ * per provider (audio/mpeg or audio/wav) and an X-Tts-Provider header names
+ * who answered, for demo-day debugging with curl. Errors keep the standard
+ * error envelope so the frontend's central ApiError handling classifies them
+ * exactly like every other route's.
  *
- * The first POST route and the first that is not a provider proxy. The body
- * carries the farmer's question, the farm's already-computed situation, and the
- * recent conversation; the reply is plain text in the farmer's language.
- *
- * This route is an ENHANCEMENT, never the mechanism. The frontend answers from
- * its own deterministic rules first and only calls this when it is online and
- * the rules fell short, so every failure here — no key (503), rate limit (429),
- * provider down (502) — leaves the farmer with the offline answer they already
- * had. That is why nothing here is a 500 the client is expected to treat as
- * fatal (item 18).
+ * Only the languages a cloud provider actually speaks are offered; Assamese
+ * never reaches this route — the frontend's own table keeps it on the
+ * on-device path — and a request for any other locale answers 503, which the
+ * frontend treats identically to any other cloud failure: fall back to the
+ * device's voices. Edge needs no key, so even a fully keyless deployment
+ * serves cloud voices for those languages; the route never 5xx-crashes a
+ * demo — the farmer still hears the briefing.
  */
-app.post('/api/assistant', (req: Request, res: Response) => {
+/**
+ * The route's synthesiser: provider selection plus an in-process LRU cache
+ * of successful syntheses (ttsCache.ts). Briefing text is deterministic, so
+ * the same text+locale recurs across reloads, devices and demo runs — and a
+ * repeat now answers from memory instead of paying the ~2s WebSocket
+ * handshake + synthesis round trip again. Failures are never cached, so
+ * provider recovery is noticed on the very next request.
+ */
+const synthesizeCached = createCachedSynthesizer();
+
+app.post('/api/tts', (req: Request, res: Response) => {
+  const keys = {
+    sarvam: process.env.SARVAM_API_KEY?.trim() || undefined,
+    gemini: process.env.GEMINI_API_KEY?.trim() || undefined,
+  };
+  const { text, locale } = (req.body ?? {}) as { text?: unknown; locale?: unknown };
+
+  if (typeof text !== 'string' || !text.trim() || typeof locale !== 'string' || !locale.trim()) {
+    res.status(400).json({
+      status: 'error',
+      errorCode: 'INVALID_INPUT',
+      message: 'Both text and locale are required.',
+      timestamp: nowIso(),
+    });
+    return;
+  }
+  if (text.length > TTS_MAX_TEXT_LENGTH) {
+    res.status(400).json({
+      status: 'error',
+      errorCode: 'INVALID_INPUT',
+      message: `text must be at most ${TTS_MAX_TEXT_LENGTH} characters.`,
+      timestamp: nowIso(),
+    });
+    return;
+  }
+
   void (async () => {
     try {
-      const request = parseRequest(req.body);
-      const reply = await askAssistant(request);
-      res.json({ status: 'ok', data: reply, timestamp: nowIso() });
+      const result = await synthesizeCached(text, locale, keys);
+      res.set('Content-Type', result.format === 'mp3' ? 'audio/mpeg' : 'audio/wav');
+      res.set('X-Tts-Provider', result.provider);
+      res.set('X-Tts-Cache', result.cacheHit ? 'hit' : 'miss');
+      res.send(result.audio);
     } catch (error) {
-      const status = error instanceof AssistantError ? error.status : 500;
-      const code = error instanceof AssistantError ? error.code : 'ASSISTANT_UNAVAILABLE';
+      const status = error instanceof TtsProviderError ? error.status : 500;
       const message = error instanceof Error ? error.message : 'unexpected error';
-      // Log the cause server-side; the farmer sees only the short message, and
-      // nothing about the key or the provider ever crosses the wire.
-      if (status >= 500) {
-        console.error('[IrrigaSmart] assistant request failed', error);
-      }
-      res.status(status).json({
+      // 400 is the client's fault (and already impossible after the checks
+      // above); everything else is "cloud unavailable, speak locally".
+      res.status(status === 400 ? 400 : 503).json({
         status: 'error',
-        errorCode: code,
+        errorCode: status === 400 ? 'INVALID_INPUT' : 'TTS_UNAVAILABLE',
         message,
         timestamp: nowIso(),
       });
