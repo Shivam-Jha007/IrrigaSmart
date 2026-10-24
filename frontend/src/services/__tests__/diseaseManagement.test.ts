@@ -36,11 +36,10 @@ describe('managementFor — coverage is closed over the model', () => {
     // is the dead end this feature exists to close.
     const riceFindings = RICE_FINDINGS.filter(
       (f) =>
-        (f.kind === 'known' && (f.disease === 'riceBlast' || f.disease === 'riceBacterialLeafBlight')) ||
-        (f.kind === 'visionOnly' &&
-          (f.label === 'riceBrownSpot' || f.label === 'riceLeafScald' || f.label === 'riceSheathBlight')),
+        f.kind === 'visionOnly' &&
+        (f.label === 'riceBrownSpot' || f.label === 'riceSheathBlight'),
     );
-    expect(riceFindings).toHaveLength(5);
+    expect(riceFindings).toHaveLength(2);
     for (const finding of riceFindings) {
       expect(managementFor(finding), JSON.stringify(finding)).not.toBeNull();
     }
@@ -54,7 +53,7 @@ describe('managementFor — coverage is closed over the model', () => {
     // A tomato label cannot appear for a rice farm (rice-conditioned reading),
     // but the guard must hold regardless: non-rice findings are not in the
     // table, and managementFor returns null rather than guessing.
-    expect(managementFor({ kind: 'visionOnly', label: 'tomatoMosaicVirus' as never })).toBeNull();
+    expect(managementFor({ kind: 'visionOnly', label: 'notARealLabel' as never })).toBeNull();
     expect(
       managementFor({ kind: 'known', disease: 'wheatStripeRust' as never }),
     ).toBeNull();
@@ -73,10 +72,7 @@ describe('the panel is complete and identical in every language', () => {
 
   it('every management entry exists in all five language tables', () => {
     const riceFindings = [
-      { kind: 'known', disease: 'riceBlast' },
-      { kind: 'known', disease: 'riceBacterialLeafBlight' },
       { kind: 'visionOnly', label: 'riceBrownSpot' },
-      { kind: 'visionOnly', label: 'riceLeafScald' },
       { kind: 'visionOnly', label: 'riceSheathBlight' },
     ] as const;
     for (const language of LANGUAGES) {
@@ -100,10 +96,7 @@ describe('the panel is complete and identical in every language', () => {
     // formulations (% WP/EC/AS) and dose digits are language-neutral, so this
     // is checkable identically in all five languages.
     const riceFindings = [
-      { kind: 'known', disease: 'riceBlast' },
-      { kind: 'known', disease: 'riceBacterialLeafBlight' },
       { kind: 'visionOnly', label: 'riceBrownSpot' },
-      { kind: 'visionOnly', label: 'riceLeafScald' },
       { kind: 'visionOnly', label: 'riceSheathBlight' },
     ] as const;
     for (const language of LANGUAGES) {

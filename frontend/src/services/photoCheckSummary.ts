@@ -60,10 +60,10 @@ function nameKeyFor(entry: { finding: { kind: string; disease?: unknown; label?:
  * Turn the latest photo check into the assistant's summary of it.
  *
  * Returns undefined when the result is not something the assistant should
- * quote at all (unsure / unknown class / other-plant-healthy — the three
- * outcomes that say "no usable reading"), so a farmer asking "what did the
- * photo show?" about a failed check is told to retake rather than handed a
- * non-answer dressed as one.
+ * quote at all (gate rejection / unsupported condition / unsure / unknown
+ * class / other-plant-healthy — the outcomes that say "no usable reading"), so a
+ * farmer asking "what did the photo show?" about a failed check is told to
+ * retake rather than handed a non-answer dressed as one.
  */
 export function summarizePhotoCheck(
   result: VisionResult,
@@ -74,7 +74,12 @@ export function summarizePhotoCheck(
   const plantLabel = (plant: Parameters<typeof visionPlantKey>[0]): string =>
     t(visionPlantKey(plant));
 
-  if (verdict.kind === 'unsure' || verdict.kind === 'unknownClass') {
+  if (
+    verdict.kind === 'unsure' ||
+    verdict.kind === 'unknownClass' ||
+    verdict.kind === 'notRiceLeaf' ||
+    verdict.kind === 'unsupportedCondition'
+  ) {
     // No usable reading. The assistant must not paraphrase a non-result into
     // an answer; the caller omits the fields and the question routes to "no
     // photo checked yet" advice.

@@ -70,19 +70,9 @@ describe('summarizePhotoCheck — what the assistant may quote', () => {
     expect(summary?.verdict).not.toContain('blast');
   });
 
-  it('carries the cross-plant warning with the plant it read', () => {
-    const summary = summarizePhotoCheck(
-      result({ kind: 'otherPlant', entry: { ...ENTRY, plant: 'Tomato' }, confidence: 0.8 }),
-      crop,
-      t,
-    );
-    expect(summary?.verdict).toContain('tomato leaf, not your Rice');
-    expect(summary?.plant).toBe('tomato');
-  });
-
   it('returns nothing for the outcomes that carry no usable reading', () => {
-    // unsure / unknownClass / otherPlantHealthy are non-results: quoting any of
-    // them would dress a non-answer as one (docs/14 §5 for the last).
+    // Gate rejections, unsure and unknown outcomes are non-results: quoting any
+    // of them would dress a non-answer as one.
     expect(
       summarizePhotoCheck(result({ kind: 'unsure', confidence: 0.2 }), crop, t),
     ).toBeUndefined();
@@ -91,11 +81,14 @@ describe('summarizePhotoCheck — what the assistant may quote', () => {
     ).toBeUndefined();
     expect(
       summarizePhotoCheck(
-        result({
-          kind: 'otherPlantHealthy',
-          entry: { ...ENTRY, plant: 'Maize', finding: { kind: 'healthy' } },
-          confidence: 0.96,
-        }),
+        result({ kind: 'notRiceLeaf', similarity: 0.2, similarityThreshold: 0.37 }),
+        crop,
+        t,
+      ),
+    ).toBeUndefined();
+    expect(
+      summarizePhotoCheck(
+        result({ kind: 'unsupportedCondition', confidence: 0.4, threshold: 0.75 }),
         crop,
         t,
       ),

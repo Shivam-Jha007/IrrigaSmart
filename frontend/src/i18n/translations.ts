@@ -451,13 +451,11 @@ const en = {
   'vision.lede':
     'Take a photo of a single affected leaf. The check runs on your phone, so the photo is never uploaded.',
   'vision.choose': 'Choose or take a photo',
-  // ~9 MB is the COMPRESSED figure actually transferred: the model (5.5 MB
-  // gzipped) plus the ONNX runtime (3.3 MB gzipped), measured from the build
-  // output. Quoting the 6 MB model alone would understate the real cost of a
-  // first check by threefold, which on a metered rural connection is the kind
-  // of surprise that gets an app deleted.
+  // The exported Final_Model checkpoint is larger than the previous small
+  // model. The first check transfers about 20 MB including the ONNX runtime;
+  // after that both are cached for offline use.
   'vision.firstUseHint':
-    'The first check downloads about 9 MB, so use Wi-Fi if you can. After that it works without a network.',
+    'The first check downloads about 20 MB, so use Wi-Fi if you can. After that it works without a network.',
   'vision.working': 'Looking at the photo…',
   'vision.again': 'Check another photo',
   'vision.previewAlt': 'The leaf photo you chose',
@@ -469,6 +467,10 @@ const en = {
     'That covers this one leaf only. Keep checking other plants, especially lower and inner leaves.',
   'vision.unsure':
     'The photo could not be matched confidently, so no result is shown. A wrong name here could cost you a crop.',
+  'vision.notRiceLeaf':
+    'This photo was not recognized as a supported rice-leaf image, so no diagnosis is shown.',
+  'vision.unsupportedCondition':
+    'This looks rice-like, but the condition is outside the supported diagnoses or too uncertain. No diagnosis is shown.',
   'vision.retakeTips':
     'Try again with one leaf filling the frame, in daylight, against a plain background, with the camera steady.',
   'vision.unknownClass': 'This photo returned a result the app does not recognise.',
@@ -480,9 +482,8 @@ const en = {
   // growing is evidence about nothing, so it is never shown as reassurance.
   'vision.otherPlantHealthy':
     'The photo was matched to a healthy {plant} leaf, not to {crop}. That tells you nothing about your {crop} — usually it means the leaf was not recognised at all. Try again with one {crop} leaf filling the frame.',
-  // Rice only, and derived from the model rather than hard-coded: the training
-  // set has no healthy-rice folder, so for rice the model has no way to output
-  // "this leaf is fine" and must name a condition instead.
+  // Retained for compatibility with older model manifests; the Final_Model
+  // checkpoint includes a healthy-rice class, so this branch is not reached.
   'vision.noHealthyClass':
     'The photo check has no example of a healthy {crop} leaf, so for {crop} it always names one of the conditions it knows — even when the leaf is fine. Take this as a reason to look more closely, not as a finding.',
   'vision.cropNotCovered':
@@ -1296,7 +1297,7 @@ const hi: Record<TranslationKey, string> = {
     'प्रभावित एक पत्ती की फ़ोटो लें। जाँच आपके फ़ोन पर ही होती है, फ़ोटो कहीं नहीं भेजी जाती।',
   'vision.choose': 'फ़ोटो चुनें या लें',
   'vision.firstUseHint':
-    'पहली जाँच में लगभग 9 MB डाउनलोड होता है, इसलिए हो सके तो वाई-फ़ाई पर करें। उसके बाद यह बिना नेटवर्क काम करती है।',
+     'पहली जाँच में लगभग 20 MB डाउनलोड होता है, इसलिए हो सके तो वाई-फ़ाई पर करें। उसके बाद यह बिना नेटवर्क काम करती है।',
   'vision.working': 'फ़ोटो देखी जा रही है…',
   'vision.again': 'दूसरी फ़ोटो जाँचें',
   'vision.previewAlt': 'आपकी चुनी हुई पत्ती की फ़ोटो',
@@ -1307,6 +1308,10 @@ const hi: Record<TranslationKey, string> = {
     'यह केवल इसी एक पत्ती के बारे में है। दूसरे पौधे भी देखते रहें, खासकर नीचे और भीतर की पत्तियाँ।',
   'vision.unsure':
     'फ़ोटो का मिलान भरोसे से नहीं हो सका, इसलिए कोई परिणाम नहीं दिखाया गया। यहाँ गलत नाम आपकी फ़सल पर भारी पड़ सकता है।',
+  'vision.notRiceLeaf':
+    'यह फ़ोटो समर्थित धान की पत्ती जैसी नहीं पहचानी गई, इसलिए कोई निदान नहीं दिखाया गया।',
+  'vision.unsupportedCondition':
+    'यह धान की पत्ती जैसी लगती है, लेकिन स्थिति समर्थित निदानों से बाहर या बहुत अनिश्चित है। कोई निदान नहीं दिखाया गया।',
   'vision.retakeTips':
     'फिर कोशिश करें — एक ही पत्ती पूरे फ़्रेम में हो, दिन के उजाले में, सादे पीछे के साथ, कैमरा स्थिर रखें।',
   'vision.unknownClass': 'इस फ़ोटो से ऐसा परिणाम आया जिसे ऐप पहचानता नहीं।',
@@ -2095,7 +2100,7 @@ const bn: Record<TranslationKey, string> = {
     'আক্রান্ত একটি মাত্র পাতার ফটো তুলুন। পরীক্ষা আপনার ফোনেই হয়, ফটো কোথাও পাঠানো হয় না।',
   'vision.choose': 'ফটো বেছে নিন বা তুলুন',
   'vision.firstUseHint':
-    'প্রথম পরীক্ষায় প্রায় ৯ MB ডাউনলোড হয়, তাই সম্ভব হলে ওয়াই-ফাই ব্যবহার করুন। তারপর এটি নেটওয়ার্ক ছাড়াই কাজ করে।',
+     'প্রথম পরীক্ষায় প্রায় ২০ MB ডাউনলোড হয়, তাই সম্ভব হলে ওয়াই-ফাই ব্যবহার করুন। তারপর এটি নেটওয়ার্ক ছাড়াই কাজ করে।',
   'vision.working': 'ফটো দেখা হচ্ছে…',
   'vision.again': 'আরেকটি ফটো পরীক্ষা করুন',
   'vision.previewAlt': 'আপনার বেছে নেওয়া পাতার ফটো',
@@ -2106,6 +2111,10 @@ const bn: Record<TranslationKey, string> = {
     'এটি কেবল এই একটি পাতার বিষয়ে। অন্য গাছপালাও দেখতে থাকুন, বিশেষ করে নিচের ও ভিতরের পাতাগুলো।',
   'vision.unsure':
     'ফটোটির মিল আত্মবিশ্বাসের সঙ্গে করা গেল না, তাই কোনো ফলাফল দেখানো হলো না। এখানে ভুল নাম আপনার ফসলের বড় ক্ষতি করতে পারে।',
+  'vision.notRiceLeaf':
+    'এই ফটোটি সমর্থিত ধানের পাতার ছবি হিসেবে চেনা যায়নি, তাই কোনো রোগ নির্ণয় দেখানো হয়নি।',
+  'vision.unsupportedCondition':
+    'এটি ধানের পাতার মতো, কিন্তু অবস্থাটি সমর্থিত রোগগুলির বাইরে অথবা খুব অনিশ্চিত। কোনো রোগ নির্ণয় দেখানো হয়নি।',
   'vision.retakeTips':
     'আবার চেষ্টা করুন — একটি পাতা পুরো ফ্রেমে, দিনের আলোয়, সাধারণ পটভূমিতে, ক্যামেরা স্থির রেখে।',
   'vision.unknownClass': 'এই ফটো থেকে এমন ফলাফল এসেছে যা অ্যাপ চেনে না।',
@@ -2882,7 +2891,7 @@ const as: Record<TranslationKey, string> = {
     'আক্ৰান্ত এখন পাতৰ ফটো লওক। পৰীক্ষা আপোনাৰ ফোনতে হয়, ফটো ক\'তো পঠোৱা নহয়।',
   'vision.choose': 'ফটো বাছনি কৰক বা লওক',
   'vision.firstUseHint':
-    'প্ৰথম পৰীক্ষাত প্ৰায় ৯ MB ডাউনলোড হয়, গতিকে সম্ভৱ হ’লে ৱাই-ফাই ব্যৱহাৰ কৰক। তাৰ পিছত ই নেটৱৰ্ক নোহোৱাকৈ কাম কৰে।',
+     'প্ৰথম পৰীক্ষাত প্ৰায় ২০ MB ডাউনলোড হয়, গতিকে সম্ভৱ হ’লে ৱাই-ফাই ব্যৱহাৰ কৰক। তাৰ পিছত ই নেটৱৰ্ক নোহোৱাকৈ কাম কৰে।',
   'vision.working': 'ফটোখন চোৱা হৈ আছে…',
   'vision.again': 'আন এখন ফটো পৰীক্ষা কৰক',
   'vision.previewAlt': 'আপুনি বাছনি কৰা পাতৰ ফটো',
@@ -2893,6 +2902,10 @@ const as: Record<TranslationKey, string> = {
     'ই কেৱল এই এখন পাতৰ বিষয়ে। আন গছবোৰো চাই থাকক, বিশেষকৈ তলৰ আৰু ভিতৰৰ পাতবোৰ।',
   'vision.unsure':
     'ফটোখনৰ মিল নিশ্চিতভাৱে কৰিব পৰা নগ\'ল, সেয়েহে কোনো ফলাফল দেখুওৱা হোৱা নাই। ইয়াত ভুল নামে আপোনাৰ শস্যৰ ক্ষতি কৰিব পাৰে।',
+  'vision.notRiceLeaf':
+    'এই ফটোখন সমৰ্থিত ধানৰ পাতৰ ফটো হিচাপে চিনাক্ত নহ’ল, সেয়েহে কোনো ৰোগ নিৰ্ণয় দেখুওৱা হোৱা নাই।',
+  'vision.unsupportedCondition':
+    'এইখন ধানৰ পাত যেন লাগে, কিন্তু অৱস্থাটো সমৰ্থিত ৰোগৰ বাহিৰত বা অতি অনিশ্চিত। কোনো ৰোগ নিৰ্ণয় দেখুওৱা হোৱা নাই।',
   'vision.retakeTips':
     'পুনৰ চেষ্টা কৰক — এখন পাত গোটেই ফ্ৰেমত, দিনৰ পোহৰত, সাধাৰণ পটভূমিত, কেমেৰা স্থিৰ ৰাখি।',
   'vision.unknownClass': 'এই ফটোৰ পৰা এনে ফলাফল আহিল যিটো এপে চিনি নাপায়।',
@@ -3592,7 +3605,7 @@ const ur: Record<TranslationKey, string> = {
     'متاثرہ ایک پتے کی تصویر لیں۔ جانچ آپ کے فون پر ہی ہوتی ہے، تصویر کہیں نہیں بھیجی جاتی۔',
   'vision.choose': 'تصویر چنیں یا لیں',
   'vision.firstUseHint':
-    'پہلی جانچ میں تقریباً 9 MB ڈاؤن لوڈ ہوتا ہے، اس لیے ہو سکے تو وائی فائی استعمال کریں۔ اس کے بعد یہ نیٹ ورک کے بغیر کام کرتی ہے۔',
+     'پہلی جانچ میں تقریباً 20 MB ڈاؤن لوڈ ہوتا ہے، اس لیے ہو سکے تو وائی فائی استعمال کریں۔ اس کے بعد یہ نیٹ ورک کے بغیر کام کرتی ہے۔',
   'vision.working': 'تصویر دیکھی جا رہی ہے…',
   'vision.again': 'دوسری تصویر جانچیں',
   'vision.previewAlt': 'آپ کی چنی ہوئی پتے کی تصویر',
@@ -3603,6 +3616,10 @@ const ur: Record<TranslationKey, string> = {
     'یہ صرف اسی ایک پتے کے بارے میں ہے۔ دوسرے پودے بھی دیکھتے رہیں، خاص طور پر نیچے اور اندر کے پتے۔',
   'vision.unsure':
     'تصویر کا اعتماد کے ساتھ ملان نہ ہو سکا، اس لیے کوئی نتیجہ نہیں دکھایا گیا۔ یہاں غلط نام آپ کی فصل کو مہنگا پڑ سکتا ہے۔',
+  'vision.notRiceLeaf':
+    'یہ تصویر کسی معاونت یافتہ چاول کی پتی کے طور پر نہیں پہچانی گئی، اس لیے کوئی تشخیص نہیں دکھائی گئی۔',
+  'vision.unsupportedCondition':
+    'یہ چاول کی پتی جیسی لگتی ہے، لیکن حالت معاونت یافتہ تشخیص سے باہر یا بہت غیر یقینی ہے۔ کوئی تشخیص نہیں دکھائی گئی۔',
   'vision.retakeTips':
     'دوبارہ کوشش کریں — ایک پتہ پورے فریم میں، دن کی روشنی میں، سادہ پس منظر کے ساتھ، کیمرہ مستحکم رکھیں۔',
   'vision.unknownClass': 'اس تصویر سے ایسا نتیجہ آیا جسے ایپ نہیں پہچانتی۔',

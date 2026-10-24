@@ -17,8 +17,8 @@ export default defineConfig({
       includeAssets: ['favicon.png', 'apple-touch-icon.png', 'logo.png'],
       workbox: {
         // The photo leaf check (V1.7 item 16) ships two large binaries: the
-        // ONNX Runtime WASM build (~13.5 MB) and the MobileNetV3 model
-        // (~6.2 MB). Both are deliberately kept OUT of the precache and served
+        // ONNX Runtime WASM build (~13.5 MB) and the Final_Model MobileNetV3-Large
+        // export (~16.8 MB). Both are deliberately kept OUT of the precache and served
         // by the runtime caches below instead.
         //
         // The reasoning, because it is not the obvious choice for an
