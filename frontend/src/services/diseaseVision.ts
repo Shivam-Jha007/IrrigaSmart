@@ -17,7 +17,7 @@ import { lookupVisionClass, verdictFor, type VisionVerdict } from './diseaseVisi
 /**
  * On-device photo inference (V1.7 item 16).
  *
- * Runs MobileNetV3-Small over a leaf photo entirely in the browser via
+ * Runs the Final_Model MobileNetV3-Large rice classifier over a leaf photo entirely in the browser via
  * onnxruntime-web. Nothing leaves the phone: no upload, no API key, no cost per
  * photo, and it works with no network at all — which is why the user chose an
  * on-device model over a hosted vision API (item 18, offline-first).
@@ -39,16 +39,24 @@ import { lookupVisionClass, verdictFor, type VisionVerdict } from './diseaseVisi
 
 /**
  * The manifest shipped beside the model. Read at runtime rather than compiled
- * in, so retraining with more classes — "we may add the rice model later..or
- * multiple models" — is a file swap, not a code change.
+ * in, so the model's output names and preprocessing cannot drift from the
+ * exported checkpoint.
  */
 export interface ModelManifest {
   readonly architecture: string;
+  readonly framework?: string;
   readonly imageSize: number;
   readonly normalisation: { readonly mean: readonly number[]; readonly std: readonly number[] };
-  readonly onnxAccuracy: number;
-  readonly validationImages: number;
+  readonly outputs: { readonly logits: string; readonly features: string };
+  readonly diagnosisConfidenceThreshold: number;
+  readonly gateSimilarityThreshold: number;
   readonly classes: readonly string[];
+}
+
+interface GateManifest {
+  readonly classes: readonly string[];
+  readonly centroids: readonly (readonly number[])[];
+  readonly similarityThreshold: number;
 }
 
 /** One model the app can load. Multi-model-shaped from the start. */
@@ -56,24 +64,22 @@ export interface ModelSpec {
   readonly id: string;
   readonly modelUrl: string;
   readonly manifestUrl: string;
+  readonly gateUrl: string;
 }
 
 /**
  * The only model that exists today. A future retrain needs no change to
  * anything below — `loadModel` takes the spec.
  *
- * `-v2` filenames rather than overwriting the v1 files: the Workbox
- * `CacheFirst` rule in vite.config.ts matches the `/models/` path prefix, not
- * a content hash, so a phone that already cached `plant-disease-mobilenetv3.onnx`
- * would never see a same-named replacement. v2 adds rice (Bacterial blight,
- * Blast, Brown spot, Tungro) to the original 23 classes; the v1 files are left
- * in place rather than deleted, since removing them buys nothing once the spec
- * below points elsewhere.
+ * The filename is deliberately versioned because Workbox caches static model
+ * URLs. A new checkpoint must use a new URL so an existing phone cannot keep
+ * serving the previous model forever.
  */
 export const PLANT_DISEASE_MODEL: ModelSpec = {
-  id: 'plant-disease-mobilenetv3-v3',
-  modelUrl: '/models/plant-disease-mobilenetv3-v3.onnx',
-  manifestUrl: '/models/plant-disease-labels-v3.json',
+  id: 'rice-leaf-mobilenetv3-large-e2-3class',
+  modelUrl: '/models/rice-leaf-mobilenetv3-large.onnx',
+  manifestUrl: '/models/rice-leaf-model-manifest.json',
+  gateUrl: '/models/rice-leaf-ood-gate.json',
 };
 
 /** A raw reading, before the crop-awareness in `verdictFor` is applied. */
@@ -171,11 +177,10 @@ export function preprocess(
 /**
  * Largest value and its index.
  *
- * Softmax is IN-GRAPH in this export — the output is already a probability
- * distribution, so the winning value IS the confidence and must not be passed
- * through softmax again. Doing so would compress everything towards 1/23 and
- * push every honest reading below MIN_CONFIDENCE, silently disabling the whole
- * feature. Asserted in the tests.
+ * The function deliberately does not apply softmax: it is also used for the
+ * raw logits in tests and only chooses the winning index. Runtime inference
+ * applies softmax once before calling it because the Final_Model export returns
+ * logits.
  */
 export function argmax(scores: ArrayLike<number>): { index: number; value: number } {
   if (scores.length === 0) {
@@ -235,6 +240,7 @@ type Ort = typeof import('onnxruntime-web/wasm');
 interface LoadedModel {
   readonly session: import('onnxruntime-web/wasm').InferenceSession;
   readonly manifest: ModelManifest;
+  readonly gate: GateManifest;
   readonly ort: Ort;
 }
 
@@ -255,6 +261,14 @@ async function fetchManifest(url: string): Promise<ModelManifest> {
   return (await response.json()) as ModelManifest;
 }
 
+async function fetchGate(url: string): Promise<GateManifest> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new VisionError('modelUnavailable', `gate fetch failed: HTTP ${response.status}`);
+  }
+  return (await response.json()) as GateManifest;
+}
+
 async function startSession(spec: ModelSpec): Promise<LoadedModel> {
   let ort: Ort;
   try {
@@ -264,6 +278,10 @@ async function startSession(spec: ModelSpec): Promise<LoadedModel> {
   }
 
   const manifest = await fetchManifest(spec.manifestUrl);
+  const gate = await fetchGate(spec.gateUrl);
+  if (JSON.stringify(gate.classes) !== JSON.stringify(manifest.classes)) {
+    throw new VisionError('modelUnavailable', 'the model and safety gate class lists differ');
+  }
 
   try {
     // Single-threaded WASM on purpose. Cross-origin isolation (COOP/COEP) is
@@ -278,7 +296,7 @@ async function startSession(spec: ModelSpec): Promise<LoadedModel> {
       executionProviders: ['wasm'],
       graphOptimizationLevel: 'all',
     });
-    return { session, manifest, ort };
+    return { session, manifest, gate, ort };
   } catch (cause) {
     throw new VisionError(
       'runtimeUnavailable',
@@ -373,58 +391,104 @@ export function cropConditionedReading(
   };
 }
 
+function softmax(scores: ArrayLike<number>): Float32Array {
+  if (scores.length === 0) {
+    throw new VisionError('inferenceFailed', 'model returned an empty output tensor');
+  }
+  let max = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < scores.length; i += 1) max = Math.max(max, scores[i] ?? max);
+  const probabilities = new Float32Array(scores.length);
+  let total = 0;
+  for (let i = 0; i < scores.length; i += 1) {
+    const value = Math.exp((scores[i] ?? max) - max);
+    probabilities[i] = value;
+    total += value;
+  }
+  if (!Number.isFinite(total) || total <= 0) {
+    throw new VisionError('inferenceFailed', 'model returned invalid scores');
+  }
+  for (let i = 0; i < probabilities.length; i += 1) {
+    probabilities[i] = (probabilities[i] ?? 0) / total;
+  }
+  return probabilities;
+}
+
+function nearestCentroidSimilarity(
+  features: ArrayLike<number>,
+  centroids: readonly (readonly number[])[],
+): number {
+  let best = Number.NEGATIVE_INFINITY;
+  for (const centroid of centroids) {
+    if (centroid.length !== features.length) {
+      throw new VisionError('modelUnavailable', 'the gate feature size does not match the model');
+    }
+    let similarity = 0;
+    for (let i = 0; i < features.length; i += 1) {
+      similarity += (features[i] ?? 0) * (centroid[i] ?? 0);
+    }
+    best = Math.max(best, similarity);
+  }
+  if (!Number.isFinite(best)) {
+    throw new VisionError('modelUnavailable', 'the safety gate has no centroids');
+  }
+  return best;
+}
+
 /**
  * Classify one photo.
  *
- * `crop` constrains rice readings to the model's rice classes. This uses the
- * farmer's selected crop to prevent a known failure mode where rice lesions are
- * ranked as healthy maize. Other crops retain the model's global ranking.
+ * The replacement checkpoint contains rice classes only. The selected crop is
+ * still passed through to the presentation layer so the existing rice-only
+ * product gate remains explicit.
  */
 export async function classifyPhoto(
   file: Blob,
   crop: CropName | null,
   spec: ModelSpec = PLANT_DISEASE_MODEL,
 ): Promise<VisionResult> {
-  const { session, manifest, ort } = await loadModel(spec);
+  const { session, manifest, gate, ort } = await loadModel(spec);
   const size = manifest.imageSize;
   const rgba = await decodeToRgba(file, size);
   const input = preprocess(rgba, size, manifest.normalisation.mean, manifest.normalisation.std);
 
   const startedAt = performance.now();
-  let scores: ArrayLike<number>;
   try {
     const inputName = session.inputNames[0];
-    const outputName = session.outputNames[0];
-    if (!inputName || !outputName) {
+    const logitsName = manifest.outputs.logits;
+    const featuresName = manifest.outputs.features;
+    if (!inputName || !logitsName || !featuresName) {
       throw new VisionError('inferenceFailed', 'the model declares no input or output');
     }
     const tensor = new ort.Tensor('float32', input, [1, 3, size, size]);
     const outputs = await session.run({ [inputName]: tensor });
-    const output = outputs[outputName];
-    if (!output) {
-      throw new VisionError('inferenceFailed', `the model produced no "${outputName}" output`);
+    const logitsOutput = outputs[logitsName];
+    const featuresOutput = outputs[featuresName];
+    if (!logitsOutput || !featuresOutput) {
+      throw new VisionError('inferenceFailed', 'the model did not produce diagnosis and gate outputs');
     }
-    scores = output.data as Float32Array;
+    const probabilities = softmax(logitsOutput.data as Float32Array);
+    const { index, value } = argmax(probabilities);
+    const similarity = nearestCentroidSimilarity(featuresOutput.data as Float32Array, gate.centroids);
+    const reading: Reading = {
+      classIndex: index,
+      rawClass: manifest.classes[index] ?? '',
+      confidence: value,
+    };
+    const elapsedMs = performance.now() - startedAt;
+    return {
+      reading,
+      verdict: verdictFor(reading.rawClass, reading.confidence, crop, {
+        similarity,
+        similarityThreshold: gate.similarityThreshold,
+        confidenceThreshold: manifest.diagnosisConfidenceThreshold,
+      }),
+      elapsedMs,
+    };
   } catch (cause) {
     if (cause instanceof VisionError) throw cause;
     throw new VisionError('inferenceFailed', `inference threw: ${String(cause)}`);
   }
-  const elapsedMs = performance.now() - startedAt;
-  const { index, value } = argmax(scores);
-
-  const reading = crop === 'Rice'
-    ? cropConditionedReading(scores, manifest.classes, crop) ?? {
-        classIndex: index,
-        rawClass: manifest.classes[index] ?? '',
-        confidence: value,
-      }
-    : { classIndex: index, rawClass: manifest.classes[index] ?? '', confidence: value };
-
-  return {
-    reading,
-    verdict: verdictFor(reading.rawClass, reading.confidence, crop),
-    elapsedMs,
-  };
+  throw new VisionError('inferenceFailed', 'inference did not return a result');
 }
 
 /** Re-exported so the UI imports one module. */

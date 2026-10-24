@@ -61,14 +61,10 @@ const COMMONS_PD: ImageCredit = { holder: 'Wikimedia Commons', licence: 'Public 
 
 /**
  * At least one image per class; most have exactly two. The 14 PlantVillage
- * classes are bundled with the model export in confirmed same-licensed pairs;
- * the 4 rice classes are sourced individually — from Wikimedia Commons, Bugwood
- * and the JIRCAS photo archive — because rice has no PlantVillage entry, and for
- * one of them a second freely licensed photograph of the same condition on the
- * same host does not appear to exist. Showing one honest reference beats blocking
- * the whole feature on finding a second, or bundling one of uncertain licence, or
- * padding the pair with a lookalike. `ATTRIBUTION.md` records every gap and every
- * candidate that was rejected, with the reason.
+ * classes are bundled with the previous model export in confirmed same-licensed
+ * pairs. The current rice model exposes brown spot and sheath blight; brown spot
+ * has two individually sourced references and sheath blight has none. Showing one
+ * honest reference beats padding the pair with a lookalike.
  */
 const REFERENCE_IMAGES: Readonly<Record<string, readonly DiseaseReferenceImage[]>> = {
   'Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot': references(
@@ -144,24 +140,9 @@ const REFERENCE_IMAGES: Readonly<Record<string, readonly DiseaseReferenceImage[]
 
   // --- Rice: sourced individually rather than bundled with the model export,
   // because rice has no PlantVillage entry. Blast reuses the rice-blast folder
-  // already added for the weather-risk card (WEATHER_REFERENCE_IMAGES below);
-  // the other three are new. See ATTRIBUTION.md for full source/licence details
-  // of every folder, and for the gaps and the rejected candidates.
-  Rice___Bacterial_leaf_blight: [
-    {
-      src: '/disease-reference/rice-bacterial-blight/1.jpg',
-      sourceFile: 'Bacterial blight of rice.jpeg',
-      credit: GROTH,
-    },
-  ],
-  Rice___Leaf_blast: [
-    {
-      src: '/disease-reference/rice-blast/1.jpg',
-      sourceFile: 'Rice blast Magnaporthe grisea.jpg',
-      credit: COMMONS_PD,
-    },
-  ],
-  Rice___Brown_spot: [
+  // already added for the weather-risk card (WEATHER_REFERENCE_IMAGES below).
+  // See ATTRIBUTION.md for full source/licence details.
+  brown_spot: [
     {
       src: '/disease-reference/rice-brown-spot/1.jpg',
       sourceFile: 'Cochliobolus miyabeanus.jpg',
@@ -173,8 +154,7 @@ const REFERENCE_IMAGES: Readonly<Record<string, readonly DiseaseReferenceImage[]
       credit: { holder: 'William M. Brown Jr. (Bugwood.org)', licence: 'CC BY 3.0 US' },
     },
   ],
-  Rice___Leaf_scald: [],
-  Rice___Sheath_blight: [],
+  sheath_blight: [],
 };
 
 const WEATHER_REFERENCE_IMAGES: Readonly<
@@ -184,8 +164,20 @@ const WEATHER_REFERENCE_IMAGES: Readonly<
   // the two cards must not disagree about what it looks like. Both are single
   // images — see the notes on REFERENCE_IMAGES above, and ATTRIBUTION.md. This is
   // why neither card can gate on "exactly two".
-  'Rice:riceBlast': REFERENCE_IMAGES.Rice___Leaf_blast!,
-  'Rice:riceBacterialLeafBlight': REFERENCE_IMAGES.Rice___Bacterial_leaf_blight!,
+  'Rice:riceBlast': [
+    {
+      src: '/disease-reference/rice-blast/1.jpg',
+      sourceFile: 'Rice blast Magnaporthe grisea.jpg',
+      credit: COMMONS_PD,
+    },
+  ],
+  'Rice:riceBacterialLeafBlight': [
+    {
+      src: '/disease-reference/rice-bacterial-blight/1.jpg',
+      sourceFile: 'Bacterial blight of rice.jpeg',
+      credit: GROTH,
+    },
+  ],
   'Wheat:wheatStripeRust': [
     {
       src: '/disease-reference/wheat-stripe-rust/1.jpg',

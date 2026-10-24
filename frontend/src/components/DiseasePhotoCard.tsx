@@ -36,18 +36,12 @@ import {
  *     A number the farmer cannot check reads as precision this model does not
  *     have, and it invited reading the figure as a probability of disease.
  *  2. Low confidence shows NO disease name at all. Not a hedged name — none.
- *  3. The check is offered for RICE farms only (V2.3): every other crop gets
- *     the plain "not offered" message and no picker. The model still carries
- *     maize/potato/tomato classes, but they were never field-measured and the
- *     one thing this app has measured about them is confidently-wrong output
- *     (docs/14). The offered list is derived from VISION_ENABLED_CROPS rather
- *     than written into a translated string, because the hard-coded version
- *     outlived its accuracy once already.
+ *  3. The check is offered for RICE farms only: every other crop gets the plain
+ *     "not offered" message and no picker. The offered list is derived from
+ *     VISION_ENABLED_CROPS rather than written into a translated string.
  *  4. A confident HEALTHY reading is only ever shown for the farmer's own crop.
- *     See `otherPlantHealthy` in diseaseVisionMap — the measurement behind this
- *     is that unfamiliar leaves land in `Corn_(maize)___healthy` at up to 96%
- *     confidence, and an all-clear on a diseased plant ends the investigation.
- *     Numbers: docs/14_Leaf_Photo_Model_Measurement.md.
+ *     The replacement model is rice-only, so a healthy result is a supported
+ *     rice-leaf result rather than a cross-crop fallback.
  */
 
 interface Props {
@@ -238,6 +232,24 @@ function Outcome({
     );
   }
 
+  if (verdict.kind === 'notRiceLeaf') {
+    return (
+      <div className="photo-card__outcome photo-card__outcome--unsure">
+        <p>{t('vision.notRiceLeaf')}</p>
+        <p className="photo-card__tips">{t('vision.retakeTips')}</p>
+      </div>
+    );
+  }
+
+  if (verdict.kind === 'unsupportedCondition') {
+    return (
+      <div className="photo-card__outcome photo-card__outcome--unsure">
+        <p>{t('vision.unsupportedCondition')}</p>
+        <p className="photo-card__tips">{t('vision.retakeTips')}</p>
+      </div>
+    );
+  }
+
   if (verdict.kind === 'unknownClass') {
     return (
       <div className="photo-card__outcome photo-card__outcome--unsure">
@@ -414,4 +426,3 @@ function nameKeyFor(finding: Exclude<VisionFinding, { kind: 'healthy' }>): Trans
     ? diseaseNameKey(finding.disease)
     : visionLabelNameKey(finding.label);
 }
-
